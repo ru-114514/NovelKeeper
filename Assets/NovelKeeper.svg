@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4A3F9E"/><stop offset="1" stop-color="#241F5A"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <!-- 本の背 -->
+  <rect x="62" y="40" width="132" height="176" rx="14" fill="#C9B89A"/>
+  <!-- 表紙 -->
+  <rect x="78" y="40" width="116" height="176" rx="12" fill="#F4EAD8"/>
+  <!-- 表紙の飾り線 -->
+  <rect x="96" y="70" width="80" height="10" rx="5" fill="#4A3F9E" opacity="0.55"/>
+  <rect x="96" y="90" width="56" height="10" rx="5" fill="#4A3F9E" opacity="0.35"/>
+  <!-- しおり（リボン） -->
+  <path d="M150 28 h28 v176 l-14 -16 l-14 16 z" fill="#F2B23E"/>
+  <path d="M150 28 h28 v10 h-28 z" fill="#D9952A"/>
+</svg>

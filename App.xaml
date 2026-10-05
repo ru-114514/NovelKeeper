@@ -1,0 +1,10 @@
+<Application x:Class="ErogeLauncher.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="Views/MainWindow.xaml"
+             ShutdownMode="OnMainWindowClose"
+             DispatcherUnhandledException="App_DispatcherUnhandledException">
+    <Application.Resources>
+        <!-- ボタンの余白は App.xaml.cs の ApplyTheme で、テーマのスタイルを土台にして設定する -->
+    </Application.Resources>
+</Application>

@@ -1,0 +1,531 @@
+<Window x:Class="ErogeLauncher.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="NovelKeeper ― ノベルゲーム ランチャー" Height="640" Width="1180"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <!-- 下部のステータス表示 -->
+        <StatusBar DockPanel.Dock="Bottom">
+            <TextBlock x:Name="StatusText" Text="準備完了" />
+        </StatusBar>
+
+        <TabControl x:Name="MainTabs" Padding="0">
+            <!-- ======================= 一覧タブ ======================= -->
+            <TabItem Header="一覧">
+                <DockPanel>
+                    <!-- 上部のボタン（毎日使う操作）。入りきらない分は右端の ▼ から選ぶ -->
+                    <Grid x:Name="ToolBarRoot" DockPanel.Dock="Top" Margin="4,4,4,2" SizeChanged="ToolBarRoot_SizeChanged">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel x:Name="ToolItems" Orientation="Horizontal" ClipToBounds="True">
+                            <Button Content="▶ 起動" Click="Launch_Click" FontWeight="Bold" />
+                            <Button Content="＋ 作品を追加" Click="AddGame_Click" />
+                            <Button Content="⇅ 批評空間と同期" Click="Sync_Click" />
+                            <StackPanel x:Name="FilterPanel" Orientation="Horizontal" Margin="6,0,2,0">
+                                <TextBlock Text="表示:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <ComboBox x:Name="FilterBox" Width="150" SelectionChanged="FilterBox_SelectionChanged">
+                                    <ComboBoxItem Content="すべて" />
+                                    <ComboBoxItem Content="未プレイ" />
+                                    <ComboBoxItem Content="プレイ中" />
+                                    <ComboBoxItem Content="プレイ済" />
+                                    <ComboBoxItem Content="中断" />
+                                    <ComboBoxItem Content="起動設定が未設定" />
+                                </ComboBox>
+                            </StackPanel>
+                            <Button Content="⇅ 並び替え…" Click="Sort_Click"
+                                    ToolTip="見出しをクリックしても並び替えられます（Shift を押しながらクリックすると条件を追加）" />
+                            <Button x:Name="DetailToggleButton" Content="詳細欄を隠す" Click="ToggleDetail_Click" />
+                        </StackPanel>
+                        <!-- 入りきらないボタンはここから選ぶ（ほかのボタンと同じ文字の大きさ） -->
+                        <Button x:Name="MoreButton" Grid.Column="1" Content="▼" Click="MoreButton_Click"
+                                ToolTip="入りきらない操作を表示します" Visibility="Collapsed" />
+                    </Grid>
+
+                    <!-- 一覧と詳細欄。詳細欄の位置（右／下）と表示・非表示は MainWindow.xaml.cs の ApplyDetailLayout で切り替える -->
+                    <Grid>
+                        <Grid x:Name="ContentGrid">
+                            <!-- 一覧と、その下の左右スライダー -->
+                            <DockPanel x:Name="ListPanel">
+                                <!-- 左右スライダー：列を左右に動かす（Shift＋マウスホイールでも動かせる） -->
+                                <ScrollBar x:Name="ListHScroll" DockPanel.Dock="Bottom" Orientation="Horizontal" Height="16"
+                                           SmallChange="40" LargeChange="200" Minimum="0" Maximum="0"
+                                           ValueChanged="ListHScroll_ValueChanged"
+                                           ToolTip="左右に動かして、隠れている列を表示します（Shift＋マウスホイールでも動きます。Ctrl＋マウスホイールで拡大縮小）" />
+                                <!-- 作品一覧（「起動設定」欄のダブルクリックで起動） -->
+                                <DataGrid x:Name="GameGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                          SelectionMode="Single" HeadersVisibility="Column"
+                                          SelectionChanged="GameGrid_SelectionChanged"
+                                          PreviewMouseDoubleClick="GameGrid_MouseDoubleClick"
+                                          AllowDrop="True" DragOver="GameGrid_DragOver" Drop="GameGrid_Drop"
+                                          Sorting="GameGrid_Sorting"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          PreviewMouseWheel="GameGrid_PreviewMouseWheel"
+                                          Loaded="GameGrid_Loaded"
+                                      CanUserResizeColumns="True" CanUserReorderColumns="True"
+                                          ToolTip="exe やショートカットを作品の行にドラッグすると、実行ファイルを設定できます">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="タイトル" Binding="{Binding Title}" Width="460" MinWidth="120" />
+                                        <DataGridTextColumn Header="ブランド" Binding="{Binding Brand}" Width="180" MinWidth="60" />
+                                        <DataGridTextColumn Header="発売日" Binding="{Binding SellDay}" Width="90" />
+                                        <DataGridTextColumn Header="中央値" Binding="{Binding Median}" Width="55" />
+                                        <DataGridTextColumn Header="得点" Binding="{Binding MyScore}" Width="50" FontWeight="Bold" />
+                                        <DataGridTextColumn Header="状態" Binding="{Binding StatusText}" Width="85" SortMemberPath="StatusOrder" />
+                                        <DataGridTextColumn Header="クリア日" Binding="{Binding ClearDateText}" Width="85" SortMemberPath="ClearDate" />
+                                        <DataGridTextColumn Header="プレイ時間" Binding="{Binding PlayTimeText}" Width="90" SortMemberPath="TotalSeconds" />
+                                        <!-- 批評空間の項目（詳細設定タブの「一覧の列」で表示を切り替える。初期状態は非表示） -->
+                                        <DataGridTextColumn Header="平均値" Binding="{Binding EgsAverage}" Width="55" />
+                                        <DataGridTextColumn Header="データ数" Binding="{Binding EgsCount}" Width="65" />
+                                        <DataGridTextColumn Header="批評空間の得点" Binding="{Binding EgsScore}" Width="100" />
+                                        <DataGridTextColumn Header="批評空間の状態" Binding="{Binding EgsText}" Width="130" />
+                                        <DataGridTextColumn Header="所持" Binding="{Binding PossessionText}" Width="50" />
+                                        <DataGridTextColumn Header="批評空間ID" Binding="{Binding EgsId}" Width="80" />
+                                        <DataGridTextColumn Header="総プレイ時間" Binding="{Binding TotalPlayTimeHours}" Width="90" />
+                                        <DataGridTextColumn Header="面白さが分かるまで" Binding="{Binding FunTimeHours}" Width="120" />
+                                        <DataGridTextColumn Header="おかず" Binding="{Binding OkazuText}" Width="120" />
+                                        <DataGridTextColumn Header="購入予定" Binding="{Binding PurchaseWillText}" Width="80" />
+                                        <DataGridTextColumn Header="購入前得点" Binding="{Binding BeforeScore}" Width="80" />
+                                        <DataGridTextColumn Header="開始日" Binding="{Binding StartDateText}" Width="85" SortMemberPath="StartDate" />
+                                        <DataGridTextColumn Header="platform" Binding="{Binding PlatformText}" Width="120" />
+                                        <DataGridTextColumn Header="動作状況" Binding="{Binding OperationText}" Width="110" />
+                                        <DataGridTextColumn Header="詳細状況" Binding="{Binding PlatformMemoHead}" Width="160" />
+                                        <DataGridTextColumn Header="一言感想" Binding="{Binding Hitokoto}" Width="200" />
+                                        <DataGridTextColumn Header="トップページに表示しない" Binding="{Binding SageText}" Width="60" />
+                                        <DataGridTextColumn Header="長文感想" Binding="{Binding MemoHead}" Width="240" />
+                                        <DataGridTextColumn Header="ネタバレ" Binding="{Binding NetabareText}" Width="70" />
+                                        <!-- 起動設定：未設定の作品は、ここにショートカットや exe をドロップして設定する -->
+                                        <DataGridTemplateColumn Header="起動設定" Width="180" SortMemberPath="IsLaunchUnset">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <!-- 左：起動設定（未設定は黄色、設定済みは緑）／右：▼（色を付けない。起動するものを選び替える） -->
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Grid>
+                                                        <!-- 未設定：ここにドロップ -->
+                                                        <Border Padding="4,1" CornerRadius="3" BorderThickness="1" BorderBrush="#E0A000" Background="#33E0A000">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsLaunchUnset}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock Text="⬇ ここにドロップ" />
+                                                        </Border>
+                                                        <!-- 設定済み：緑。ダブルクリックで起動（▼ か右クリックで、起動するもの（収録作など）を選び替えられる） -->
+                                                        <Border Padding="4,1" CornerRadius="3" BorderThickness="1" BorderBrush="#3FC456" Background="#333FC456"
+                                                                ToolTip="ダブルクリックで起動します（右の ▼ で、起動するものを選び替えられます）">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsLaunchUnset}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock Text="{Binding LaunchText}" TextTrimming="CharacterEllipsis" />
+                                                        </Border>
+                                                    </Grid>
+                                                        <Button Grid.Column="1" Content="▼" Padding="5,0" Margin="3,0,0,0" MinHeight="0" MinWidth="0"
+                                                                VerticalAlignment="Stretch" Click="RowTargetMenu_Click" Cursor="Arrow"
+                                                                IsEnabled="{Binding IsLaunchSet}"
+                                                                ToolTip="起動するもの（収録作など）を選び替えます" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+
+                            <!-- 一覧と詳細欄の境目（ドラッグで大きさを変える） -->
+                            <GridSplitter x:Name="DetailSplitter" Background="#30808080" ShowsPreview="False"
+                                          DragCompleted="DetailSplitter_DragCompleted" />
+
+                            <!-- 選択中の作品の詳細 -->
+                            <Border x:Name="DetailBorder" BorderBrush="#40808080">
+                                <DockPanel>
+                                    <!-- 見出し：ここをドラッグすると、詳細欄を右／下に移動できる -->
+                                    <Border x:Name="DetailHeader" DockPanel.Dock="Top" Background="#18808080" Padding="10,4"
+                                            Cursor="SizeAll" ToolTip="ドラッグして、右・下、または好きな場所（別ウィンドウ）に移動できます"
+                                            PreviewMouseLeftButtonDown="DetailHeader_PreviewMouseLeftButtonDown"
+                                            MouseMove="DetailHeader_MouseMove"
+                                            QueryContinueDrag="DetailHeader_QueryContinueDrag">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="✕" Click="HideDetail_Click" Cursor="Arrow"
+                                                    ToolTip="詳細欄を隠す（上部の「詳細欄を表示」ボタンで再表示）" Padding="8,0" />
+                                            <Button DockPanel.Dock="Right" x:Name="MoveDetailButton" Content="⤓ 下へ" Cursor="Arrow"
+                                                    Click="ToggleDetailPosition_Click" Padding="8,0" />
+                                            <TextBlock Text="⠿ 作品の詳細" VerticalAlignment="Center" FontWeight="Bold" />
+                                        </DockPanel>
+                                    </Border>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12,8">
+                                        <!-- 右に置くと縦1列、下に置くと横に並ぶ（幅に合わせて折り返す） -->
+                                        <WrapPanel x:Name="DetailPanel" IsEnabled="False" Orientation="Horizontal">
+
+                                            <!-- ① 作品と起動するもの（収録作ごとに、いくつでも登録できる） -->
+                                            <StackPanel Width="290" Margin="0,0,24,12">
+                                                <TextBlock x:Name="DetailTitle" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                                <!-- 作品の画像（批評空間の作品情報から取得して、PCに保存しておく） -->
+                                                <Image x:Name="DetailImage" MaxHeight="260" MaxWidth="290" Stretch="Uniform"
+                                                       HorizontalAlignment="Left" Margin="0,0,0,8" Visibility="Collapsed" />
+                                                <TextBlock x:Name="DetailImageInfo" Opacity="0.6" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed" />
+                                                <TextBlock Text="起動するもの（▶ が今使うもの）" />
+                                                <TextBlock Text="ファイルをここにドラッグして追加できます。名前・ファイル・監視の欄はダブルクリックで編集。"
+                                                           TextWrapping="Wrap" Opacity="0.7" FontSize="11" Margin="0,0,0,2" />
+                                                <DataGrid x:Name="TargetGrid" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                                          HeadersVisibility="Column" SelectionMode="Single" Height="150" Margin="0,2,0,4"
+                                                          AllowDrop="True" PreviewDragOver="TargetGrid_PreviewDragOver" PreviewDrop="TargetGrid_PreviewDrop"
+                                                          CellEditEnding="TargetGrid_CellEditEnding"
+                                                          HorizontalScrollBarVisibility="Auto">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="" Binding="{Binding CurrentMark}" IsReadOnly="True" Width="24" />
+                                                        <DataGridTextColumn Header="名前" Binding="{Binding Label, UpdateSourceTrigger=LostFocus}" Width="100" />
+                                                        <DataGridTextColumn Header="ファイル" Binding="{Binding Path, UpdateSourceTrigger=LostFocus}" Width="220" />
+                                                        <DataGridTextColumn Header="監視" Binding="{Binding MonitorProcess, UpdateSourceTrigger=LostFocus}" Width="90" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <WrapPanel>
+                                                    <Button Content="▶ これを使う" Click="UseTarget_Click" FontWeight="Bold"
+                                                            ToolTip="選んだものを、一覧の「起動設定」と「▶ 起動」で使うようにします" />
+                                                    <Button Content="＋ 追加…" Click="AddTargetFiles_Click" ToolTip="ファイルを選んで追加します（複数選択できます）" />
+                                                    <Button Content="↑" Click="MoveTargetUp_Click" ToolTip="上へ" />
+                                                    <Button Content="↓" Click="MoveTargetDown_Click" ToolTip="下へ" />
+                                                    <Button Content="削除" Click="DeleteTarget_Click" />
+                                                </WrapPanel>
+                                            </StackPanel>
+
+                                            <!-- ② 記録（批評空間の得点登録フォームの項目） -->
+                                            <StackPanel Width="290" Margin="0,0,24,12">
+                                                <TextBlock Text="記録" FontSize="14" FontWeight="Bold" Margin="0,0,0,4" />
+                                                <WrapPanel>
+                                                    <CheckBox x:Name="PlayedCheck" Content="プレイ済" FontWeight="Bold"
+                                                              Checked="PlayedCheck_Changed" Unchecked="PlayedCheck_Changed" />
+                                                    <CheckBox x:Name="PossessionCheck" Content="所持" Margin="20,0,0,0" IsThreeState="False" />
+                                                </WrapPanel>
+                                                <TextBlock Text="状態（プレイ済でないとき）" Margin="0,8,0,0" />
+                                                <ComboBox x:Name="StatusBox" Margin="0,2,0,0">
+                                                    <ComboBoxItem Content="未プレイ" />
+                                                    <ComboBoxItem Content="プレイ中" />
+                                                    <ComboBoxItem Content="中断（批評空間の「放棄」）" />
+                                                </ComboBox>
+                                                <TextBlock Text="自分の得点（0～100、空欄なら未入力）" Margin="0,8,0,0" />
+                                                <TextBox x:Name="ScoreBox" Margin="0,2,0,0" Width="80" HorizontalAlignment="Left" />
+                                                <TextBlock Text="ゲーム開始日" Margin="0,8,0,0" />
+                                                <DockPanel Margin="0,2,0,0">
+                                                    <Button DockPanel.Dock="Right" Content="初回起動日" Click="FillStartDate_Click"
+                                                            ToolTip="プレイ時間の記録から、初めて起動した日を入れます" />
+                                                    <DatePicker x:Name="StartDatePicker" />
+                                                </DockPanel>
+                                                <TextBlock Text="ゲーム終了日（クリア日）" Margin="0,8,0,0" />
+                                                <DatePicker x:Name="ClearDatePicker" Margin="0,2,0,0" />
+
+                                                <Expander x:Name="ExpPlay" Tag="play" Header="プレイ時間・購入" Margin="0,12,0,0"
+                                                          Expanded="DetailExpander_Changed" Collapsed="DetailExpander_Changed">
+                                                    <StackPanel Margin="4,4,0,0">
+                                                        <TextBlock Text="総プレイ時間（時間）" />
+                                                        <DockPanel Margin="0,2,0,0">
+                                                            <Button DockPanel.Dock="Right" Content="計測時間を入れる" Click="FillTotalTime_Click"
+                                                                    ToolTip="このツールで計測したプレイ時間（時間単位に四捨五入）を入れます" />
+                                                            <TextBox x:Name="TotalPlayTimeBox" />
+                                                        </DockPanel>
+                                                        <TextBlock Text="面白さが分かるまでのプレイ時間（時間）" Margin="0,8,0,0" />
+                                                        <TextBox x:Name="FunTimeBox" Width="80" HorizontalAlignment="Left" Margin="0,2,0,0" />
+                                                        <TextBlock Text="おかずに使えた?" Margin="0,8,0,0" />
+                                                        <ComboBox x:Name="OkazuBox" Margin="0,2,0,0" />
+                                                        <TextBlock Text="購入予定" Margin="0,8,0,0" />
+                                                        <ComboBox x:Name="PurchaseWillBox" Margin="0,2,0,0" />
+                                                        <TextBlock Text="購入前得点（0～100）" Margin="0,8,0,0" />
+                                                        <TextBox x:Name="BeforeScoreBox" Width="80" HorizontalAlignment="Left" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </Expander>
+
+                                                <Expander x:Name="ExpPlatform" Tag="platform" Header="動作環境" Margin="0,8,0,0"
+                                                          Expanded="DetailExpander_Changed" Collapsed="DetailExpander_Changed">
+                                                    <StackPanel Margin="4,4,0,0">
+                                                        <TextBlock Text="platform" />
+                                                        <ComboBox x:Name="PlatformBox" Margin="0,2,0,0" />
+                                                        <TextBlock Text="動作状況" Margin="0,8,0,0" />
+                                                        <ComboBox x:Name="OperationBox" Margin="0,2,0,0" />
+                                                        <TextBlock Text="詳細状況" Margin="0,8,0,0" />
+                                                        <TextBox x:Name="PlatformMemoBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
+                                                                 VerticalScrollBarVisibility="Auto" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </Expander>
+
+                                                <Expander x:Name="ExpReview" Tag="review" Header="感想" Margin="0,8,0,0"
+                                                          Expanded="DetailExpander_Changed" Collapsed="DetailExpander_Changed">
+                                                    <StackPanel Margin="4,4,0,0">
+                                                        <TextBlock Text="一言感想" />
+                                                        <TextBox x:Name="HitokotoBox" Margin="0,2,0,0" />
+                                                        <CheckBox x:Name="SageCheck" Content="トップページに表示しない" Margin="0,4,0,0" />
+                                                        <TextBlock Text="長文感想" Margin="0,8,0,0" />
+                                                        <TextBox x:Name="MemoBox" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" Height="200"
+                                                                 VerticalScrollBarVisibility="Auto" Margin="0,2,0,0" />
+                                                        <CheckBox x:Name="NetabareCheck" Margin="0,4,0,0">
+                                                            <TextBlock TextWrapping="Wrap" Text="ネタバレ（チェックが入っているとネタバレ感想となります）" />
+                                                        </CheckBox>
+                                                    </StackPanel>
+                                                </Expander>
+                                            </StackPanel>
+
+                                            <!-- ③ 保存と操作 -->
+                                            <StackPanel Width="290" Margin="0,0,24,12">
+                                                <CheckBox x:Name="PushOnSaveCheck" Content="保存時に批評空間へ反映する" IsChecked="True" Margin="0,0,0,8" />
+                                                <Button Content="保存" Click="Save_Click" FontWeight="Bold" HorizontalAlignment="Stretch" />
+                                                <TextBlock x:Name="DetailInfo" Margin="0,12,0,8" TextWrapping="Wrap" Opacity="0.7" />
+                                                <Button Content="批評空間の作品ページを開く" Click="OpenEgsPage_Click" HorizontalAlignment="Stretch" />
+                                                <Button Content="画像を取り直す" Click="ReloadImage_Click" HorizontalAlignment="Stretch"
+                                                        ToolTip="保存してある作品の画像を消して、もう一度取得します" />
+                                                <Button Content="一覧から削除" Click="Delete_Click" HorizontalAlignment="Stretch" Margin="2,16,2,2" />
+                                            </StackPanel>
+                                        </WrapPanel>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- 詳細欄をドラッグしている間だけ表示する「置き場所」 -->
+                        <Grid x:Name="DropOverlay" Visibility="Collapsed" Background="#01000000">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="0.45*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="0.45*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" TextWrapping="Wrap" TextAlignment="Center" FontSize="15"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20" Opacity="0.85" IsHitTestVisible="False"
+                                       Text="青い場所以外で離すと、別ウィンドウになり好きな位置に置けます（Esc で取り消し）" />
+                            <Border x:Name="DropRight" Grid.Row="0" Grid.Column="1" Tag="Right" Margin="6"
+                                    CornerRadius="8" BorderThickness="2" BorderBrush="#904A90E2" Background="#264A90E2" AllowDrop="True"
+                                    DragEnter="DropZone_DragEnter" DragLeave="DropZone_DragLeave" DragOver="DropZone_DragOver" Drop="DropZone_Drop">
+                                <TextBlock Text="ここに置くと&#x0a;右に縦長で表示" TextAlignment="Center" FontSize="16" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                            </Border>
+                            <Border x:Name="DropBottom" Grid.Row="1" Grid.ColumnSpan="2" Tag="Bottom" Margin="6"
+                                    CornerRadius="8" BorderThickness="2" BorderBrush="#904A90E2" Background="#264A90E2" AllowDrop="True"
+                                    DragEnter="DropZone_DragEnter" DragLeave="DropZone_DragLeave" DragOver="DropZone_DragOver" Drop="DropZone_Drop">
+                                <TextBlock Text="ここに置くと 下に横長で表示" FontSize="16" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ======================= ログイン設定タブ ======================= -->
+            <TabItem Header="ログイン設定" x:Name="LoginTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,12" MaxWidth="820" HorizontalAlignment="Left">
+                        <TextBlock Text="批評空間のログイン" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                                   Text="批評空間のユーザーIDとパスワードを入力して「保存してログイン」を押してください。パスワードは Windows の機能で暗号化して、このPCの中だけに保存します。" />
+                        <Grid Margin="0,12,0,0" HorizontalAlignment="Left">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="260" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="ユーザーID" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="LoginUserBox" Margin="0,2" />
+                            <TextBlock Grid.Row="1" Text="パスワード" VerticalAlignment="Center" />
+                            <PasswordBox Grid.Row="1" Grid.Column="1" x:Name="LoginPassBox" Margin="0,2" />
+                        </Grid>
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button x:Name="LoginSaveButton" Content="保存してログイン" Click="LoginSave_Click" FontWeight="Bold" />
+                            <Button Content="ログイン情報を削除" Click="LoginDelete_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="LoginResultText" TextWrapping="Wrap" Margin="2,8,0,0" />
+                        <TextBlock x:Name="LoginStateText" Opacity="0.7" Margin="2,4,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ======================= 批評空間連携タブ ======================= -->
+            <TabItem Header="批評空間連携" x:Name="EgsTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,12" MaxWidth="820" HorizontalAlignment="Left">
+                        <TextBlock Text="取り込みと同期" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
+                        <WrapPanel>
+                            <Button Content="⇩ 批評空間から一括取り込み…" Click="ImportAll_Click" />
+                            <Button Content="⇅ 批評空間と同期" Click="Sync_Click" />
+                        </WrapPanel>
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,6,0,0"
+                                   Text="・一括取り込み：批評空間に登録している作品を、一覧に追加します。&#x0a;・同期：批評空間の記録（プレイ済・得点・所持・感想など）をツールに取り込みます。ツールで変更して、まだ批評空間に反映していない内容があれば、反映するか確認します。中央値・平均値なども最新になります。" />
+
+                        <TextBlock Text="批評空間へ反映する項目" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                                   Text="作品の詳細欄で「保存」すると、変更した項目だけを批評空間に送ります（詳細欄の「保存時に批評空間へ反映する」に☑があるとき）。変更していない項目や、タグ・音楽・POV などツールにない項目は、批評空間の内容をそのまま残します。" />
+
+                        <TextBlock Text="連携の詳細設定" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <Expander Header="批評空間のページの作りが変わったときだけ変更してください">
+                            <Grid x:Name="EgsFieldsGrid" Margin="8,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                            </Grid>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ======================= ゲーム起動設定タブ ======================= -->
+            <TabItem Header="ゲーム起動設定" x:Name="LaunchTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,12" MaxWidth="820" HorizontalAlignment="Left">
+                        <TextBlock Text="実行ファイルの自動検出" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                                   Text="下のフォルダなどから、作品の実行ファイルをまとめて探して設定します。見つからなかった作品は、一覧の「起動設定」欄にショートカットや exe をドラッグしてください。" />
+
+                        <TextBlock Text="ゲームを入れているフォルダ" Margin="0,12,0,2" />
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0">
+                                <Button Content="追加…" Click="GameFolderAdd_Click" />
+                                <Button Content="削除" Click="GameFolderRemove_Click" />
+                            </StackPanel>
+                            <ListBox x:Name="GameFolderList" Height="100" Width="480" HorizontalAlignment="Left" />
+                        </DockPanel>
+                        <CheckBox x:Name="ScanSteamCheck" Content="Steam のゲームも探す" Click="LaunchSetting_Changed" Margin="0,6,0,0" />
+
+                        <CheckBox x:Name="UseShortcutsSettingCheck" Content="ショートカットも判定に使う" Click="LaunchSetting_Changed" Margin="0,12,0,0" />
+                        <StackPanel Margin="24,4,0,0" IsEnabled="{Binding IsChecked, ElementName=UseShortcutsSettingCheck}">
+                            <TextBlock Text="ショートカットを置いているフォルダ（フォルダの直下だけを探します）" Margin="0,0,0,2" />
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0">
+                                    <Button Content="追加…" Click="ShortcutFolderAdd_Click" />
+                                    <Button Content="削除" Click="ShortcutFolderRemove_Click" />
+                                </StackPanel>
+                                <ListBox x:Name="ShortcutFolderList" Height="90" Width="456" HorizontalAlignment="Left" />
+                            </DockPanel>
+                            <CheckBox x:Name="ScanStartMenuCheck" Content="スタートメニューのショートカットも探す" Click="LaunchSetting_Changed" Margin="0,6,0,0" />
+                        </StackPanel>
+
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button Content="🔍 実行ファイルを自動検出…" Click="AutoDetect_Click" FontWeight="Bold" />
+                        </WrapPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ======================= 詳細設定タブ ======================= -->
+            <TabItem Header="詳細設定" x:Name="SettingsTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,12" MaxWidth="820" HorizontalAlignment="Left">
+
+                        <!-- プレイ時間 -->
+                        <TextBlock Text="プレイ時間の数え方" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
+                        <CheckBox x:Name="ExcludeIdleCheck" Content="操作していない時間を除外する" Click="PlaySetting_Changed" />
+                        <StackPanel Orientation="Horizontal" Margin="24,4,0,0"
+                                    IsEnabled="{Binding IsChecked, ElementName=ExcludeIdleCheck}">
+                            <TextBox x:Name="IdleMinutesBox" Width="60" HorizontalContentAlignment="Right" LostFocus="PlaySetting_Changed" />
+                            <TextBlock Text="分以上、マウス・キーボードの操作がないときは止める" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Margin="24,2,0,8" TextWrapping="Wrap" Opacity="0.7"
+                                   Text="オート再生で読み進めることが多い場合は、分数を長めにしてください。ゲームパッドの操作は検知できません。" />
+                        <CheckBox x:Name="ForegroundOnlyCheck" Content="ゲームの画面が前面にあるときだけ数える" Click="PlaySetting_Changed" />
+                        <TextBlock Margin="24,2,0,0" TextWrapping="Wrap" Opacity="0.7"
+                                   Text="最小化していたり、ほかの画面の裏に回っていたりする間は数えません。" />
+
+                        <!-- 常駐と起動 -->
+                        <TextBlock Text="常駐と起動" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <CheckBox x:Name="CloseToTrayCheck" Content="閉じるボタンで終了せず、タスクバー右下に常駐する" Click="PlaySetting_Changed" />
+                        <CheckBox x:Name="AutoStartCheck" Content="Windows の起動時に、常駐した状態で自動で起動する" Click="PlaySetting_Changed" Margin="0,6,0,0" />
+                        <CheckBox x:Name="NotifyCheck" Content="プレイ時間の計測の開始・終了を通知する" Click="PlaySetting_Changed" Margin="0,6,0,0" />
+
+                        <!-- 表示 -->
+                        <TextBlock Text="表示" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="テーマ" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="ThemeBox" Width="160" HorizontalAlignment="Left" Margin="0,2"
+                                      SelectionChanged="ThemeBox_SelectionChanged">
+                                <ComboBoxItem Content="ダーク" Tag="Dark" />
+                                <ComboBoxItem Content="ライト" Tag="Light" />
+                                <ComboBoxItem Content="PCに合わせる" Tag="System" />
+                            </ComboBox>
+                            <TextBlock Grid.Row="1" Text="詳細欄" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="DetailPositionBox" Width="220" HorizontalAlignment="Left" Margin="0,2"
+                                      SelectionChanged="DetailPositionBox_SelectionChanged">
+                                <ComboBoxItem Content="右に縦長で表示" Tag="Right" />
+                                <ComboBoxItem Content="下に横長で表示" Tag="Bottom" />
+                                <ComboBoxItem Content="別ウィンドウで表示" Tag="Float" />
+                                <ComboBoxItem Content="表示しない" Tag="Hidden" />
+                            </ComboBox>
+                            <TextBlock Grid.Row="2" Text="購入前の作品" VerticalAlignment="Center" />
+                            <CheckBox Grid.Row="2" Grid.Column="1" x:Name="ShowBeforePurchaseCheck" Content="一覧に表示する（購入予定など）" Margin="0,4"
+                                      Checked="ShowBeforePurchase_Changed" Unchecked="ShowBeforePurchase_Changed" />
+                            <TextBlock Grid.Row="4" Text="作品の画像" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                                <CheckBox x:Name="ShowImagesCheck" Content="詳細欄に表示する" VerticalAlignment="Center"
+                                          Checked="ShowImages_Changed" Unchecked="ShowImages_Changed" />
+                                <Button Content="保存した画像をすべて削除" Click="ClearImages_Click" Margin="12,0,0,0" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="3" Text="一覧の表示倍率" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                                <TextBlock x:Name="ZoomText" VerticalAlignment="Center" Width="50" />
+                                <Button Content="100% に戻す" Click="ResetZoom_Click" />
+                                <TextBlock Text="（一覧の上で Ctrl＋マウスホイールでも変えられます）" Opacity="0.7" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- 一覧の列 -->
+                        <TextBlock Text="一覧の列" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,0,0,4"
+                                   Text="☑ を付けた列を表示します。↑↓ で並び順を変えられます（一覧の見出しをドラッグしても変えられます）。タイトル・ブランド・状態・プレイ時間・起動設定は常に表示します。批評空間の項目（平均値・感想など）を追加できます。一覧を右クリックしても切り替えられます。" />
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0">
+                                <Button Content="↑" Click="ColumnUp_Click" Width="40" />
+                                <Button Content="↓" Click="ColumnDown_Click" Width="40" />
+                                <Button Content="初期状態" Click="ColumnReset_Click" />
+                            </StackPanel>
+                            <ListBox x:Name="ColumnList" Height="260" Width="320" HorizontalAlignment="Left">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}" IsChecked="{Binding Visible, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding CanHide}" Click="ColumnCheck_Click" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+
+                        <!-- データ -->
+                        <TextBlock Text="データ" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <WrapPanel>
+                            <Button Content="データの保存フォルダを開く" Click="OpenDataFolder_Click" />
+                            <Button Content="連携設定ファイルを開く（上級者向け）" Click="OpenConfig_Click" />
+                        </WrapPanel>
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,4,0,0"
+                                   Text="作品の一覧・プレイ時間・設定・ログイン情報は、このフォルダに保存されます。バックアップするときは、このフォルダをコピーしてください。" />
+                        <TextBlock x:Name="VersionText" Opacity="0.7" Margin="2,12,0,20" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

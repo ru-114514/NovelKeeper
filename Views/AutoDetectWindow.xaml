@@ -1,0 +1,91 @@
+<Window x:Class="ErogeLauncher.Views.AutoDetectWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="実行ファイルの自動検出" Height="660" Width="1180"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="10">
+        <!-- 検索条件 -->
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="ゲームのフォルダ" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,2">
+                <Button DockPanel.Dock="Right" Content="フォルダを追加…" Click="AddFolder_Click" />
+                <TextBox x:Name="FoldersBox" VerticalContentAlignment="Center"
+                         ToolTip="ゲームをインストールしているフォルダ。複数あるときは ; で区切ります" />
+            </DockPanel>
+
+            <CheckBox Grid.Row="1" x:Name="UseShortcutsCheck" Content="ショートカットも使う" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Grid.Row="1" Grid.Column="1" x:Name="ShortcutFoldersBox" Margin="0,2" VerticalContentAlignment="Center"
+                     IsEnabled="{Binding IsChecked, ElementName=UseShortcutsCheck}"
+                     ToolTip="複数あるときは ; で区切ります。各フォルダの直下だけを探します（サブフォルダは個別に指定）" />
+
+            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,4,0,0">
+                <CheckBox x:Name="SteamCheck" Content="Steam のゲームも探す" Margin="0,0,16,0" />
+                <CheckBox x:Name="StartMenuCheck" Content="スタートメニューのショートカットも探す"
+                          IsEnabled="{Binding IsChecked, ElementName=UseShortcutsCheck}" />
+            </StackPanel>
+
+            <Button Grid.Row="0" Grid.RowSpan="3" Grid.Column="2" x:Name="ScanButton" Content="🔍 検出開始"
+                    Click="Scan_Click" FontWeight="Bold" Margin="8,2,0,2" Padding="16,4" />
+        </Grid>
+
+        <!-- 下部のボタン -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+            <Button DockPanel.Dock="Right" Content="閉じる" IsCancel="True" />
+            <Button DockPanel.Dock="Right" Content="☑ した作品に設定する" Click="Apply_Click" FontWeight="Bold" />
+            <CheckBox DockPanel.Dock="Left" x:Name="ShowAllCheck" Content="設定済み・一致しない・重複したものも表示" VerticalAlignment="Center"
+                      Margin="0,0,12,0" Checked="ShowAllCheck_Changed" Unchecked="ShowAllCheck_Changed" />
+            <TextBlock x:Name="InfoText" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap"
+                       Text="「検出開始」を押してください。exe を1つに特定できた作品だけに最初から ☑ が付きます。" />
+        </DockPanel>
+
+        <!-- 検出結果 -->
+        <DataGrid x:Name="ResultGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                  HeadersVisibility="Column" SelectionUnit="FullRow">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="設定" Width="45">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox HorizontalAlignment="Center"
+                                      IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="検出元" Binding="{Binding Detected.Source}" Width="80" IsReadOnly="True" />
+                <DataGridTextColumn Header="見つかった名前" Binding="{Binding Detected.DisplayName}" Width="200" IsReadOnly="True" />
+                <DataGridTemplateColumn Header="ツールの作品（クリックで変更）" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding DataContext.Games, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      SelectedItem="{Binding SelectedGame, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      DisplayMemberPath="Title" IsEditable="True" IsTextSearchEnabled="True" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="一致度" Binding="{Binding ScoreText}" Width="55" IsReadOnly="True" />
+                <DataGridTextColumn Header="起動方法" Binding="{Binding Detected.LaunchText}" Width="90" IsReadOnly="True" />
+                <DataGridTemplateColumn Header="使う exe（Steam は監視する exe）" Width="280">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding Detected.Candidates}"
+                                      SelectedItem="{Binding SelectedCandidate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      DisplayMemberPath="Display"
+                                      ToolTip="{Binding SelectedCandidate.Path}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="exe" Binding="{Binding NoteText}" Width="110" IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

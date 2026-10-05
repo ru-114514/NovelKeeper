@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- ThemeMode（ダーク/ライト切り替え）は「試験的な機能」扱いのため、その警告を出さない -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- 通知領域のアイコン（NotifyIcon）だけ Windows Forms の部品を使う -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>ErogeLauncher</RootNamespace>
+
+    <!-- アプリの名前・アイコン・バージョン（exe のプロパティに表示される） -->
+    <AssemblyName>NovelKeeper</AssemblyName>
+    <Product>NovelKeeper</Product>
+    <Title>NovelKeeper</Title>
+    <Description>ノベルゲームのランチャー＆管理ツール（批評空間と連携）</Description>
+    <!-- バージョンは version.txt から読む（build.bat で上げた番号が、dotnet run でもアプリ内に表示される） -->
+    <Version Condition="Exists('$(MSBuildProjectDirectory)\version.txt')">$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\version.txt').Trim())</Version>
+    <Version Condition="'$(Version)' == ''">1.0.0</Version>
+    <Authors>NovelKeeper</Authors>
+    <Company>NovelKeeper</Company>
+    <Copyright>© 2026 NovelKeeper</Copyright>
+    <ApplicationIcon>Assets\NovelKeeper.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Windows Forms の名前空間を全ファイルで自動 using すると、WPF の MessageBox や Button と名前がぶつかるので外す -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- HTML の解析（批評空間の検索結果・フォームの読み取り） -->
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.61" />
+    <!-- ローカルDB（SQLite）
+         SQLite 本体は、アプリに同梱せず Windows に標準で入っているもの（winsqlite3.dll）を使う。
+         Windows Update で更新されるので、同梱版の脆弱性の警告（NU1903）も出なくなる。 -->
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.9" />
+    <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" Version="2.1.11" />
+    <!-- パスワードの暗号化保存（Windows DPAPI）は .NET 10 に標準で入っているので、パッケージの追加は不要 -->
+  </ItemGroup>
+
+</Project>
