@@ -154,14 +154,26 @@ public class SyncEngineTests
     }
 
     [Fact]
-    public void Score_ClearedInTool_NeverErasesSite_AndDropsPending()
+    public void Score_ClearedInTool_StaysPendingUntilSiteIsCleared()
     {
         var g = NewGame();
         g.MyScore = null;
-        g.PendingReview.Add("score");
+        g.PendingReview.Add("score"); // ツールで空欄にして保存した（まだ反映していない）
         Apply(g, Rec(score: 60));
+        Assert.Contains("score", g.PendingReview); // 空にして反映する
+        Assert.Null(g.MyScore);                    // 批評空間の得点で上書きしない
+
+        Apply(g, Rec(score: null)); // 反映が済んだ
         Assert.DoesNotContain("score", g.PendingReview);
-        Assert.Null(g.MyScore); // 反映済みとみなすだけ。批評空間側は消さない
+    }
+
+    [Fact]
+    public void Score_EmptyInTool_WithoutPending_ImportsSiteScore_NeverClearsSite()
+    {
+        var g = NewGame();
+        Apply(g, Rec(score: 60));
+        Assert.Equal(60, g.MyScore);
+        Assert.DoesNotContain("score", g.PendingReview);
     }
 
     [Fact]

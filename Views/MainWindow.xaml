@@ -284,6 +284,9 @@
                                                 <CheckBox x:Name="PushOnSaveCheck" Content="保存時に批評空間へ反映する" IsChecked="True" Margin="0,0,0,8" />
                                                 <Button Content="保存" Click="Save_Click" FontWeight="Bold" HorizontalAlignment="Stretch" />
                                                 <TextBlock x:Name="DetailInfo" Margin="0,12,0,8" TextWrapping="Wrap" Opacity="0.7" />
+                                                <Button x:Name="DiscardPendingButton" Content="未反映の変更を破棄" Click="DiscardPending_Click" HorizontalAlignment="Stretch"
+                                                        Visibility="Collapsed"
+                                                        ToolTip="ツールで変更して、まだ批評空間に反映していない内容を捨てます。次の同期で、批評空間の内容を取り込みます" />
                                                 <Button Content="批評空間の作品ページを開く" Click="OpenEgsPage_Click" HorizontalAlignment="Stretch" />
                                                 <Button Content="画像を取り直す" Click="ReloadImage_Click" HorizontalAlignment="Stretch"
                                                         ToolTip="保存してある作品の画像を消して、もう一度取得します" />

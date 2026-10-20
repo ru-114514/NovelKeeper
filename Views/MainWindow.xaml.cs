@@ -384,6 +384,7 @@ public partial class MainWindow : Window
               (g.PendingReview.Count > 0
                   ? "\n未反映の項目: " + string.Join("、", g.PendingReview.Select(PendingLabel))
                   : "");
+        DiscardPendingButton.Visibility = g?.PendingReview.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (!keepEdits) ShowReview(g);
         _loadingDetail = false;
         if (!keepEdits) ShowImage(g);
@@ -1087,6 +1088,13 @@ public partial class MainWindow : Window
             score = sv;
         }
 
+        // 得点を消す操作は、批評空間側の得点も消えるので、先に確かめる（誤って空欄にしたときに備えて）
+        if (g.EgsId != null && g.MyScore != null && score == null &&
+            MessageBox.Show($"「{g.Title}」の得点（{g.MyScore}）を空欄にします。\n\n" +
+                            "批評空間に反映すると、批評空間側の得点も消えます。\n続けますか？\n（［いいえ］で保存を中止します）",
+                "得点を空欄にする", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+
         // 得点登録フォームのその他の項目
         var review = ReadReviewFromUi(g);
         if (review == null) return;
@@ -1112,7 +1120,7 @@ public partial class MainWindow : Window
         if (oldDropped != (g.Status == GameStatus.Dropped)) changedKeys.Add("giveup"); // 中断＝批評空間の「放棄」
         if (oldPlayed != g.IsPlayed) changedKeys.Add("played");
         if (oldClear?.Date != g.ClearDate?.Date) changedKeys.Add("cleardate");
-        if (oldScore != g.MyScore && g.MyScore != null) changedKeys.Add("score"); // 得点を空欄にしても、批評空間側は消さない
+        if (oldScore != g.MyScore) changedKeys.Add("score"); // 空欄にした場合も反映する（批評空間は、得点があるとプレイ済を外せないため）
         if (g.EgsId != null) g.PendingReview.UnionWith(changedKeys); // 反映するまで「未反映」として覚えておく
         _db.Update(g);
         _detailDirty = false;
@@ -1138,6 +1146,29 @@ public partial class MainWindow : Window
         {
             EndEgsWork();
         }
+    }
+
+    /// <summary>
+    /// 未反映の変更を捨てる。批評空間が反映を受け付けなかったとき（例：得点が残っていてプレイ済を外せない）や、
+    /// 批評空間のサイトで直接変更したときに、ツールの古い内容で批評空間の内容が上書きされ続けないようにする
+    /// </summary>
+    private void DiscardPending_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not Game selected) return;
+        var g = _db.Get(selected.Id);
+        if (g == null || g.PendingReview.Count == 0) return;
+
+        var labels = string.Join("、", g.PendingReview.Select(PendingLabel));
+        if (MessageBox.Show($"「{g.Title}」の未反映の変更（{labels}）を破棄します。\n\n" +
+                            "ツールで変更したこれらの内容は、批評空間に送られなくなります。\n" +
+                            "次に「⇅ 批評空間と同期」を押すと、批評空間の内容がツールに取り込まれます。\n\n続けますか？",
+                "未反映の変更を破棄", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+
+        g.PendingReview.Clear();
+        _db.UpdateSyncState(g);
+        _detailDirty = false;
+        Reload();
+        StatusText.Text = $"未反映の変更を破棄しました：{g.Title}（「⇅ 批評空間と同期」で、批評空間の内容を取り込めます）";
     }
 
     private void OpenEgsPage_Click(object sender, RoutedEventArgs e)
@@ -1172,7 +1203,7 @@ public partial class MainWindow : Window
 
         var keys = g.PendingReview.ToList();
         var pushPlayed = keys.Contains("played") || keys.Contains("cleardate");
-        var pushScore = keys.Contains("score") && g.MyScore != null;
+        var pushScore = keys.Contains("score"); // 空欄にした場合は、空にして送る
         var reviewKeys = keys.Where(k => k is not ("played" or "cleardate" or "score")).ToList();
 
         // 送った内容を控えておく（確認と、通信中に変更されたかの判定に使う）
@@ -1189,7 +1220,8 @@ public partial class MainWindow : Window
                 pushPlayed ? sentPlayed : null,
                 pushPlayed && sentPlayed ? g.ClearDate : null,
                 pushScore ? sentScore : null,
-                reviewKeys.Count > 0 ? sentReview.ToFormValues(reviewKeys, sentDropped) : null);
+                reviewKeys.Count > 0 ? sentReview.ToFormValues(reviewKeys, sentDropped) : null,
+                clearScore: pushScore && sentScore == null);
         }
         catch (Exception ex)
         {
@@ -1222,6 +1254,7 @@ public partial class MainWindow : Window
             Log.Warn("反映の確認に失敗", ex);
         }
 
+        Log.Info($"批評空間へ反映後の確認 game={egsId} 送信played={sentPlayed} 読み直しplayed={rec?.Played} 送信日={sentClear:yyyy-MM-dd} 読み直し日={rec?.ClearDate:yyyy-MM-dd} 確認できた={checkedOk}");
         var fresh = _db.Get(gameId);
         if (fresh == null) return true; // 通信中に一覧から削除された
 
@@ -1234,7 +1267,7 @@ public partial class MainWindow : Window
                 {
                     "played" => (rec?.Played ?? false) == sentPlayed,
                     "cleardate" => !sentPlayed || sentClear == null || rec?.ClearDate?.Date == sentClear,
-                    "score" => sentScore == null || rec?.Score == sentScore,
+                    "score" => rec?.Score == sentScore,
                     "giveup" => (rec?.GiveUp ?? false) == sentDropped,
                     _ => remote != null && !remote.Unreadable.Contains(key) && !Review.Diff(sentReview, remote).Contains(key),
                 };

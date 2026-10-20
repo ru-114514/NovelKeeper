@@ -158,7 +158,9 @@ public static class SyncEngine
         var siteScore = rec?.Score;
         if (g.PendingReview.Contains("score"))
         {
-            if (g.MyScore == null || g.MyScore == siteScore) g.PendingReview.Remove("score"); // 同じ、または消す操作（批評空間側は消さない）
+            // 同じなら反映済み。ツールの得点が空欄で批評空間に得点が残っているときは、
+            // 「空欄にした」操作がまだ反映されていないので、未反映のまま残す（ツールで空欄にして保存したときだけ、この状態になる）
+            if (g.MyScore == siteScore) g.PendingReview.Remove("score");
         }
         else if (g.MyScore == null && siteScore != null)
         {

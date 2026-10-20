@@ -47,6 +47,47 @@ public class EgsParsingTests
     }
 
     [Fact]
+    public void SetClearDate_WritesDate_AndNullBlanksTheField()
+    {
+        var client = new EgsClient(new EgsConfig());
+        var fields = new List<KeyValuePair<string, string>> { new("data[finish_date]", "2026-03-01"), new("data[tokuten]", "80") };
+
+        client.SetClearDate(fields, new DateTime(2026, 5, 6));
+        Assert.Equal("2026-05-06", fields.Single(f => f.Key == "data[finish_date]").Value);
+
+        client.SetClearDate(fields, null); // 未プレイに戻すとき：サイトに残っている日付を再送信しない
+        Assert.Equal("", fields.Single(f => f.Key == "data[finish_date]").Value);
+        Assert.Equal("80", fields.Single(f => f.Key == "data[tokuten]").Value); // ほかの項目はそのまま
+    }
+
+    [Fact]
+    public void UncheckField_DropsTheCheckbox_ButKeepsTheHiddenCompanion()
+    {
+        _ = new EgsClient(new EgsConfig()); // HTML 解析の設定（<form> の扱い）を済ませる
+        var doc = new HtmlAgilityPack.HtmlDocument();
+        doc.LoadHtml("""
+            <form method="post">
+              <input type="hidden" name="data[play]" value="0">
+              <input type="checkbox" name="data[play]" value="1" checked>
+              <input type="checkbox" name="data[other]" value="1" checked>
+            </form>
+            """);
+        var form = doc.DocumentNode.SelectSingleNode("//form");
+        var fields = new List<KeyValuePair<string, string>> { new("data[play]", "0"), new("data[play]", "1"), new("data[other]", "1") };
+
+        EgsClient.UncheckField(form, fields, "data[play]");
+
+        Assert.Equal(["0"], fields.Where(f => f.Key == "data[play]").Select(f => f.Value)); // 隠し項目の「0」だけ残る
+        Assert.Contains(fields, f => f.Key == "data[other]");
+
+        // 隠し項目がないフォームでは、従来どおり何も送らない
+        var plain = new List<KeyValuePair<string, string>> { new("data[other]", "1") };
+        doc.LoadHtml("<form><input type=\"checkbox\" name=\"data[other]\" value=\"1\" checked></form>");
+        EgsClient.UncheckField(doc.DocumentNode.SelectSingleNode("//form"), plain, "data[other]");
+        Assert.Empty(plain);
+    }
+
+    [Fact]
     public void ReviewFormValues_UncheckedBoxesAreSentAsNull_AndEmptyNumbersAsEmpty()
     {
         var review = new Review { Possession = false, Okazu = null, TotalPlayTime = 12, Hitokoto = "x" };

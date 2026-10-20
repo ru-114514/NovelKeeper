@@ -456,9 +456,11 @@ public class EgsClient
     /// 得点や感想など他の項目は、フォームに入っている今の値をそのまま送り返す。
     /// </summary>
     /// <param name="played">null のときはプレイ済の☑を今のまま変えない</param>
+    /// <param name="score">null のときは得点を今のまま変えない（clearScore を指定しない限り、空にはしない）</param>
+    /// <param name="clearScore">得点を空にして送る（ツールで得点を空欄にしたことを反映するとき）</param>
     /// <param name="extra">そのほかに書き換える項目（フォームの name → 値。値が null なら☑を外す）</param>
     public async Task UpdateReviewAsync(int egsId, bool? played, DateTime? clearDate, int? score,
-        IReadOnlyDictionary<string, string?>? extra = null)
+        IReadOnlyDictionary<string, string?>? extra = null, bool clearScore = false)
     {
         if (!EgsConfig.IsSet(_cfg.ReviewFormUrl) || !EgsConfig.IsSet(_cfg.PlayedField))
             throw new EgsException("egs_config.json の ReviewFormUrl / PlayedField が未設定です。");
@@ -487,37 +489,71 @@ public class EgsClient
         }
         else if (played == false)
         {
-            fields.RemoveAll(f => f.Key == _cfg.PlayedField); // チェックを外す＝送らない
+            UncheckField(form, fields, _cfg.PlayedField);
         }
 
-        // ---- 得点（入力があるときだけ書き換える。空欄にして消すことはしない） ----
-        if (score is int sc && EgsConfig.IsSet(_cfg.ScoreField))
-            SetField(fields, _cfg.ScoreField, sc.ToString());
+        // ---- 得点（入力があれば書き換える。空にするのは、clearScore を指定したときだけ） ----
+        // 批評空間は、得点が入っていると「プレイ済」を外せない。未プレイに戻すときは、得点も空にして送る必要がある
+        if (EgsConfig.IsSet(_cfg.ScoreField))
+        {
+            if (score is int sc) SetField(fields, _cfg.ScoreField, sc.ToString());
+            else if (clearScore) SetField(fields, _cfg.ScoreField, "");
+        }
 
         // ---- クリア日 ----
-        if (clearDate is DateTime d)
-        {
-            if (EgsConfig.IsSet(_cfg.ClearDateField))
-                SetField(fields, _cfg.ClearDateField, d.ToString(_cfg.ClearDateFormat, CultureInfo.InvariantCulture));
-            if (EgsConfig.IsSet(_cfg.ClearDateYearField))
-                SetField(fields, _cfg.ClearDateYearField, d.Year.ToString());
-            if (EgsConfig.IsSet(_cfg.ClearDateMonthField))
-                SetField(fields, _cfg.ClearDateMonthField, d.Month.ToString());
-            if (EgsConfig.IsSet(_cfg.ClearDateDayField))
-                SetField(fields, _cfg.ClearDateDayField, d.Day.ToString());
-        }
+        // 日付があれば書き換える。「プレイ済」を外すときは日付も空にする
+        // （批評空間側に日付が残っていると、その日付がそのまま再送信されて、プレイ済が外れないため）
+        if (clearDate != null || played == false)
+            SetClearDate(fields, clearDate);
 
         // ---- そのほかの項目（所持・感想など。変更したものだけ） ----
         if (extra != null)
         {
             foreach (var (name, value) in extra)
             {
-                if (value == null) fields.RemoveAll(f => f.Key == name); // ☑を外す＝送らない
+                if (value == null) UncheckField(form, fields, name);
                 else SetField(fields, name, value);
             }
         }
 
+        // 反映が効かないときの調べ用に、プレイ済・クリア日まわりの送信内容だけを記録する（感想などの文章は記録しない）
+        var playRelated = fields.Where(f => f.Key == _cfg.PlayedField || f.Key == _cfg.ClearDateField || f.Key.Contains("play", StringComparison.OrdinalIgnoreCase) ||
+                                            f.Key.Contains("finish", StringComparison.OrdinalIgnoreCase) || f.Key.Contains("giveup", StringComparison.OrdinalIgnoreCase))
+            .Select(f => $"{f.Key}={f.Value}");
+        Log.Info($"批評空間へ送信 game={egsId} played引数={played?.ToString() ?? "変更なし"} 送信項目: {string.Join(", ", playRelated)} ／ フォームの欄: {DescribePlayInputs(form)}");
         await SubmitFormAsync(form, url, fields);
+    }
+
+    /// <summary>
+    /// チェックボックスの☑を外す。ブラウザと同じく、チェック欄そのものは送らない。
+    /// ただし、同じ名前の隠し項目（外したときの値「0」を送るためのもの）は、ブラウザが送るのと同じように残す。
+    /// これを消してしまうと、サイト側は「変更なし」と受け取り、☑が外れないことがある。
+    /// </summary>
+    internal static void UncheckField(HtmlNode form, List<KeyValuePair<string, string>> fields, string name)
+    {
+        fields.RemoveAll(f => f.Key == name);
+        foreach (var n in form.SelectNodes($".//input[@name='{name}']") ?? Enumerable.Empty<HtmlNode>())
+            if (n.GetAttributeValue("type", "").Equals("hidden", StringComparison.OrdinalIgnoreCase) && !n.Attributes.Contains("disabled"))
+                fields.Add(new(name, Attr(n, "value")));
+    }
+
+    /// <summary>反応を調べるための記録：プレイ済・クリア日などの欄の種類と値（感想などの文章は記録しない）</summary>
+    private static string DescribePlayInputs(HtmlNode form) => string.Join(" / ",
+        (form.SelectNodes(".//input|.//select") ?? Enumerable.Empty<HtmlNode>())
+        .Where(n => Regex.IsMatch(n.GetAttributeValue("name", ""), "play|finish|giveup|possession", RegexOptions.IgnoreCase))
+        .Select(n => $"{n.GetAttributeValue("name", "")}[{n.Name}:{n.GetAttributeValue("type", "")}]={Attr(n, "value")}{(n.Attributes.Contains("checked") ? " checked" : "")}"));
+
+    /// <summary>フォームのクリア日の欄を書き換える（date が null なら空にする）</summary>
+    internal void SetClearDate(List<KeyValuePair<string, string>> fields, DateTime? date)
+    {
+        void Set(string name, string? value)
+        {
+            if (EgsConfig.IsSet(name)) SetField(fields, name, value ?? "");
+        }
+        Set(_cfg.ClearDateField, date?.ToString(_cfg.ClearDateFormat, CultureInfo.InvariantCulture));
+        Set(_cfg.ClearDateYearField, date?.Year.ToString());
+        Set(_cfg.ClearDateMonthField, date?.Month.ToString());
+        Set(_cfg.ClearDateDayField, date?.Day.ToString());
     }
 
     private async Task<HtmlNode?> FindReviewFormAsync(string url)
