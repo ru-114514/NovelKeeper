@@ -48,7 +48,7 @@ public sealed class TrayIcon : IDisposable
             var path = Environment.ProcessPath;
             if (path != null && Icon.ExtractAssociatedIcon(path) is Icon icon) return icon;
         }
-        catch { }
+        catch (Exception ex) { Log.Warn("アイコンを読み込めませんでした", ex); }
         return SystemIcons.Application;
     }
 

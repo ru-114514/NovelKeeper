@@ -28,6 +28,7 @@ public sealed class PlayTimeTracker : IDisposable
     private readonly Dictionary<long, Session> _active = new();
     private readonly object _lock = new();
 
+    private Dictionary<int, (string Name, string? Path)> _processes = new(); // 前回の確認で調べたプロセス（ID → 名前と exe の場所）
     private List<Target> _targets = new();
     private DateTime _targetsLoadedAt = DateTime.MinValue;
     private volatile bool _targetsDirty = true;
@@ -102,7 +103,7 @@ public sealed class PlayTimeTracker : IDisposable
             while (await timer.WaitForNextTickAsync(_cts.Token))
             {
                 try { Tick(); }
-                catch (Exception ex) { Debug.WriteLine(ex); } // 1回の失敗で監視を止めない
+                catch (Exception ex) { Log.Error("プレイ時間の確認に失敗", ex); } // 1回の失敗で監視を止めない
             }
         }
         catch (OperationCanceledException) { }
@@ -127,18 +128,30 @@ public sealed class PlayTimeTracker : IDisposable
         // ---- 起動中のプロセスと作品を突き合わせる ----
         var running = new Dictionary<long, (Game Game, HashSet<int> Pids)>();
         var self = Environment.ProcessId;
-        foreach (var p in Process.GetProcesses())
+        var seen = new Dictionary<int, (string Name, string? Path)>();
+        if (_targets.Count > 0)
         {
-            using (p)
+            foreach (var p in Process.GetProcesses())
             {
-                if (p.Id == self || p.Id <= 4) continue;
-                var target = Match(p);
-                if (target == null) continue;
-                if (!running.TryGetValue(target.Game.Id, out var entry))
-                    running[target.Game.Id] = entry = (target.Game, new HashSet<int>());
-                entry.Pids.Add(p.Id);
+                using (p)
+                {
+                    if (p.Id == self || p.Id <= 4) continue;
+                    string name;
+                    try { name = p.ProcessName; } catch (Exception) { continue; } // 調べている間に終了した
+                    // 動いているプロセスの exe の場所は変わらないので、一度調べたら使い回す（名前も同じときだけ。ID の使い回し対策）
+                    if (!_processes.TryGetValue(p.Id, out var known) || known.Name != name)
+                        known = (name, NativeMethods.GetProcessPath(p.Id));
+                    seen[p.Id] = known;
+
+                    var target = Match(known.Name, known.Path);
+                    if (target == null) continue;
+                    if (!running.TryGetValue(target.Game.Id, out var entry))
+                        running[target.Game.Id] = entry = (target.Game, new HashSet<int>());
+                    entry.Pids.Add(p.Id);
+                }
             }
         }
+        _processes = seen; // 終了したプロセスの分は、ここで捨てる
 
         // ---- 「数える」条件（利用者の設定による） ----
         var idle = _cfg.ExcludeIdle && NativeMethods.IdleSeconds() >= Math.Max(1, _cfg.IdleMinutes) * 60;
@@ -249,10 +262,8 @@ public sealed class PlayTimeTracker : IDisposable
         return list;
     }
 
-    private Target? Match(Process p)
+    private Target? Match(string name, string? path)
     {
-        var path = NativeMethods.GetProcessPath(p.Id);
-
         // ① フォルダで判定（いちばん深く一致したフォルダの作品を選ぶ）
         if (path != null)
         {
@@ -266,8 +277,6 @@ public sealed class PlayTimeTracker : IDisposable
         }
 
         // ② プロセス名で判定（「監視するプロセス名」を設定した作品など）
-        string name;
-        try { name = p.ProcessName; } catch { return null; }
         return _targets.FirstOrDefault(t => t.ProcessName != null &&
                                             string.Equals(t.ProcessName, name, StringComparison.OrdinalIgnoreCase));
     }

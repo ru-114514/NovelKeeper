@@ -32,8 +32,13 @@ public partial class MainWindow : Window
         // タイトルにバージョンを表示（build.bat で指定したバージョン）
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         if (version != null) Title = $"NovelKeeper {version.ToString(3)} ― ノベルゲーム ランチャー";
-        _cfg = EgsConfig.Load();
+        _cfg = App.Config;
+        DbBackup.RunDaily();
         _db = new Database(AppPaths.Database);
+        // 常駐したまま日をまたいでも、1日1回バックアップを取る
+        var backupTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        backupTimer.Tick += (_, _) => Task.Run(DbBackup.RunDaily);
+        backupTimer.Start();
         _egs = new EgsClient(_cfg);
 
         // ---- プレイ時間の計測（常駐して監視） ----
@@ -479,12 +484,7 @@ public partial class MainWindow : Window
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] files || files.Length == 0) return;
 
         // ドロップした位置にある行（作品）を探す
-        var dep = e.OriginalSource as DependencyObject;
-        while (dep != null && dep is not DataGridRow)
-            dep = dep is Visual or System.Windows.Media.Media3D.Visual3D
-                ? VisualTreeHelper.GetParent(dep)
-                : LogicalTreeHelper.GetParent(dep);
-        if (dep is not DataGridRow { Item: Game g })
+        if (FindParent<DataGridRow>(e.OriginalSource as DependencyObject) is not { Item: Game g })
         {
             MessageBox.Show("作品の行の上にドロップしてください。");
             return;
@@ -970,8 +970,7 @@ public partial class MainWindow : Window
         if (_detailDragging || e.LeftButton != MouseButtonState.Pressed) return;
 
         // 見出しの中のボタンを押しているときはドラッグしない
-        for (var d = e.OriginalSource as DependencyObject; d != null && d != DetailHeader;
-             d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+        for (var d = e.OriginalSource as DependencyObject; d != null && d != DetailHeader; d = ParentOf(d))
             if (d is System.Windows.Controls.Primitives.ButtonBase) return;
 
         var pos = e.GetPosition(this);
@@ -1194,6 +1193,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            Log.Warn("批評空間への反映に失敗", ex);
             StatusText.Text = "批評空間への反映に失敗しました（未反映の項目は、次の同期でまた反映します）";
             var r = MessageBox.Show(
                 $"批評空間への反映に失敗しました。\n\n{ex.Message}\n\n得点登録ページをブラウザで開きますか？（手動で登録できます）",
@@ -1219,7 +1219,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Log.Warn("反映の確認に失敗", ex);
         }
 
         var fresh = _db.Get(gameId);
@@ -1249,7 +1249,7 @@ public partial class MainWindow : Window
                 };
                 if (reflected && unchangedLocally) done.Add(key);
             }
-            ApplyEgsState(fresh, rec);
+            SyncEngine.ApplyEgsState(fresh, rec);
             if (remote != null && !fresh.PendingReview.Contains("possession")) fresh.EgsPossession = remote.Possession;
         }
 
@@ -1306,8 +1306,18 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            Log.Warn("批評空間からの読み込みに失敗（同期）", ex);
             StatusText.Text = "読み込みに失敗しました";
             MessageBox.Show(ex.Message, "同期エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (SyncEngine.LooksLikeLostRecords(_db.GetAll(), records.Count) &&
+            MessageBox.Show("批評空間の記録が0件でした。取得に失敗している可能性があります。\n\n" +
+                            "このまま同期すると、プレイ済の作品がすべて「批評空間に未登録」として扱われます。\n続けますか？",
+                "同期の確認", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            StatusText.Text = "同期を中止しました（批評空間の記録が0件でした）";
             return;
         }
 
@@ -1322,7 +1332,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Log.Warn("感想などの読み込みに失敗", ex);
             MessageBox.Show("感想などの項目を読み込めませんでした（プレイ済・得点などの同期は続けます）。\n\n" + ex.Message,
                 "同期", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
@@ -1337,121 +1347,25 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Log.Warn("作品の情報の更新に失敗", ex);
         }
 
-        var imported = 0;
-        var dropped = 0;
-        var scoreImported = 0;
-
         // 読み込みが終わってから最新の内容を読む（読み込み中に保存された内容も含める）
+        var stats = new SyncStats();
+        var resolver = new DialogConflictResolver(this);
         foreach (var g in _db.GetAll().Where(x => x.EgsId != null))
         {
             var egsId = g.EgsId!.Value;
             byId.TryGetValue(egsId, out var rec);
-            ApplyEgsState(g, rec);
-            if (infos.TryGetValue(egsId, out var info))
-            {
-                if (!string.IsNullOrWhiteSpace(info.SellDay)) g.SellDay = info.SellDay;
-                g.Median = info.Median ?? g.Median;
-                g.EgsAverage = info.Average ?? g.EgsAverage;
-                g.EgsCount = info.Count ?? g.EgsCount;
-            }
-
-            // ---- 所持・感想など（ツールで変更してまだ反映していない項目は、ツールの内容を反映する） ----
-            if (reviews != null && reviews.TryGetValue(egsId, out var remote))
-                ApplyRemoteReview(g, remote, new List<string>(), AskMemo);
-
-            var remotePlayed = rec?.Played ?? false;
-            var remoteGiveUp = rec?.GiveUp ?? false;
-
-            // ---- 放棄（ツールの「中断」） ----
-            if (g.PendingReview.Contains("giveup") && remoteGiveUp == (g.Status == GameStatus.Dropped))
-                g.PendingReview.Remove("giveup"); // すでに同じ
-
-            // ---- プレイ済・クリア日 ----
-            var playedPending = g.PendingReview.Contains("played") || g.PendingReview.Contains("cleardate");
-            if (playedPending)
-            {
-                // ツールで変更してまだ反映していない → ツールの内容を反映する（同じなら反映済みにする）
-                var same = remotePlayed == g.IsPlayed &&
-                           (!g.IsPlayed || g.ClearDate == null || rec?.ClearDate?.Date == g.ClearDate?.Date);
-                if (same)
-                {
-                    g.PendingReview.Remove("played");
-                    g.PendingReview.Remove("cleardate");
-                }
-            }
-            else if (g.PendingReview.Contains("giveup"))
-            {
-                // 中断の変更をまだ反映していない → 批評空間の状態では上書きしない
-            }
-            else if (remoteGiveUp)
-            {
-                // 批評空間で「放棄」→ ツールでは「中断」（プレイ済の☑より優先）
-                if (g.Status != GameStatus.Dropped) { g.Status = GameStatus.Dropped; dropped++; }
-            }
-            else if (remotePlayed)
-            {
-                // 批評空間でプレイ済 → ツールもプレイ済にする
-                if (!g.IsPlayed) { g.Status = GameStatus.Played; imported++; }
-
-                if (g.ClearDate == null)
-                {
-                    g.ClearDate = rec!.ClearDate;
-                }
-                else if (rec!.ClearDate == null)
-                {
-                    g.PendingReview.Add("cleardate"); // 批評空間にクリア日がない → ツールの日付を反映
-                }
-                else if (rec.ClearDate.Value.Date != g.ClearDate.Value.Date)
-                {
-                    // クリア日が食い違う → どちらを使うか選んでもらう
-                    var ans = MessageBox.Show(
-                        $"「{g.Title}」のクリア日が違います。\n\n" +
-                        $"ツール：{g.ClearDate:yyyy/MM/dd}\n批評空間：{rec.ClearDate:yyyy/MM/dd}\n\n" +
-                        "［はい］ツールの日付を批評空間に反映\n［いいえ］批評空間の日付をツールに取り込む",
-                        "クリア日の食い違い", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                    if (ans == MessageBoxResult.Yes) g.PendingReview.Add("cleardate");
-                    else g.ClearDate = rec.ClearDate;
-                }
-            }
-            else if (g.IsPlayed)
-            {
-                g.PendingReview.Add("played"); // ツールではプレイ済だが、批評空間では未登録
-                g.PendingReview.Add("cleardate");
-            }
-
-            // ---- 得点 ----
-            var siteScore = rec?.Score;
-            if (g.PendingReview.Contains("score"))
-            {
-                if (g.MyScore == null || g.MyScore == siteScore) g.PendingReview.Remove("score"); // 同じ、または消す操作（批評空間側は消さない）
-            }
-            else if (g.MyScore == null && siteScore != null)
-            {
-                g.MyScore = siteScore;
-                scoreImported++;
-            }
-            else if (g.MyScore != null && siteScore == null)
-            {
-                g.PendingReview.Add("score");
-            }
-            else if (g.MyScore != null && siteScore != null && g.MyScore != siteScore)
-            {
-                var scoreAns = MessageBox.Show(
-                    $"「{g.Title}」の得点が違います。\n\n" +
-                    $"ツール：{g.MyScore}\n批評空間：{siteScore}\n\n" +
-                    "［はい］ツールの得点を批評空間に反映\n［いいえ］批評空間の得点をツールに取り込む",
-                    "得点の食い違い", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (scoreAns == MessageBoxResult.Yes) g.PendingReview.Add("score");
-                else g.MyScore = siteScore;
-            }
+            infos.TryGetValue(egsId, out var info);
+            Review? remote = null;
+            reviews?.TryGetValue(egsId, out remote);
+            SyncEngine.ApplyRecord(g, rec, info, remote, resolver, stats);
             _db.UpdateFromSync(g); // 起動設定など、同期と関係のない項目は書き換えない
         }
         _detailDirty = false; // 同期中は詳細欄を編集できないので、読み直してよい
         Reload();
-        StatusText.Text = $"同期しました（プレイ済にした作品：{imported}件、中断にした作品：{dropped}件、得点を取り込んだ作品：{scoreImported}件）";
+        StatusText.Text = $"同期しました（プレイ済にした作品：{stats.Imported}件、中断にした作品：{stats.Dropped}件、得点を取り込んだ作品：{stats.ScoreImported}件）";
 
         // ---- ツールの内容を批評空間に反映する ----
         var toPush = _db.GetAll().Where(x => x.EgsId != null && x.PendingReview.Count > 0).ToList();
@@ -1494,6 +1408,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
+                Log.Warn("批評空間からの読み込みに失敗（一括取り込み）", ex);
                 StatusText.Text = "読み込みに失敗しました";
                 MessageBox.Show(ex.Message, "取り込みエラー", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -1508,7 +1423,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex);
+                Log.Warn("感想などの読み込みに失敗", ex);
             }
 
             int added = 0, skipped = 0, scoreFilled = 0;
@@ -1524,7 +1439,7 @@ public partial class MainWindow : Window
                     // すでに一覧にある作品：得点が未入力なら、批評空間の得点を入れる
                     old.EgsScore = item.Score;
                     if (reviews.TryGetValue(item.Game.Id, out var oldRemote))
-                        ApplyRemoteReview(old, oldRemote, new List<string>(), null); // 未反映の項目はツールの内容を残す
+                        SyncEngine.ApplyRemoteReview(old, oldRemote, null); // 未反映の項目はツールの内容を残す
                     if (old.MyScore == null && item.Score != null)
                     {
                         old.MyScore = item.Score;
@@ -1578,16 +1493,6 @@ public partial class MainWindow : Window
         {
             EndEgsWork();
         }
-    }
-
-    private static void ApplyEgsState(Game g, EgsUserRecord? rec)
-    {
-        g.EgsPlayed = rec?.Played ?? false;
-        g.EgsGiveUp = rec?.GiveUp ?? false;
-        g.EgsPossession = rec?.Possession; // 批評空間に登録がなければ「不明」
-        g.EgsScore = rec?.Score;
-        g.EgsClearDate = rec?.ClearDate;
-        g.EgsSyncedAt = DateTime.Now;
     }
 
     // ================================================================

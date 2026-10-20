@@ -23,7 +23,7 @@ public static class ShortcutResolver
                     if (!string.IsNullOrEmpty(target)) return target;
                 }
             }
-            catch { /* 読めなければそのまま使う */ }
+            catch (Exception ex) { Log.Warn("ショートカットを読めませんでした: " + path, ex); } // そのまま使う
             return path;
         }
 
@@ -36,7 +36,7 @@ public static class ShortcutResolver
                     if (line.StartsWith("URL=", StringComparison.OrdinalIgnoreCase))
                         return line[4..].Trim();
             }
-            catch { }
+            catch (Exception ex) { Log.Warn("ショートカットを読めませんでした: " + path, ex); }
             return path;
         }
 

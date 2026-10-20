@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using ErogeLauncher.Models;
+using ErogeLauncher.Services;
 using Microsoft.Data.Sqlite;
 
 namespace ErogeLauncher.Data;
@@ -99,7 +100,8 @@ public class Database
         alter.ExecuteNonQuery();
     }
 
-    public List<Game> GetAll()
+    /// <param name="id">指定すると、その作品だけを読む</param>
+    public List<Game> GetAll(long? id = null)
     {
         using var conn = Open();
         using var cmd = conn.CreateCommand();
@@ -108,8 +110,10 @@ public class Database
                    COALESCE((SELECT SUM(s.seconds) FROM sessions s WHERE s.game_id = g.id), 0) AS total_seconds,
                    (SELECT MIN(s.started_at) FROM sessions s WHERE s.game_id = g.id) AS first_played
             FROM games g
+            WHERE $id IS NULL OR g.id = $id
             ORDER BY g.title
             """;
+        cmd.Parameters.AddWithValue("$id", Db(id));
         var targets = GetAllTargets(conn);
         using var r = cmd.ExecuteReader();
         var list = new List<Game>();
@@ -244,7 +248,7 @@ public class Database
     }
 
     /// <summary>作品を1件だけ読み直す（通信中に画面で変更されていても、最新の内容を使うため）</summary>
-    public Game? Get(long id) => GetAll().FirstOrDefault(g => g.Id == id);
+    public Game? Get(long id) => GetAll(id).FirstOrDefault();
 
     /// <summary>
     /// 批評空間との同期状態（egs_* と未反映の項目）だけを書き込む。
@@ -434,7 +438,7 @@ public class Database
     {
         if (string.IsNullOrWhiteSpace(json)) return new Review();
         try { return JsonSerializer.Deserialize<Review>(json) ?? new Review(); }
-        catch { return new Review(); }
+        catch (Exception ex) { Log.Warn("感想などの保存内容を読めませんでした", ex); return new Review(); }
     }
 
     private static object Db(object? value) => value ?? DBNull.Value;

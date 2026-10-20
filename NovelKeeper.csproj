@@ -24,7 +24,17 @@
     <Company>NovelKeeper</Company>
     <Copyright>© 2026 NovelKeeper</Copyright>
     <ApplicationIcon>Assets\NovelKeeper.ico</ApplicationIcon>
+    <!-- 使わない言語のリソースを出力に含めない（配布物を少し小さくする） -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- テスト（tests フォルダ）は、アプリ本体には含めない -->
+    <Compile Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
+    <InternalsVisibleTo Include="NovelKeeper.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Windows Forms の名前空間を全ファイルで自動 using すると、WPF の MessageBox や Button と名前がぶつかるので外す -->

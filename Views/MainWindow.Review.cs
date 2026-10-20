@@ -190,51 +190,6 @@ public partial class MainWindow
         _cfg.Save();
     }
 
-    /// <summary>批評空間から読み込んだ内容を、まだ反映していない項目を除いて取り込む</summary>
-    private static void ApplyRemoteReview(Game g, Review remote, ICollection<string> keysToPush, Func<Game, Review, bool>? askMemoUseLocal)
-    {
-        var different = Review.Diff(g.Review, remote);
-        foreach (var (key, _) in Review.Keys)
-        {
-            if (key == "giveup") continue; // 放棄は状態（中断）として別に扱う
-            if (remote.Unreadable.Contains(key)) continue; // 読み込めなかった項目は、ツールの内容のまま
-            if (!different.Contains(key))
-            {
-                g.PendingReview.Remove(key); // 同じ内容なら、反映済みとみなす
-                continue;
-            }
-            if (g.PendingReview.Contains(key))
-            {
-                // ツールで変更してまだ反映していない → ツールの内容を残して、反映する
-                if (key == "memo" && Review.Norm(remote.Memo) != "" && Review.Norm(remote.Memo) != Review.Norm(g.Review.Memo) &&
-                    askMemoUseLocal != null && !askMemoUseLocal(g, remote))
-                {
-                    g.Review.CopyFrom(remote, key);
-                    g.PendingReview.Remove(key);
-                    continue;
-                }
-                keysToPush.Add(key);
-            }
-            else
-            {
-                g.Review.CopyFrom(remote, key);
-            }
-        }
-        if (!g.PendingReview.Contains("possession")) g.EgsPossession = remote.Possession;
-    }
-
-    /// <summary>長文感想が食い違うとき、どちらを使うか聞く（true = ツールの内容を使う）</summary>
-    private static bool AskMemo(Game g, Review remote)
-    {
-        static string Head(string s) { s = (s ?? "").Trim(); return s.Length > 120 ? s[..120] + "…" : s; }
-        var ans = MessageBox.Show(
-            $"「{g.Title}」の長文感想が、ツールと批評空間で違います。\n\n" +
-            $"【ツール】\n{Head(g.Review.Memo)}\n\n【批評空間】\n{Head(remote.Memo)}\n\n" +
-            "［はい］ツールの長文感想を批評空間に反映\n［いいえ］批評空間の長文感想をツールに取り込む",
-            "長文感想の食い違い", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        return ans == MessageBoxResult.Yes;
-    }
-
     // ================================================================
     // 詳細欄：作品の画像
     // ================================================================
@@ -288,8 +243,9 @@ public partial class MainWindow
             DetailImage.Visibility = Visibility.Visible;
             DetailImageInfo.Visibility = Visibility.Collapsed;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warn("画像を表示できませんでした", ex);
             GameImageService.Forget(egsId); // 壊れた画像は消して、次回取り直す
             DetailImageInfo.Text = "画像を表示できませんでした";
             DetailImageInfo.Visibility = Visibility.Visible;

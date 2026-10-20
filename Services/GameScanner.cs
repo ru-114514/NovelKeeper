@@ -231,13 +231,14 @@ public static class GameScanner
     // Steam
     // ================================================================
 
-    public static List<DetectedGame> ScanSteam()
+    /// <param name="onlyAppId">指定すると、そのゲームだけを調べる（全ゲームを調べ直さずに済む）</param>
+    public static List<DetectedGame> ScanSteam(string? onlyAppId = null)
     {
         var result = new List<DetectedGame>();
         foreach (var library in GetSteamLibraries())
         {
             var steamapps = Path.Combine(library, "steamapps");
-            foreach (var acf in SafeFiles(steamapps, "appmanifest_*.acf"))
+            foreach (var acf in SafeFiles(steamapps, $"appmanifest_{onlyAppId ?? "*"}.acf"))
             {
                 string text;
                 try { text = File.ReadAllText(acf, Encoding.UTF8); } catch { continue; }
@@ -274,20 +275,21 @@ public static class GameScanner
     /// <summary>steam://rungameid/xxx から、監視すべきプロセス名を探す</summary>
     public static string? FindSteamMonitorProcess(string steamUrl)
     {
-        var m = Regex.Match(steamUrl, @"rungameid/(\d+)");
-        if (!m.Success) return null;
-        var app = ScanSteam().FirstOrDefault(g => g.SteamUrl!.EndsWith("/" + m.Groups[1].Value));
-        var exe = app?.Candidates.FirstOrDefault()?.Path;
+        var exe = FindSteamApp(steamUrl)?.Candidates.FirstOrDefault()?.Path;
         return exe != null ? Path.GetFileName(exe) : null;
     }
 
     /// <summary>steam://rungameid/xxx から、そのゲームのインストール先フォルダを探す</summary>
     public static string? FindSteamInstallDir(string steamUrl)
     {
-        var m = Regex.Match(steamUrl, @"rungameid/(\d+)");
-        if (!m.Success) return null;
-        var app = ScanSteam().FirstOrDefault(g => g.SteamUrl!.EndsWith("/" + m.Groups[1].Value));
+        var app = FindSteamApp(steamUrl);
         return app != null && Directory.Exists(app.InstallDir) ? app.InstallDir : null;
+    }
+
+    private static DetectedGame? FindSteamApp(string steamUrl)
+    {
+        var m = Regex.Match(steamUrl, @"rungameid/(\d+)");
+        return m.Success ? ScanSteam(m.Groups[1].Value).FirstOrDefault() : null;
     }
 
     private static List<string> GetSteamLibraries()

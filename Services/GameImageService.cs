@@ -26,7 +26,7 @@ public class GameImageService
     public GameImageService(EgsClient egs)
     {
         _egs = egs;
-        var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All };
+        var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All, AllowAutoRedirect = false };
         _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20), MaxResponseContentBufferSize = MaxBytes };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) NovelKeeper/1.0");
     }
@@ -109,23 +109,30 @@ public class GameImageService
 
     private async Task<byte[]?> TryDownloadAsync(string url)
     {
-        if (!IsAllowed(url)) return null;
         try
         {
-            using var res = await _http.GetAsync(url);
-            if (!IsAllowed(res.RequestMessage?.RequestUri?.ToString() ?? url)) return null; // 転送先も確認
-            if (!res.IsSuccessStatusCode) return null;
-            var finalUrl = res.RequestMessage?.RequestUri?.ToString() ?? url;
-            if (finalUrl.Contains("now_printing", StringComparison.OrdinalIgnoreCase) ||
-                finalUrl.Contains("noimage", StringComparison.OrdinalIgnoreCase)) return null;
-            var type = res.Content.Headers.ContentType?.MediaType ?? "";
-            if (!type.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return null;
-            var bytes = await res.Content.ReadAsByteArrayAsync();
-            return bytes.Length >= MinBytes && LooksLikeImage(bytes) ? bytes : null;
+            // 転送は自動で追わず、転送先も許可した場所か確かめてから取りに行く（最大3回）
+            for (var hop = 0; hop < 4 && IsAllowed(url); hop++)
+            {
+                using var res = await _http.GetAsync(url);
+                if (res.Headers.Location is { } next && (int)res.StatusCode is >= 300 and < 400)
+                {
+                    url = new Uri(new Uri(url), next).ToString();
+                    continue;
+                }
+                if (!res.IsSuccessStatusCode) return null;
+                if (url.Contains("now_printing", StringComparison.OrdinalIgnoreCase) ||
+                    url.Contains("noimage", StringComparison.OrdinalIgnoreCase)) return null;
+                var type = res.Content.Headers.ContentType?.MediaType ?? "";
+                if (!type.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return null;
+                var bytes = await res.Content.ReadAsByteArrayAsync();
+                return bytes.Length >= MinBytes && LooksLikeImage(bytes) ? bytes : null;
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            Log.Warn("画像の取得に失敗: " + url, ex);
         }
+        return null;
     }
 }

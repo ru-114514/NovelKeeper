@@ -30,12 +30,19 @@ public partial class App : Application
         StartInTray = e.Args.Contains("--tray");
         base.OnStartup(e);
 
-        var cfg = EgsConfig.Load();
-        ApplyTheme(cfg.Theme); // メイン画面を開く前にテーマを決める
+        // 想定外のエラーは、画面に出すだけでなく log.txt にも残す
+        AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Error("未処理の例外", (Exception)args.ExceptionObject);
+        TaskScheduler.UnobservedTaskException += (_, args) => { Log.Error("未処理のタスク例外", args.Exception); args.SetObserved(); };
+
+        Config = EgsConfig.Load();
+        ApplyTheme(Config.Theme); // メイン画面を開く前にテーマを決める
 
         // 自動起動の登録を、今の exe の場所で登録し直す（exe を移動した・名前が変わった場合に備えて）
-        try { AutoStart.Set(cfg.AutoStart); } catch { /* 失敗しても起動は続ける */ }
+        try { AutoStart.Set(Config.AutoStart); } catch (Exception ex) { Log.Warn("自動起動の登録に失敗", ex); } // 失敗しても起動は続ける
     }
+
+    /// <summary>設定（egs_config.json）。起動時に1回だけ読み込み、画面と計測で共有する</summary>
+    public static EgsConfig Config { get; private set; } = null!;
 
     /// <summary>
     /// SQLite 本体（winsqlite3.dll）は、必ず Windows のシステムフォルダのものを読み込む。
@@ -50,9 +57,9 @@ public partial class App : Application
                     ? NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "winsqlite3.dll"))
                     : IntPtr.Zero);
         }
-        catch
+        catch (Exception ex)
         {
-            // すでに設定されている場合などは、そのまま続ける
+            Log.Warn("winsqlite3 の読み込み先を指定できませんでした（すでに設定されている場合など）", ex);
         }
     }
 
@@ -80,7 +87,8 @@ public partial class App : Application
     // 想定外のエラーでアプリが落ちないよう、内容を表示して続行する
     private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        MessageBox.Show(e.Exception.ToString(), "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+        Log.Error("画面での未処理の例外", e.Exception);
+        MessageBox.Show($"{e.Exception.Message}\n\n詳しい内容は次のファイルに記録しました：\n{Log.Path}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
     }
 }

@@ -35,8 +35,9 @@ public static class CredentialStore
             var i = s.IndexOf('\n');
             return i < 0 ? null : (s[..i], s[(i + 1)..]);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warn("保存したログイン情報を読み込めませんでした", ex);
             return null;
         }
     }

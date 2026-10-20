@@ -77,9 +77,7 @@ public class EgsClient
     public void Logout()
     {
         LoggedIn = false;
-        var old = _http;
-        _http = CreateHttp();
-        old.Dispose();
+        _http = CreateHttp(); // 古い方は、通信中のものがあっても壊さないよう Dispose せず、GC に任せる
     }
 
     /// <summary>ログインの調査用ファイルを消す</summary>
@@ -106,24 +104,24 @@ public class EgsClient
     public async Task<List<EgsGame>> SearchAsync(string keyword)
     {
         var sql = $"""
-            SELECT g.id, g.gamename, b.brandname, g.sellday, g.median, g.average2, g.count2, g.average2, g.count2
+            SELECT g.id, g.gamename, b.brandname, g.sellday, g.median, g.average2, g.count2
             FROM gamelist g JOIN brandlist b ON g.brandname = b.id
             WHERE g.gamename ILIKE '%{Esc(keyword)}%'
             ORDER BY g.sellday DESC
             LIMIT 50
             """;
-        var rows = await QueryAsync(sql);
-        return rows.Select(r => new EgsGame(
-                int.Parse(r.GetValueOrDefault("id", "0")),
-                r.GetValueOrDefault("gamename", ""),
-                r.GetValueOrDefault("brandname", ""),
-                r.GetValueOrDefault("sellday", ""),
-                ParseNum(r.GetValueOrDefault("median", "")),
-                ParseNum(r.GetValueOrDefault("average2", "")),
-                ParseNum(r.GetValueOrDefault("count2", ""))))
-            .Where(g => g.Id > 0)
-            .ToList();
+        return (await QueryAsync(sql)).Select(ToGame).Where(g => g.Id > 0).ToList();
     }
+
+    /// <summary>検索結果の1行を作品にする（id, gamename, brandname, sellday, median, average2, count2 の列が必要）</summary>
+    private static EgsGame ToGame(Dictionary<string, string> r) => new(
+        int.TryParse(r.GetValueOrDefault("id", ""), out var id) ? id : 0,
+        r.GetValueOrDefault("gamename", ""),
+        r.GetValueOrDefault("brandname", ""),
+        r.GetValueOrDefault("sellday", ""),
+        ParseNum(r.GetValueOrDefault("median", "")),
+        ParseNum(r.GetValueOrDefault("average2", "")),
+        ParseNum(r.GetValueOrDefault("count2", "")));
 
     /// <summary>作品の最新の情報（中央値・平均値・データ数・発売日）をまとめて取得する</summary>
     public async Task<List<EgsGameInfo>> GetGameInfosAsync(IEnumerable<int> ids)
@@ -150,17 +148,7 @@ public class EgsClient
     /// <summary>自分（uid）の userreview から、プレイ済とクリア日を取得する</summary>
     public async Task<List<EgsUserRecord>> GetUserRecordsAsync(string uid)
     {
-        if (!EgsConfig.IsSet(_cfg.PlayedColumn))
-            throw new EgsException("egs_config.json の PlayedColumn が未設定です。");
-        CheckColumnName(_cfg.PlayedColumn);
-
-        var clearExpr = "NULL";
-        if (EgsConfig.IsSet(_cfg.ClearDateColumn))
-        {
-            CheckColumnName(_cfg.ClearDateColumn);
-            clearExpr = _cfg.ClearDateColumn;
-        }
-
+        var clearExpr = ClearDateExpr("");
         var sql = $"""
             SELECT game, {_cfg.PlayedColumn} AS played, {clearExpr} AS cleardate, giveup AS giveup, {ScoreExpr("")} AS score, possession AS possession
             FROM userreview
@@ -183,17 +171,7 @@ public class EgsClient
     /// </summary>
     public async Task<List<EgsMyGame>> GetMyGamesAsync(string uid, ImportScope scope)
     {
-        if (!EgsConfig.IsSet(_cfg.PlayedColumn))
-            throw new EgsException("egs_config.json の PlayedColumn が未設定です。");
-        CheckColumnName(_cfg.PlayedColumn);
-
-        var clearExpr = "NULL";
-        if (EgsConfig.IsSet(_cfg.ClearDateColumn))
-        {
-            CheckColumnName(_cfg.ClearDateColumn);
-            clearExpr = "u." + _cfg.ClearDateColumn;
-        }
-
+        var clearExpr = ClearDateExpr("u.");
         var condition = scope switch
         {
             ImportScope.PlayedOnly => $"u.{_cfg.PlayedColumn} = true",
@@ -211,14 +189,7 @@ public class EgsClient
             """;
         var rows = await QueryAsync(sql);
         return rows.Select(r => new EgsMyGame(
-                new EgsGame(
-                    int.TryParse(r.GetValueOrDefault("id", ""), out var id) ? id : 0,
-                    r.GetValueOrDefault("gamename", ""),
-                    r.GetValueOrDefault("brandname", ""),
-                    r.GetValueOrDefault("sellday", ""),
-                    ParseNum(r.GetValueOrDefault("median", "")),
-                    ParseNum(r.GetValueOrDefault("average2", "")),
-                    ParseNum(r.GetValueOrDefault("count2", ""))),
+                ToGame(r),
                 IsTrue(r.GetValueOrDefault("played", "")),
                 ParseDate(r.GetValueOrDefault("cleardate", "")),
                 IsTrue(r.GetValueOrDefault("possession", "")),
@@ -257,8 +228,9 @@ public class EgsClient
             rows = await QueryAsync(Sql(true));
             if (rows.Count == 0 || !rows[0].ContainsKey("memo_b64")) throw new EgsException("base64 が使えません");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Log.Warn("感想の base64 取得に失敗したため、そのまま取得します", ex);
             rows = await QueryAsync(Sql(false)); // base64 が使えないときは、文章をそのまま受け取る
         }
 
@@ -340,8 +312,27 @@ public class EgsClient
         return ParseResultTable(html);
     }
 
-    private static List<Dictionary<string, string>> ParseResultTable(string html)
+    private const string SqlResultMarker = "SQLの実行結果";
+    private const string SqlErrorMarker = "エラー(SQL間違い)";
+
+    /// <summary>
+    /// SQLページの応答を表にする。
+    /// 結果が0件のときは表が出ないので、「SQLの実行結果」の見出しがあるかで、本当に0件なのか、
+    /// 別のページ（メンテナンス中・エラー）が返ってきたのかを見分ける。後者は例外にする
+    /// （「記録なし」と取り違えて、同期で全作品を未登録扱いにしないため）。
+    /// </summary>
+    internal static List<Dictionary<string, string>> ParseResultTable(string html)
     {
+        if (!html.Contains(SqlResultMarker))
+        {
+            if (html.Contains(SqlErrorMarker))
+            {
+                var detail = Regex.Match(html, @"ERROR:[^<]*").Value;
+                throw new EgsException("批評空間のSQLがエラーになりました。" + HtmlEntity.DeEntitize(detail));
+            }
+            throw new EgsException("批評空間から想定外の応答が返りました（メンテナンス中、またはページの作りが変わった可能性があります）。");
+        }
+
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
         // 見出し(th)を持つ表のうち、最後のものを結果の表とみなす
@@ -436,7 +427,7 @@ public class EgsClient
             File.WriteAllText(Path.Combine(AppPaths.Dir, "debug_login_result.html"), resultHtml);
             if (topHtml != null) File.WriteAllText(Path.Combine(AppPaths.Dir, "debug_login_top.html"), topHtml);
         }
-        catch { /* 調査用ファイルが書けなくても、ログイン失敗の知らせは出す */ }
+        catch (Exception ex) { Log.Warn("調査用ファイルを書けませんでした", ex); } // 書けなくても、ログイン失敗の知らせは出す
 
         throw new EgsException(
             "ログインに失敗しました。ID・パスワード、または LoggedInMarker の設定を確認してください。\n" +
@@ -679,6 +670,17 @@ public class EgsClient
     {
         if (!Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$"))
             throw new EgsException($"列名が正しくありません: {name}");
+    }
+
+    /// <summary>「プレイ済」の列名を検査し、クリア日の列（未設定なら NULL）を返す</summary>
+    private string ClearDateExpr(string prefix)
+    {
+        if (!EgsConfig.IsSet(_cfg.PlayedColumn))
+            throw new EgsException("egs_config.json の PlayedColumn が未設定です。");
+        CheckColumnName(_cfg.PlayedColumn);
+        if (!EgsConfig.IsSet(_cfg.ClearDateColumn)) return "NULL";
+        CheckColumnName(_cfg.ClearDateColumn);
+        return prefix + _cfg.ClearDateColumn;
     }
 
     /// <summary>得点の列（未設定なら NULL）</summary>
