@@ -193,29 +193,37 @@ public class EgsConfig
     /// <summary>設定ファイルが壊れていて、初期値に戻したときのメッセージ（1回だけ表示する）</summary>
     public static string? ResetNotice { get; set; }
 
+    /// <summary>設定ファイルの場所（既定は %AppData%\NovelKeeper\egs_config.json。テストでは別の場所を指定する）</summary>
+    [System.Text.Json.Serialization.JsonIgnore] internal string? FilePath { get; set; }
+
+    private string FileName => FilePath ?? AppPaths.Config;
+
     /// <summary>設定を読み込む。ファイルがなければ初期値で作成する。壊れていたら控えを残して初期値に戻す</summary>
-    public static EgsConfig Load()
+    public static EgsConfig Load(string? path = null)
     {
-        if (File.Exists(AppPaths.Config))
+        var file = path ?? AppPaths.Config;
+        if (File.Exists(file))
         {
             try
             {
-                var loaded = JsonSerializer.Deserialize<EgsConfig>(File.ReadAllText(AppPaths.Config), JsonOptions);
+                var loaded = JsonSerializer.Deserialize<EgsConfig>(File.ReadAllText(file), JsonOptions);
                 if (loaded != null)
                 {
+                    loaded.FilePath = path;
                     loaded.Save(); // 新しく増えた項目を書き足す
                     return loaded;
                 }
             }
             catch (Exception ex) when (ex is JsonException or NotSupportedException or IOException)
             {
-                var broken = AppPaths.Config + $".broken-{DateTime.Now:yyyyMMddHHmmss}";
-                try { File.Copy(AppPaths.Config, broken, overwrite: true); } catch { /* 控えが作れなくても続ける */ }
+                var broken = file + $".broken-{DateTime.Now:yyyyMMddHHmmss}";
+                try { File.Copy(file, broken, overwrite: true); }
+                catch (Exception copyEx) { Log.Warn("壊れた設定ファイルの控えを作れませんでした", copyEx); } // 控えが作れなくても続ける
                 ResetNotice = "設定ファイルが壊れていたため、設定を初期状態に戻しました。\n" +
                               "（作品の一覧・プレイ時間・ログイン情報はそのままです）\n\n壊れたファイルの控え：\n" + broken;
             }
         }
-        var cfg = new EgsConfig();
+        var cfg = new EgsConfig { FilePath = path };
         cfg.Save();
         return cfg;
     }
@@ -226,9 +234,9 @@ public class EgsConfig
     /// </summary>
     public void Save()
     {
-        var tmp = AppPaths.Config + ".tmp";
+        var tmp = FileName + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(this, JsonOptions));
-        File.Move(tmp, AppPaths.Config, overwrite: true);
+        File.Move(tmp, FileName, overwrite: true);
     }
 }
 

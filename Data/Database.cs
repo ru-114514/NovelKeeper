@@ -7,7 +7,7 @@ using Microsoft.Data.Sqlite;
 namespace ErogeLauncher.Data;
 
 /// <summary>ローカルDB（SQLite）。%AppData%\ErogeLauncher\games.db に保存される</summary>
-public class Database
+public class Database : ISessionStore
 {
     private const string DateFormat = "yyyy-MM-dd";
     private const string DateTimeFormat = "yyyy-MM-dd HH:mm:ss";

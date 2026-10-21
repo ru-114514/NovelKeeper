@@ -74,6 +74,44 @@ public static class SyncEngine
         if (!g.PendingReview.Contains("possession")) g.EgsPossession = remote.Possession;
     }
 
+    /// <summary>
+    /// 一括取り込み：すでに一覧にある作品に、批評空間の得点と感想などを反映する（未反映の項目はツールの内容を残す）。
+    /// ツールの得点が未入力なら、批評空間の得点を入れる。
+    /// </summary>
+    /// <returns>得点を取り込んだら true</returns>
+    public static bool ApplyImportToExisting(Game old, EgsMyGame item, Review? remote)
+    {
+        old.EgsScore = item.Score;
+        if (remote != null) ApplyRemoteReview(old, remote, null);
+        if (old.MyScore != null || item.Score == null) return false;
+        old.MyScore = item.Score;
+        return true;
+    }
+
+    /// <summary>一括取り込み：一覧にない作品を、批評空間の内容から作る（保存はしない）</summary>
+    public static Game NewGameFromImport(EgsMyGame item, Review? remote) => new()
+    {
+        EgsId = item.Game.Id,
+        Title = item.Game.Title,
+        Brand = item.Game.Brand,
+        SellDay = item.Game.SellDay,
+        Median = item.Game.Median,
+        EgsAverage = item.Game.Average,
+        EgsCount = item.Game.Count,
+        // 批評空間で「放棄」→ 中断（プレイ済の☑より優先）
+        Status = item.GiveUp ? GameStatus.Dropped : item.Played ? GameStatus.Played : GameStatus.Unplayed,
+        ClearDate = item.Played && !item.GiveUp ? item.ClearDate : null,
+        MyScore = item.Score,
+        Review = remote?.Clone() ?? new Review { Possession = item.Possession },
+        // 批評空間側の状態も記録しておく
+        EgsPlayed = item.Played,
+        EgsGiveUp = item.GiveUp,
+        EgsPossession = item.Possession,
+        EgsScore = item.Score,
+        EgsClearDate = item.ClearDate,
+        EgsSyncedAt = DateTime.Now,
+    };
+
     private static string Head(string? s)
     {
         s = (s ?? "").Trim();

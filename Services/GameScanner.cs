@@ -321,7 +321,7 @@ public static class GameScanner
     // exe の候補を、よさそうな順に並べる
     // ================================================================
 
-    private static List<ExeCandidate> RankExes(string dir, IEnumerable<string> shortcutTargets, int maxDepth)
+    internal static List<ExeCandidate> RankExes(string dir, IEnumerable<string> shortcutTargets, int maxDepth)
     {
         var targets = new HashSet<string>(shortcutTargets.Where(File.Exists), StringComparer.OrdinalIgnoreCase);
 
