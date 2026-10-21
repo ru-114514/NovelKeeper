@@ -1,5 +1,7 @@
 # NovelKeeper
 
+[![test](https://github.com/ru-114514/NovelKeeper/actions/workflows/test.yml/badge.svg)](https://github.com/ru-114514/NovelKeeper/actions/workflows/test.yml)
+
 **手持ちのノベルゲームを、ひとつの画面で起動・管理するツールです。**
 プレイ時間は自動で記録され、批評空間（ErogameScape）の「プレイ済」「クリア日」「得点」とも連動できます。
 

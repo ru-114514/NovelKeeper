@@ -1,0 +1,24 @@
+name: test
+
+# push と pull request のたびに、ビルドと単体テストを自動で実行する
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # WPF と Windows 標準の winsqlite3.dll を使うので、Windows で動かす
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: ビルド（Release）
+        run: dotnet build NovelKeeper.csproj -c Release
+
+      - name: 単体テスト
+        run: dotnet test tests/NovelKeeper.Tests -c Release

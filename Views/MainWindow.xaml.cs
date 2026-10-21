@@ -1099,11 +1099,7 @@ public partial class MainWindow : Window
         var review = ReadReviewFromUi(g);
         if (review == null) return;
 
-        var oldPlayed = g.IsPlayed;
-        var oldClear = g.ClearDate;
-        var oldScore = g.MyScore;
-        var oldDropped = g.Status == GameStatus.Dropped;
-        var changedKeys = Review.Diff(g.Review, review);
+        var before = SavedState.Of(g);
         g.Review = review;
         g.MyScore = score;
 
@@ -1117,11 +1113,7 @@ public partial class MainWindow : Window
                 2 => GameStatus.Dropped,
                 _ => GameStatus.Unplayed,
             };
-        if (oldDropped != (g.Status == GameStatus.Dropped)) changedKeys.Add("giveup"); // 中断＝批評空間の「放棄」
-        if (oldPlayed != g.IsPlayed) changedKeys.Add("played");
-        if (oldClear?.Date != g.ClearDate?.Date) changedKeys.Add("cleardate");
-        if (oldScore != g.MyScore) changedKeys.Add("score"); // 空欄にした場合も反映する（批評空間は、得点があるとプレイ済を外せないため）
-        if (g.EgsId != null) g.PendingReview.UnionWith(changedKeys); // 反映するまで「未反映」として覚えておく
+        if (g.EgsId != null) g.PendingReview.UnionWith(PushEngine.ChangedKeys(before, g)); // 反映するまで「未反映」として覚えておく
         _db.Update(g);
         _detailDirty = false;
         Reload();
@@ -1199,29 +1191,12 @@ public partial class MainWindow : Window
     private async Task<bool> PushToEgsAsync(long gameId)
     {
         var g = _db.Get(gameId);
-        if (g?.EgsId is not int egsId || g.PendingReview.Count == 0) return true;
-
-        var keys = g.PendingReview.ToList();
-        var pushPlayed = keys.Contains("played") || keys.Contains("cleardate");
-        var pushScore = keys.Contains("score"); // 空欄にした場合は、空にして送る
-        var reviewKeys = keys.Where(k => k is not ("played" or "cleardate" or "score")).ToList();
-
-        // 送った内容を控えておく（確認と、通信中に変更されたかの判定に使う）
-        var sentReview = g.Review.Clone();
-        var sentPlayed = g.IsPlayed;
-        var sentClear = g.ClearDate?.Date;
-        var sentScore = g.MyScore;
-        var sentDropped = g.Status == GameStatus.Dropped;
+        if (g == null || PushEngine.Plan(g) is not { } plan) return true;
 
         try
         {
             StatusText.Text = $"批評空間に反映中：{g.Title}";
-            await _egs.UpdateReviewAsync(egsId,
-                pushPlayed ? sentPlayed : null,
-                pushPlayed && sentPlayed ? g.ClearDate : null,
-                pushScore ? sentScore : null,
-                reviewKeys.Count > 0 ? sentReview.ToFormValues(reviewKeys, sentDropped) : null,
-                clearScore: pushScore && sentScore == null);
+            await _egs.UpdateReviewAsync(plan.EgsId, plan.Played, plan.ClearDate, plan.Score, plan.FormValues(_cfg), plan.ClearScore);
         }
         catch (Exception ex)
         {
@@ -1230,7 +1205,7 @@ public partial class MainWindow : Window
             var r = MessageBox.Show(
                 $"批評空間への反映に失敗しました。\n\n{ex.Message}\n\n得点登録ページをブラウザで開きますか？（手動で登録できます）",
                 "反映エラー", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (r == MessageBoxResult.Yes) OpenUrl(_egs.ReviewFormUrl(egsId));
+            if (r == MessageBoxResult.Yes) OpenUrl(_egs.ReviewFormUrl(plan.EgsId));
             return false;
         }
 
@@ -1243,9 +1218,9 @@ public partial class MainWindow : Window
             var cred = CredentialStore.Load();
             if (cred != null)
             {
-                rec = (await _egs.GetUserRecordsAsync(cred.Value.User)).FirstOrDefault(x => x.GameId == egsId);
-                if (reviewKeys.Count > 0)
-                    remote = (await _egs.GetReviewsAsync(cred.Value.User, egsId)).GetValueOrDefault(egsId);
+                rec = (await _egs.GetUserRecordsAsync(cred.Value.User)).FirstOrDefault(x => x.GameId == plan.EgsId);
+                if (plan.ReviewKeys.Count > 0)
+                    remote = (await _egs.GetReviewsAsync(cred.Value.User, plan.EgsId)).GetValueOrDefault(plan.EgsId);
                 checkedOk = true;
             }
         }
@@ -1254,44 +1229,15 @@ public partial class MainWindow : Window
             Log.Warn("反映の確認に失敗", ex);
         }
 
-        Log.Info($"批評空間へ反映後の確認 game={egsId} 送信played={sentPlayed} 読み直しplayed={rec?.Played} 送信日={sentClear:yyyy-MM-dd} 読み直し日={rec?.ClearDate:yyyy-MM-dd} 確認できた={checkedOk}");
+        Log.Info($"批評空間へ反映後の確認 game={plan.EgsId} 送信played={plan.SentPlayed} 読み直しplayed={rec?.Played} 送信日={plan.SentClear:yyyy-MM-dd} 読み直し日={rec?.ClearDate:yyyy-MM-dd} 確認できた={checkedOk}");
         var fresh = _db.Get(gameId);
         if (fresh == null) return true; // 通信中に一覧から削除された
 
-        var done = new List<string>();
-        if (checkedOk)
-        {
-            foreach (var key in keys)
-            {
-                var reflected = key switch
-                {
-                    "played" => (rec?.Played ?? false) == sentPlayed,
-                    "cleardate" => !sentPlayed || sentClear == null || rec?.ClearDate?.Date == sentClear,
-                    "score" => rec?.Score == sentScore,
-                    "giveup" => (rec?.GiveUp ?? false) == sentDropped,
-                    _ => remote != null && !remote.Unreadable.Contains(key) && !Review.Diff(sentReview, remote).Contains(key),
-                };
-                // 通信中に画面で同じ項目を変更していたら、その変更はまだ未反映のまま残す
-                var unchangedLocally = key switch
-                {
-                    "played" => fresh.IsPlayed == sentPlayed,
-                    "cleardate" => fresh.ClearDate?.Date == sentClear,
-                    "score" => fresh.MyScore == sentScore,
-                    "giveup" => (fresh.Status == GameStatus.Dropped) == sentDropped,
-                    _ => !Review.Diff(sentReview, fresh.Review).Contains(key),
-                };
-                if (reflected && unchangedLocally) done.Add(key);
-            }
-            SyncEngine.ApplyEgsState(fresh, rec);
-            if (remote != null && !fresh.PendingReview.Contains("possession")) fresh.EgsPossession = remote.Possession;
-        }
-
-        fresh.PendingReview.ExceptWith(done);
-        if (done.Contains("possession")) fresh.EgsPossession = sentReview.Possession;
+        var done = PushEngine.Complete(plan, checkedOk, rec, remote, fresh);
         _db.UpdateSyncState(fresh); // 同期の状態だけを書く（画面で保存した内容には触れない）
         Reload();
 
-        var notYet = keys.Except(done).ToList();
+        var notYet = plan.Keys.Except(done).ToList();
         StatusText.Text = !checkedOk
             ? $"送信しましたが、反映を確認できませんでした：{g.Title}（次の同期で確認します）"
             : notYet.Count == 0

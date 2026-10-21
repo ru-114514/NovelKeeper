@@ -91,7 +91,7 @@ public class EgsParsingTests
     public void ReviewFormValues_UncheckedBoxesAreSentAsNull_AndEmptyNumbersAsEmpty()
     {
         var review = new Review { Possession = false, Okazu = null, TotalPlayTime = 12, Hitokoto = "x" };
-        var values = review.ToFormValues(["possession", "okazu", "total_play_time", "hitokoto"], giveUp: false);
+        var values = review.ToFormValues(["possession", "okazu", "total_play_time", "hitokoto"], giveUp: false, new EgsConfig().ReviewFormField);
 
         Assert.Null(values["data[possession]"]);                 // ☑を外す＝送らない
         Assert.Equal("-999", values["data[okazu]"]);             // 「-」は -999

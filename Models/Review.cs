@@ -110,7 +110,8 @@ public class Review
     /// 指定した項目を、得点登録フォームに送る値にする（値が null の項目は「☑を外す」＝送らない）。
     /// giveup（放棄）は、ツールの状態が「中断」かどうかで決める。
     /// </summary>
-    public Dictionary<string, string?> ToFormValues(IEnumerable<string> keys, bool giveUp)
+    /// <param name="field">項目の名前 → 得点登録フォームの欄の name 属性（設定ファイルで変えられる。EgsConfig.ReviewFormField）</param>
+    public Dictionary<string, string?> ToFormValues(IEnumerable<string> keys, bool giveUp, Func<string, string> field)
     {
         static string N(int? v) => v?.ToString(CultureInfo.InvariantCulture) ?? "";
         static string? Check(bool b) => b ? "on" : null;
@@ -120,23 +121,23 @@ public class Review
         {
             switch (key)
             {
-                case "possession": d["data[possession]"] = Check(Possession == true); break;
-                case "giveup": d["data[giveup]"] = Check(giveUp); break;
-                case "total_play_time": d["data[total_play_time]"] = N(TotalPlayTime); break;
-                case "fun_time": d["data[time_before_understanding_fun]"] = N(FunTime); break;
-                case "okazu": d["data[okazu]"] = (Okazu ?? -999).ToString(CultureInfo.InvariantCulture); break;
-                case "purchase_will": d["data[before_purchase_will]"] = PurchaseWill ?? ""; break;
-                case "before_tokuten": d["data[before_tokuten]"] = N(BeforeScore); break;
-                case "start_date": d["data[start_date]"] = StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? ""; break;
+                case "possession": d[field("possession")] = Check(Possession == true); break;
+                case "giveup": d[field("giveup")] = Check(giveUp); break;
+                case "total_play_time": d[field("total_play_time")] = N(TotalPlayTime); break;
+                case "fun_time": d[field("fun_time")] = N(FunTime); break;
+                case "okazu": d[field("okazu")] = (Okazu ?? -999).ToString(CultureInfo.InvariantCulture); break;
+                case "purchase_will": d[field("purchase_will")] = PurchaseWill ?? ""; break;
+                case "before_tokuten": d[field("before_tokuten")] = N(BeforeScore); break;
+                case "start_date": d[field("start_date")] = StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? ""; break;
                 case "platform":
-                    d["data[platform][platform]"] = N(Platform);
-                    d["data[platform][operation]"] = N(Operation);
-                    d["data[platform][memo]"] = PlatformMemo ?? "";
+                    d[field("platform")] = N(Platform);
+                    d[field("operation")] = N(Operation);
+                    d[field("platform_memo")] = PlatformMemo ?? "";
                     break;
-                case "hitokoto": d["data[hitokoto]"] = Hitokoto ?? ""; break;
-                case "sage": d["data[sage]"] = Check(Sage); break;
-                case "memo": d["data[memo]"] = Memo ?? ""; break;
-                case "netabare": d["data[netabare]"] = Check(Netabare); break;
+                case "hitokoto": d[field("hitokoto")] = Hitokoto ?? ""; break;
+                case "sage": d[field("sage")] = Check(Sage); break;
+                case "memo": d[field("memo")] = Memo ?? ""; break;
+                case "netabare": d[field("netabare")] = Check(Netabare); break;
             }
         }
         return d;

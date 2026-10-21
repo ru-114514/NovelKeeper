@@ -60,6 +60,35 @@ public class EgsConfig
     /// <summary>得点登録フォームの得点欄の name 属性</summary>
     public string ScoreField { get; set; } = "data[tokuten]";
 
+    /// <summary>
+    /// 得点登録フォームの、感想などの欄の name 属性（項目名 → name）。
+    /// 批評空間の欄の名前が変わったときは、ここを書き換える（変えたい項目だけ書けばよい。書かなかった項目は既定値）。
+    /// </summary>
+    public Dictionary<string, string> ReviewFields { get; set; } = new(DefaultReviewFields);
+
+    public static readonly IReadOnlyDictionary<string, string> DefaultReviewFields = new Dictionary<string, string>
+    {
+        ["possession"] = "data[possession]",
+        ["giveup"] = "data[giveup]",
+        ["total_play_time"] = "data[total_play_time]",
+        ["fun_time"] = "data[time_before_understanding_fun]",
+        ["okazu"] = "data[okazu]",
+        ["purchase_will"] = "data[before_purchase_will]",
+        ["before_tokuten"] = "data[before_tokuten]",
+        ["start_date"] = "data[start_date]",
+        ["platform"] = "data[platform][platform]",
+        ["operation"] = "data[platform][operation]",
+        ["platform_memo"] = "data[platform][memo]",
+        ["hitokoto"] = "data[hitokoto]",
+        ["sage"] = "data[sage]",
+        ["memo"] = "data[memo]",
+        ["netabare"] = "data[netabare]",
+    };
+
+    /// <summary>感想などの項目の、フォームの欄の name（設定になければ既定値）</summary>
+    public string ReviewFormField(string key) =>
+        ReviewFields.TryGetValue(key, out var name) && IsSet(name) ? name.Trim() : DefaultReviewFields[key];
+
     // ---- 一覧の並び順（画面で変更すると自動で保存される） ----
     public List<SortKey> SortKeys { get; set; } = new() { new SortKey { Property = "Title" } };
 
