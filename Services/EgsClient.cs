@@ -45,7 +45,10 @@ public class EgsClient
     private readonly SemaphoreSlim _lock = new(1, 1);
     private DateTime _lastRequest = DateTime.MinValue;
 
-    public bool LoggedIn { get; private set; }
+    /// <summary>テストで通信を差し替えるための工場（null なら通常の通信）</summary>
+    private readonly Func<HttpMessageHandler>? _handlerFactory;
+
+    public bool LoggedIn { get; internal set; }
 
     static EgsClient()
     {
@@ -55,15 +58,18 @@ public class EgsClient
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    public EgsClient(EgsConfig cfg)
+    public EgsClient(EgsConfig cfg) : this(cfg, null) { }
+
+    internal EgsClient(EgsConfig cfg, Func<HttpMessageHandler>? handlerFactory)
     {
         _cfg = cfg;
-        _http = CreateHttp();
+        _handlerFactory = handlerFactory;
+        _http = CreateHttp(handlerFactory);
     }
 
-    private static HttpClient CreateHttp()
+    private static HttpClient CreateHttp(Func<HttpMessageHandler>? handlerFactory)
     {
-        var handler = new HttpClientHandler
+        HttpMessageHandler handler = handlerFactory?.Invoke() ?? new HttpClientHandler
         {
             CookieContainer = new CookieContainer(), // ログイン状態（Cookie）を保持
             AutomaticDecompression = DecompressionMethods.All,
@@ -77,7 +83,7 @@ public class EgsClient
     public void Logout()
     {
         LoggedIn = false;
-        _http = CreateHttp(); // 古い方は、通信中のものがあっても壊さないよう Dispose せず、GC に任せる
+        _http = CreateHttp(_handlerFactory); // 古い方は、通信中のものがあっても壊さないよう Dispose せず、GC に任せる
     }
 
     /// <summary>ログインの調査用ファイルを消す</summary>
@@ -481,7 +487,9 @@ public class EgsClient
         var fields = ReadForm(form);
 
         // ---- プレイ済（null なら今の状態のまま） ----
-        var playedInput = form.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']")!;
+        // 同じ名前の隠し項目（外したときの「0」）が先にあっても、☑を付けるときの値はチェック欄から読む
+        var playedInput = form.SelectSingleNode($".//input[@name='{_cfg.PlayedField}' and @type='checkbox']")
+                          ?? form.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']")!;
         if (played == true)
         {
             var value = _cfg.PlayedValue != "" ? _cfg.PlayedValue : playedInput.GetAttributeValue("value", "on");
