@@ -59,6 +59,7 @@ public partial class MainWindow : Window
             _tracker.Dispose();
             _tray.Dispose();
             _floatWindow?.Close(); // 別ウィンドウの詳細欄が残っていると、アプリが終わらないため
+            CloseSummaryFloats();
         };
 
         // 設定ファイルが壊れていて初期状態に戻したときは、そのことを知らせる
@@ -94,6 +95,7 @@ public partial class MainWindow : Window
 
         ShowBeforePurchaseCheck.IsChecked = _cfg.ShowBeforePurchase;
         InitSettingsTab();
+        InitSummaryTab();
 
         // 保存されているテーマを選択欄に表示（App で適用済み）
         _loadingTheme = true;
@@ -268,6 +270,7 @@ public partial class MainWindow : Window
             _tray.Notify("プレイ時間を記録しました", $"{title}（{minutes}分）");
         _tray.SetText("NovelKeeper");
         Reload();
+        if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) RefreshSummary();
     }
 
     private void OnTracking(IReadOnlyList<ActiveSessionInfo> list)
@@ -294,6 +297,7 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
         _floatWindow?.Hide();
+        HideSummaryFloats();
         Hide();
         if (!_trayNotified)
         {
@@ -309,6 +313,7 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
         ApplyDetailLayout(); // 別ウィンドウの詳細欄も出し直す
+        ApplySummaryLayout();
     }
 
     private void ExitApp()

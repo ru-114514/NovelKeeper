@@ -125,6 +125,16 @@ public class EgsConfig
     public double FloatWidth { get; set; } = 360;
     public double FloatHeight { get; set; } = 560;
 
+    // ---- レポート画面の配置（グラフ・カレンダー・作品の3つの欄を、それぞれ好きな場所に置ける） ----
+    /// <summary>欄の名前（"chart" / "calendar" / "games"）→ 置き場所などの状態</summary>
+    public Dictionary<string, SummaryPanelState> SummaryPanels { get; set; } = new();
+    /// <summary>左の置き場所の幅</summary>
+    public double SummaryLeftWidth { get; set; } = 320;
+    /// <summary>右の置き場所の幅</summary>
+    public double SummaryRightWidth { get; set; } = 340;
+    /// <summary>下の置き場所の高さ</summary>
+    public double SummaryBottomHeight { get; set; } = 260;
+
     /// <summary>一覧の列の幅（見出し → 幅）。見出しの境目をドラッグして変えると保存される</summary>
     public Dictionary<string, double> ColumnWidths { get; set; } = new();
 
@@ -241,6 +251,19 @@ public class EgsConfig
 }
 
 /// <summary>並び替えの条件1つ分</summary>
+/// <summary>レポート画面の欄1つ分の状態</summary>
+public class SummaryPanelState
+{
+    /// <summary>"Main"（メイン）/ "Left"（左に縦長）/ "Right"（右に縦長）/ "Bottom"（下に横長）/ "Float"（別ウィンドウ）</summary>
+    public string Position { get; set; } = "Main";
+    public bool Visible { get; set; } = true;
+    /// <summary>別ウィンドウにしたときの位置と大きさ（位置が null なら画面の右寄りに出す）</summary>
+    public double? Left { get; set; }
+    public double? Top { get; set; }
+    public double Width { get; set; } = 420;
+    public double Height { get; set; } = 420;
+}
+
 public class SortKey
 {
     public string Property { get; set; } = "Title";

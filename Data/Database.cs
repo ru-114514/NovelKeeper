@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using ErogeLauncher.Models;
 using ErogeLauncher.Services;
@@ -402,6 +402,31 @@ public class Database : ISessionStore
         cmd.CommandText = "DELETE FROM sessions WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", sessionId);
         cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>期間にかかるセッションを読む（レポート用）。from 以上 to 未満</summary>
+    public List<SessionRow> GetSessions(DateTime from, DateTime to)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT s.game_id, g.title, s.started_at, s.ended_at, s.seconds
+            FROM sessions s JOIN games g ON g.id = s.game_id
+            WHERE s.started_at < $to AND s.ended_at >= $from
+            ORDER BY s.started_at
+            """;
+        cmd.Parameters.AddWithValue("$from", from.ToString(DateTimeFormat, CultureInfo.InvariantCulture));
+        cmd.Parameters.AddWithValue("$to", to.ToString(DateTimeFormat, CultureInfo.InvariantCulture));
+        using var r = cmd.ExecuteReader();
+        var list = new List<SessionRow>();
+        while (r.Read())
+        {
+            var start = ParseDate(Str(r[2]), DateTimeFormat);
+            var end = ParseDate(Str(r[3]), DateTimeFormat);
+            if (start == null) continue;
+            list.Add(new SessionRow(Convert.ToInt64(r[0]), Convert.ToString(r[1]) ?? "", start.Value, end ?? start.Value, Convert.ToInt64(r[4])));
+        }
+        return list;
     }
 
     /// <summary>未プレイの作品だけ「プレイ中」にする（ほかの項目には触れない）</summary>
