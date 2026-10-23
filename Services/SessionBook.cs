@@ -45,6 +45,12 @@ public sealed class SessionBook(ISessionStore store)
         public int Misses;
         public bool Counting;
         public DateTime LastSaved;
+        /// <summary>直前の確認での「操作がない時間」（これが減ったら、操作があったということ）</summary>
+        public double LastIdleSeconds;
+        /// <summary>いまの「操作がない時間」のあいだに、数えてしまった秒数</summary>
+        public double IdleStreakCounted;
+        /// <summary>いまの「操作がない時間」の分は、すでに差し引いたか</summary>
+        public bool IdleSubtracted;
     }
 
     private readonly Dictionary<long, Session> _active = new();
@@ -62,9 +68,12 @@ public sealed class SessionBook(ISessionStore store)
     /// <param name="idle">放置中（数えない）</param>
     /// <param name="foregroundOnly">前面にあるときだけ数える設定</param>
     /// <param name="foregroundPid">前面のウィンドウのプロセス ID</param>
+    /// <param name="idleSeconds">マウス・キーボードの操作がない時間（秒）。さかのぼって差し引くときに使う</param>
+    /// <param name="subtractIdle">放置と判断したとき、その操作がなかった間に数えてしまった時間を差し引く</param>
     public SessionUpdate Update(DateTime now, double addSeconds,
         IReadOnlyDictionary<long, (Game Game, HashSet<int> Pids)> running,
-        bool idle, bool foregroundOnly, int foregroundPid)
+        bool idle, bool foregroundOnly, int foregroundPid,
+        double idleSeconds = 0, bool subtractIdle = false)
     {
         var started = new List<(long, string)>();
         var ended = new List<(long, string, double)>();
@@ -88,8 +97,24 @@ public sealed class SessionBook(ISessionStore store)
             }
 
             s.Misses = 0;
+
+            // 操作があった（操作がない時間が減った）ら、新しい「操作がない時間」の数え直し
+            if (idleSeconds < s.LastIdleSeconds) { s.IdleStreakCounted = 0; s.IdleSubtracted = false; }
+            s.LastIdleSeconds = idleSeconds;
+
             s.Counting = !idle && (!foregroundOnly || pids.Contains(foregroundPid));
-            if (s.Counting) s.Seconds += addSeconds;
+            if (s.Counting)
+            {
+                s.Seconds += addSeconds;
+                s.IdleStreakCounted += Math.Min(addSeconds, idleSeconds); // 今回の間のうち、操作がなかった分
+            }
+            else if (idle && subtractIdle && !s.IdleSubtracted)
+            {
+                // 放置と判断した：操作がなかった間（判断するまでの分）に数えてしまった時間を、1回だけ差し引く
+                s.Seconds -= Math.Min(s.IdleStreakCounted, s.Seconds);
+                s.IdleStreakCounted = 0;
+                s.IdleSubtracted = true;
+            }
 
             if ((now - s.LastSaved).TotalSeconds >= SaveIntervalSeconds)
             {

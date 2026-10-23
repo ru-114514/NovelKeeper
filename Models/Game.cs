@@ -50,6 +50,10 @@ public class Game
     public Review Review { get; set; } = new();
     /// <summary>ツールで変更して、まだ批評空間に反映していない項目（Review.Keys の名前）</summary>
     public HashSet<string> PendingReview { get; set; } = new();
+    /// <summary>購入額（円。任意。このツールだけに保存し、批評空間には送らない。未入力なら null）</summary>
+    public int? Price { get; set; }
+    /// <summary>一覧の「購入額」列の表示（3,300 のようにカンマ区切り。未入力なら空欄）</summary>
+    public string PriceText => Price?.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) ?? "";
     /// <summary>初めて起動した日時（プレイ時間の記録から）</summary>
     public DateTime? FirstPlayed { get; set; }
 
@@ -85,12 +89,43 @@ public class Game
     };
 
     /// <summary>
-    /// 購入前の作品か：批評空間で「所持」も「プレイ済」も「放棄」も付いておらず（購入予定など）、
+    /// 購入前の作品か：「所持」が付いておらず（外れている、または不明）、「プレイ済」も「放棄」も付いておらず（購入予定など）、
     /// ツールでも起動設定・プレイ記録がない未プレイの作品
     /// </summary>
     public bool IsBeforePurchase =>
-        Status == GameStatus.Unplayed && (Review.Possession ?? EgsPossession) == false && !EgsPlayed && !EgsGiveUp &&
+        Status == GameStatus.Unplayed && (Review.Possession ?? EgsPossession) != true && !EgsPlayed && !EgsGiveUp &&
         IsLaunchUnset && TotalSeconds == 0;
+
+    /// <summary>発売日が今日より後の作品か（発売日が読めない・未登録なら false）</summary>
+    public bool IsUnreleased => IsUnreleasedOn(DateTime.Today);
+
+    /// <summary>発売日が今日以前の作品か（「表示:」の「発売後」用。発売日が読めない・未定なら false）</summary>
+    public bool IsReleased => IsReleasedOn(DateTime.Today);
+
+    internal bool IsUnreleasedOn(DateTime today) => ParsedSellDay is DateTime d && d > today.Date;
+
+    /// <summary>発売日が今日以前の作品か（発売日が読めない・未定なら false）</summary>
+    internal bool IsReleasedOn(DateTime today) => ParsedSellDay is DateTime d && d <= today.Date;
+
+    private DateTime? ParsedSellDay =>
+        SellDay is { Length: >= 10 } s &&
+        DateTime.TryParse(s[..10], System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d)
+            ? d.Date : null;
+
+    /// <summary>
+    /// 購入確認が必要か：発売済みなのに所持が付いておらず（起動設定・プレイ記録もない）、購入予定に何か選んである
+    /// （必ず購入・多分購入・様子見）。買ったら「所持」を付けると、これに当てはまらなくなる
+    /// </summary>
+    public bool NeedsPurchaseCheck => NeedsPurchaseCheckOn(DateTime.Today);
+
+    /// <summary>一覧の「購入確認」列の文字（赤いセルの中に表示する）</summary>
+    public string PurchaseCheckText => NeedsPurchaseCheck ? "要確認" : "";
+
+    internal bool NeedsPurchaseCheckOn(DateTime today) =>
+        IsBeforePurchase && !string.IsNullOrEmpty(Review.PurchaseWill) && IsReleasedOn(today);
+
+    /// <summary>一覧の行の色分けと、「表示:」の絞り込み用：発売日が先の作品は「発売前」、所持がなく手つかずの作品は「購入前」（両方なら「発売前」）</summary>
+    public string Category => IsUnreleased ? "発売前" : IsBeforePurchase ? "購入前" : "";
 
     public string PossessionText => (Review.Possession ?? EgsPossession) == true ? "所持" : "";
 
@@ -99,6 +134,9 @@ public class Game
     public int? FunTimeHours => Review.FunTime;
     public string OkazuText => Review.OkazuText;
     public string PurchaseWillText => Review.PurchaseWillText;
+
+    /// <summary>購入額が未入力か（購入額での並び替えで、昇順・降順どちらでも未入力を最後にするための補助）</summary>
+    public bool PriceMissing => Price == null;
     public int? BeforeScore => Review.BeforeScore;
     public DateTime? StartDate => Review.StartDate;
     public string StartDateText => Review.StartDate?.ToString("yyyy/MM/dd") ?? "";
@@ -132,7 +170,14 @@ public class Game
 
     public string PlayTimeText => TotalSeconds == 0
         ? ""
-        : $"{TotalSeconds / 3600}時間{TotalSeconds % 3600 / 60:00}分";
+        : Clock(TotalSeconds);
+
+    /// <summary>秒を「12:30:51」（時:分:秒。時は桁を揃えず、分と秒は2桁）にする。一覧・詳細・CSV で同じ表記にする</summary>
+    public static string Clock(long seconds)
+    {
+        var s = Math.Max(0, seconds);
+        return $"{s / 3600}:{s % 3600 / 60:00}:{s % 60:00}";
+    }
 
     public string EgsText
     {

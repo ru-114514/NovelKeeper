@@ -67,7 +67,7 @@ public partial class MainWindow
     private void HookDetailDirty()
     {
         void Mark() { if (!_loadingDetail) _detailDirty = true; }
-        foreach (var box in new[] { ScoreBox, TotalPlayTimeBox, FunTimeBox, BeforeScoreBox, PlatformMemoBox, HitokotoBox, MemoBox })
+        foreach (var box in new[] { ScoreBox, TotalPlayTimeBox, FunTimeBox, BeforeScoreBox, PriceBox, PlatformMemoBox, HitokotoBox, MemoBox })
             box.TextChanged += (_, _) => Mark();
         foreach (var check in new[] { PlayedCheck, PossessionCheck, SageCheck, NetabareCheck })
             check.Click += (_, _) => Mark();
@@ -75,6 +75,38 @@ public partial class MainWindow
             combo.SelectionChanged += (_, _) => Mark();
         foreach (var date in new[] { StartDatePicker, ClearDatePicker })
             date.SelectedDateChanged += (_, _) => Mark();
+    }
+
+    private bool _formattingPrice;
+
+    /// <summary>購入額の欄：入力に合わせて、金額に応じたカンマを自動で入れる（数字以外は取り除く。全角の数字も半角にする）</summary>
+    private void PriceBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_formattingPrice) return;
+        var box = (TextBox)sender;
+        var digitsBeforeCaret = 0;
+        for (var i = 0; i < Math.Min(box.CaretIndex, box.Text.Length); i++)
+            if (IsDigit(box.Text[i])) digitsBeforeCaret++;
+
+        var digits = new string(box.Text.Where(IsDigit).Select(c => c >= '０' ? (char)('0' + (c - '０')) : c).ToArray()).TrimStart('0');
+        if (digits.Length > 8) digits = digits[..8]; // 上限 99,999,999
+        var formatted = digits.Length == 0 ? "" : long.Parse(digits).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+        if (box.Text.Trim() != "" && digits.Length == 0 && box.Text.Any(c => c == '0' || c == '０')) formatted = "0"; // 「0」だけは 0 円として残す
+
+        if (formatted == box.Text) return;
+        _formattingPrice = true;
+        try
+        {
+            box.Text = formatted;
+            // カーソルは、同じ数字の後ろに戻す
+            var pos = 0;
+            for (var seen = 0; pos < formatted.Length && seen < digitsBeforeCaret; pos++)
+                if (char.IsDigit(formatted[pos])) seen++;
+            box.CaretIndex = pos;
+        }
+        finally { _formattingPrice = false; }
+
+        static bool IsDigit(char c) => c is >= '0' and <= '9' or >= '０' and <= '９';
     }
 
     /// <summary>選択欄に、批評空間と同じ選択肢を入れる</summary>
@@ -111,12 +143,14 @@ public partial class MainWindow
         InitReviewBoxes();
         var r = g?.Review ?? new Review();
         PossessionCheck.IsChecked = (g?.Review.Possession ?? g?.EgsPossession) == true;
+        UnreleasedBadge.Visibility = g?.IsUnreleased == true ? Visibility.Visible : Visibility.Collapsed;
         StartDatePicker.SelectedDate = r.StartDate;
         TotalPlayTimeBox.Text = r.TotalPlayTime?.ToString() ?? "";
         FunTimeBox.Text = r.FunTime?.ToString() ?? "";
         SelectByTag(OkazuBox, r.Okazu);
         SelectByTag(PurchaseWillBox, r.PurchaseWill ?? "");
         BeforeScoreBox.Text = r.BeforeScore?.ToString() ?? "";
+        PriceBox.Text = g?.PriceText ?? "";
         SelectByTag(PlatformBox, r.Platform);
         SelectByTag(OperationBox, r.Operation);
         PlatformMemoBox.Text = r.PlatformMemo;
@@ -170,6 +204,43 @@ public partial class MainWindow
     {
         if (Selected?.FirstPlayed is DateTime d) StartDatePicker.SelectedDate = d.Date;
         else MessageBox.Show("この作品は、まだプレイ時間の記録がありません。", "ゲーム開始日");
+    }
+
+    /// <summary>計測したプレイ時間の記録を、追加・編集・削除する画面を開く</summary>
+    private void EditPlayTime_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not Game g) return;
+        if (_activeGameIds.Contains(g.Id))
+        {
+            MessageBox.Show(this, "この作品は、いま計測中です。\nゲームを終了して、計測が終わってから補正してください。", "プレイ時間の補正");
+            return;
+        }
+
+        // 補正のあと一覧を読み直すと、詳細欄の編集中の内容が消えるので、先に確かめる
+        if (_detailDirty &&
+            MessageBox.Show(this, "詳細欄に、保存していない変更があります。\n補正を開くと、その変更は破棄されます。続けますか？\n（［いいえ］で中止して、先に保存できます）",
+                "未保存の変更", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+
+        var dlg = new PlayTimeEditWindow(_db, g) { Owner = this };
+        dlg.ShowDialog();
+        if (!dlg.Changed) return;
+
+        _detailDirty = false;
+        Reload(); // 合計時間や「初回起動日」が変わる
+        if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) RefreshSummary();
+        StatusText.Text = $"プレイ時間の記録を補正しました：{g.Title}";
+
+        // 総プレイ時間（批評空間に送る値）が、補正した計測時間とずれたら、入れ直すか聞く
+        if (_db.Get(g.Id) is { } fresh && fresh.TotalSeconds > 0 && fresh.Review.TotalPlayTime is int current)
+        {
+            var hours = Math.Max(1, (int)Math.Round(fresh.TotalSeconds / 3600.0));
+            if (hours != current &&
+                MessageBox.Show(this, $"総プレイ時間の欄は {current} 時間ですが、補正後の計測時間は {hours} 時間（{Game.Clock(fresh.TotalSeconds)}）です。\n\n" +
+                                      $"総プレイ時間の欄を {hours} 時間に入れ直しますか？\n（入れ直したあと、「保存」を押すと批評空間にも反映されます）",
+                    "総プレイ時間", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                TotalPlayTimeBox.Text = hours.ToString();
+        }
     }
 
     private void FillTotalTime_Click(object sender, RoutedEventArgs e)

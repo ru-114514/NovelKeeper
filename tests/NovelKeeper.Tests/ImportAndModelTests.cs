@@ -93,6 +93,33 @@ public class ImportTests
 /// <summary>作品モデル（一覧に出す文字・判定）のテスト</summary>
 public class GameModelTests
 {
+    [Theory]
+    [InlineData("2026-11-01", true)]
+    [InlineData("2026-10-23", false)] // 発売日当日は、発売前ではない
+    [InlineData("2020-01-31", false)]
+    [InlineData("", false)]
+    [InlineData("未定", false)]
+    public void IsUnreleased_OnlyWhenSellDayIsAfterToday(string sellDay, bool expected)
+        => Assert.Equal(expected, new Game { SellDay = sellDay }.IsUnreleasedOn(new DateTime(2026, 10, 23, 15, 0, 0)));
+
+    [Fact]
+    public void Category_UnreleasedWinsOverBeforePurchase_AndOwnedWorksHaveNone()
+    {
+        var future = DateTime.Today.AddDays(30).ToString("yyyy-MM-dd");
+        var unreleased = new Game { Status = GameStatus.Unplayed, SellDay = future, Review = new Review { Possession = false } };
+        Assert.True(unreleased.IsBeforePurchase);
+        Assert.Equal("発売前", unreleased.Category);
+
+        var before = new Game { Status = GameStatus.Unplayed, SellDay = "2020-01-01", Review = new Review { Possession = false } };
+        Assert.Equal("購入前", before.Category);
+
+        var owned = new Game { Status = GameStatus.Unplayed, SellDay = "2020-01-01", Review = new Review { Possession = true } };
+        Assert.Equal("", owned.Category);
+
+        var ownedUnreleased = new Game { SellDay = future, Review = new Review { Possession = true } }; // 予約済みなど
+        Assert.Equal("発売前", ownedUnreleased.Category);
+    }
+
     [Fact]
     public void IsBeforePurchase_OnlyForUnownedUntouchedGames()
     {
@@ -103,7 +130,9 @@ public class GameModelTests
         var owned = Make(); owned.Review.Possession = true;
         Assert.False(owned.IsBeforePurchase);
 
-        var unknown = Make(); unknown.Review.Possession = null; // 不明は、購入前とみなさない
+        var unknown = Make(); unknown.Review.Possession = null; // 所持が不明（空）でも、一覧の「所持」は空なので購入前として扱う
+        Assert.True(unknown.IsBeforePurchase);
+        unknown.EgsPossession = true;
         Assert.False(unknown.IsBeforePurchase);
 
         var launchable = Make(); launchable.ExePath = @"D:\g\a.exe";
@@ -134,10 +163,10 @@ public class GameModelTests
 
     [Theory]
     [InlineData(0, "")]
-    [InlineData(59, "0時間00分")]
-    [InlineData(3725, "1時間02分")]
-    [InlineData(36000, "10時間00分")]
-    public void PlayTimeText_FormatsHoursAndMinutes(long seconds, string expected) =>
+    [InlineData(59, "0:00:59")]
+    [InlineData(3725, "1:02:05")]
+    [InlineData(36000, "10:00:00")]
+    public void PlayTimeText_FormatsAsClock(long seconds, string expected) =>
         Assert.Equal(expected, new Game { TotalSeconds = seconds }.PlayTimeText);
 
     [Fact]

@@ -55,6 +55,19 @@ public partial class MainWindow
                 "得点を空欄にする", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
 
+        // 購入額（円。任意。カンマ・円記号は無視する。空欄は「未入力」）
+        int? price = null;
+        var priceText = PriceBox.Text.Replace(",", "").Replace("，", "").Replace("円", "").Replace("¥", "").Replace("￥", "").Trim();
+        if (priceText != "")
+        {
+            if (!int.TryParse(priceText, out var pv) || pv < 0 || pv > 99_999_999)
+            {
+                MessageBox.Show("購入額は 0～99,999,999 の整数（円）で入力してください。", "入力エラー");
+                return;
+            }
+            price = pv;
+        }
+
         // 得点登録フォームのその他の項目
         var review = ReadReviewFromUi(g);
         if (review == null) return;
@@ -62,6 +75,7 @@ public partial class MainWindow
         var before = SavedState.Of(g);
         g.Review = review;
         g.MyScore = score;
+        g.Price = price; // ツールだけに保存（批評空間には送らない）
 
         // 起動するもの（TargetGrid）は、変更したその場で保存しているので、ここでは扱わない
         g.ClearDate = ClearDatePicker.SelectedDate?.Date;
@@ -162,7 +176,7 @@ public partial class MainWindow
         {
             Log.Warn("批評空間への反映に失敗", ex);
             StatusText.Text = "批評空間への反映に失敗しました（未反映の項目は、次の同期でまた反映します）";
-            var r = MessageBox.Show(
+            var r = MessageBox.Show(this,
                 $"批評空間への反映に失敗しました。\n\n{ex.Message}\n\n得点登録ページをブラウザで開きますか？（手動で登録できます）",
                 "反映エラー", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (r == MessageBoxResult.Yes) OpenUrl(_egs.ReviewFormUrl(plan.EgsId));

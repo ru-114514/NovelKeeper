@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitInputHelpers();
         // タイトルにバージョンを表示（build.bat で指定したバージョン）
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         if (version != null) Title = $"NovelKeeper {version.ToString(3)} ― ノベルゲーム ランチャー";
@@ -91,11 +92,13 @@ public partial class MainWindow : Window
         SetListZoom(_cfg.ListZoom, showStatus: false); // 一覧の表示倍率を復元
         PreviewKeyDown += MainWindow_PreviewKeyDown;
         Loaded += (_, _) => { if (!App.StartInTray) ApplyDetailLayout(); }; // 別ウィンドウは画面が出てから表示
+        ApplyCategoryColors();
         FilterBox.SelectedIndex = 0; // ここで一覧が読み込まれる
 
         ShowBeforePurchaseCheck.IsChecked = _cfg.ShowBeforePurchase;
         InitSettingsTab();
         InitSummaryTab();
+        InitExportTab();
 
         // 保存されているテーマを選択欄に表示（App で適用済み）
         _loadingTheme = true;
@@ -105,6 +108,51 @@ public partial class MainWindow : Window
 
     private Game? Selected => GameGrid.SelectedItem as Game;
 
+    /// <summary>
+    /// 発売前（橙）・購入前（青）の作品は、行の背景色を変える。テーマの行は背景色を使わないので、セルに付ける。
+    /// テーマのセルのスタイルを土台にするため、テーマを切り替えたあとにも呼ぶ。選択中の行は、いつもの選択色のまま
+    /// </summary>
+    private void ApplyCategoryColors()
+    {
+        var baseStyle = GameGrid.TryFindResource(typeof(DataGridCell)) as Style;
+
+        Style RowColorStyle()
+        {
+            var style = new Style(typeof(DataGridCell), baseStyle);
+            void Add(string category, Color color)
+            {
+                var trigger = new MultiDataTrigger();
+                trigger.Conditions.Add(new Condition(new Binding(nameof(Game.Category)), category));
+                trigger.Conditions.Add(new Condition(new Binding(nameof(DataGridCell.IsSelected)) { RelativeSource = RelativeSource.Self }, false));
+                trigger.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(color)));
+                style.Triggers.Add(trigger);
+            }
+            Add("発売前", Color.FromArgb(0x55, 0xF2, 0xA3, 0x3A));
+            Add("購入前", Color.FromArgb(0x55, 0x4A, 0x8F, 0xE2));
+            return style;
+        }
+
+        GameGrid.CellStyle = RowColorStyle();
+
+        // 「購入確認」列：購入確認が必要な作品のセルを赤く塗る（選択中の行でも赤のまま）
+        var check = GameGrid.Columns.FirstOrDefault(c => ColumnKey(c) == "購入確認");
+        if (check != null)
+        {
+            var style = RowColorStyle();
+            var red = new DataTrigger { Binding = new Binding(nameof(Game.NeedsPurchaseCheck)), Value = true };
+            red.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0xD3, 0x2F, 0x2F))));
+            red.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+            red.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.Bold));
+            red.Setters.Add(new Setter(FrameworkElement.ToolTipProperty, "発売済みですが、所持が付いていません。買ったら「所持」を付けて保存してください"));
+            style.Triggers.Add(red);
+            check.CellStyle = style;
+        }
+    }
+
+    // ================================================================
+    // 購入確認の通知
+    // ================================================================
+
     // ================================================================
     // 一覧
     // ================================================================
@@ -112,11 +160,16 @@ public partial class MainWindow : Window
     private void Reload()
     {
         var selectedId = Selected?.Id;
-        var all = _db.GetAll();
-        if (!_cfg.ShowBeforePurchase)
-            all = all.Where(g => !g.IsBeforePurchase).ToList(); // 購入前の作品は省く
+        var every = _db.GetAll();
+        // 購入前の作品は、設定がオフなら省く（「発売前」「購入前」の絞り込みで選んだときは、設定に関係なく出す）
+        // ただし、発売済みで購入確認が必要な作品は、見落とさないよう、設定がオフでも出す
+        var all = _cfg.ShowBeforePurchase ? every : every.Where(g => !g.IsBeforePurchase || g.NeedsPurchaseCheck).ToList();
         var list = FilterBox.SelectedIndex switch
         {
+            6 => every.Where(g => g.IsUnreleased),
+            7 => all.Where(g => g.IsReleased),
+            8 => every.Where(g => g.IsBeforePurchase),
+            9 => every.Where(g => g.NeedsPurchaseCheck),
             1 => all.Where(g => g.Status == GameStatus.Unplayed),
             2 => all.Where(g => g.Status == GameStatus.Playing),
             3 => all.Where(g => g.Status == GameStatus.Played),
@@ -148,8 +201,12 @@ public partial class MainWindow : Window
             foreach (var k in _cfg.SortKeys.Where(k => k.Property == "Status"))
                 k.Property = "StatusOrder"; // 以前の設定を新しい並び順に読み替える
             foreach (var k in _cfg.SortKeys)
+            {
+                // 購入額は、未入力を昇順・降順どちらでも最後にする（先に「未入力か」で分ける）
+                if (k.Property == "Price") view.SortDescriptions.Add(new SortDescription(nameof(Game.PriceMissing), ListSortDirection.Ascending));
                 view.SortDescriptions.Add(new SortDescription(k.Property,
                     k.Descending ? ListSortDirection.Descending : ListSortDirection.Ascending));
+            }
         }
 
         // 見出しの▲▼も合わせる
@@ -171,9 +228,11 @@ public partial class MainWindow : Window
             var view = CollectionViewSource.GetDefaultView(GameGrid.ItemsSource);
             if (view == null) return;
             _cfg.SortKeys = view.SortDescriptions
+                .Where(d => d.PropertyName != nameof(Game.PriceMissing)) // 補助の条件は保存しない（適用のたびに付け直す）
                 .Select(d => new SortKey { Property = d.PropertyName, Descending = d.Direction == ListSortDirection.Descending })
                 .ToList();
             _cfg.Save();
+            ApplySort(); // 見出しクリックで購入額が加わった場合も、補助の条件を付ける
         }, DispatcherPriority.Background);
     }
 
@@ -181,6 +240,7 @@ public partial class MainWindow : Window
     {
         if (_loadingTheme || ThemeBox.SelectedItem is not ComboBoxItem { Tag: string theme }) return;
         App.ApplyTheme(theme);
+        ApplyCategoryColors();
         _cfg.Theme = theme;
         _cfg.Save();
     }
@@ -273,8 +333,12 @@ public partial class MainWindow : Window
         if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) RefreshSummary();
     }
 
+    /// <summary>いま計測中の作品（補正画面で、計測中の記録を書き換えないために使う）</summary>
+    private HashSet<long> _activeGameIds = new();
+
     private void OnTracking(IReadOnlyList<ActiveSessionInfo> list)
     {
+        _activeGameIds = list.Select(x => x.GameId).ToHashSet();
         if (list.Count == 0) return;
         var text = string.Join("、", list.Select(x =>
             $"{x.Title} {(int)(x.Seconds / 60)}分" + (x.Counting ? "" : "（一時停止中）")));

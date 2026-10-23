@@ -97,6 +97,8 @@ public class EgsConfig
     public bool ExcludeIdle { get; set; } = true;
     /// <summary>この分数以上、マウス・キーボードの操作がなければ計測を止める</summary>
     public int IdleMinutes { get; set; } = 15;
+    /// <summary>放置と判断したとき、操作がなかった間に数えてしまった時間もさかのぼって除くか</summary>
+    public bool SubtractIdleTime { get; set; } = true;
     /// <summary>ゲームの画面が前面にあるときだけ数えるか</summary>
     public bool ForegroundOnly { get; set; } = false;
     /// <summary>閉じるボタンで終了せず、通知領域に常駐するか</summary>
@@ -140,6 +142,9 @@ public class EgsConfig
 
     /// <summary>一覧の列の並び順と表示・非表示（見出しの名前で記録）。空なら初期状態</summary>
     public List<ColumnSetting> Columns { get; set; } = new();
+
+    /// <summary>列の並び順を、現在の初期の並びに整え直したか（2 未満なら、起動時に1回だけ整え直す）</summary>
+    public int ColumnOrderVersion { get; set; }
 
     /// <summary>詳細欄に作品の画像を表示するか</summary>
     public bool ShowImages { get; set; } = true;

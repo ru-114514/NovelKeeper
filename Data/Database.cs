@@ -66,6 +66,8 @@ public class Database : ISessionStore
         AddColumnIfMissing(conn, "games", "egs_count", "INTEGER");
         AddColumnIfMissing(conn, "games", "review_json", "TEXT");    // 得点登録フォームのその他の項目
         AddColumnIfMissing(conn, "games", "review_pending", "TEXT"); // まだ批評空間に反映していない項目（カンマ区切り）
+        AddColumnIfMissing(conn, "games", "price", "INTEGER");       // 購入額（円。ツールだけに保存）
+        AddColumnIfMissing(conn, "sessions", "manual", "INTEGER NOT NULL DEFAULT 0"); // 1 = 補正画面で追加・編集した記録
 
         // 起動するもの（1作品に複数）
         using (var t = conn.CreateCommand())
@@ -138,6 +140,7 @@ public class Database : ISessionStore
                 EgsGiveUp = Convert.ToInt32(r["egs_giveup"]) != 0,
                 EgsPossession = r["egs_possession"] is DBNull ? null : Convert.ToInt32(r["egs_possession"]) != 0,
                 MyScore = r["my_score"] is DBNull ? null : Convert.ToInt32(r["my_score"]),
+                Price = r["price"] is DBNull ? null : Convert.ToInt32(r["price"]),
                 EgsScore = r["egs_score"] is DBNull ? null : Convert.ToInt32(r["egs_score"]),
                 EgsClearDate = ParseDate(Str(r["egs_clear_date"]), DateFormat),
                 EgsSyncedAt = ParseDate(Str(r["egs_synced_at"]), DateTimeFormat),
@@ -332,11 +335,12 @@ public class Database : ISessionStore
                 egs_id = $egs, title = $title, brand = $brand, sellday = $sellday, median = $median,
                 egs_average = $egsAverage, egs_count = $egsCount,
                 exe_path = $exe, monitor_process = $proc, install_dir = $installDir, status = $status, clear_date = $clear, my_score = $myScore,
-                review_json = $review, review_pending = $reviewPending,
+                review_json = $review, review_pending = $reviewPending, price = $price,
                 egs_played = $egsPlayed, egs_giveup = $egsGiveUp, egs_possession = $egsPossession, egs_score = $egsScore, egs_clear_date = $egsClear, egs_synced_at = $egsSynced
             WHERE id = $id
             """;
         AddCommonParams(cmd, g);
+        cmd.Parameters.AddWithValue("$price", Db(g.Price));
         cmd.Parameters.AddWithValue("$egsPlayed", g.EgsPlayed ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsGiveUp", g.EgsGiveUp ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsPossession", g.EgsPossession is bool pos ? (pos ? 1 : 0) : DBNull.Value);
@@ -401,6 +405,59 @@ public class Database : ISessionStore
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM sessions WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", sessionId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>1作品の記録をすべて読む（補正画面用）。新しいものが先</summary>
+    public List<SessionEntry> GetGameSessions(long gameId)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT id, started_at, ended_at, seconds, manual
+            FROM sessions WHERE game_id = $id
+            ORDER BY started_at DESC, id DESC
+            """;
+        cmd.Parameters.AddWithValue("$id", gameId);
+        using var r = cmd.ExecuteReader();
+        var list = new List<SessionEntry>();
+        while (r.Read())
+        {
+            var start = ParseDate(Str(r[1]), DateTimeFormat);
+            if (start == null) continue;
+            var end = ParseDate(Str(r[2]), DateTimeFormat) ?? start.Value;
+            list.Add(new SessionEntry(Convert.ToInt64(r[0]), start.Value, end, Convert.ToInt64(r[3]), Convert.ToInt64(r[4]) != 0));
+        }
+        return list;
+    }
+
+    /// <summary>手動で記録を追加する（終わりは、開始＋時間）。追加した記録の ID を返す</summary>
+    public long AddManualSession(long gameId, DateTime start, long seconds)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO sessions (game_id, started_at, ended_at, seconds, manual)
+            VALUES ($id, $start, $end, $sec, 1);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("$id", gameId);
+        cmd.Parameters.AddWithValue("$start", start.ToString(DateTimeFormat, CultureInfo.InvariantCulture));
+        cmd.Parameters.AddWithValue("$end", start.AddSeconds(seconds).ToString(DateTimeFormat, CultureInfo.InvariantCulture));
+        cmd.Parameters.AddWithValue("$sec", seconds);
+        return Convert.ToInt64(cmd.ExecuteScalar());
+    }
+
+    /// <summary>記録を書き換える。書き換えた記録は「手動」の扱いになる</summary>
+    public void UpdateManualSession(long sessionId, DateTime start, long seconds)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE sessions SET started_at = $start, ended_at = $end, seconds = $sec, manual = 1 WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", sessionId);
+        cmd.Parameters.AddWithValue("$start", start.ToString(DateTimeFormat, CultureInfo.InvariantCulture));
+        cmd.Parameters.AddWithValue("$end", start.AddSeconds(seconds).ToString(DateTimeFormat, CultureInfo.InvariantCulture));
+        cmd.Parameters.AddWithValue("$sec", seconds);
         cmd.ExecuteNonQuery();
     }
 

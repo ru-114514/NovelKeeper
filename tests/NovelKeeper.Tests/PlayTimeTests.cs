@@ -139,8 +139,8 @@ public class SessionBookTests
         new Dictionary<long, (Game, HashSet<int>)>();
 
     private static SessionUpdate Tick(SessionBook book, int secondsFromStart, double add, IReadOnlyDictionary<long, (Game Game, HashSet<int> Pids)> running,
-        bool idle = false, bool foregroundOnly = false, int foregroundPid = 0) =>
-        book.Update(T0.AddSeconds(secondsFromStart), add, running, idle, foregroundOnly, foregroundPid);
+        bool idle = false, bool foregroundOnly = false, int foregroundPid = 0, double idleSeconds = 0, bool subtractIdle = false) =>
+        book.Update(T0.AddSeconds(secondsFromStart), add, running, idle, foregroundOnly, foregroundPid, idleSeconds, subtractIdle);
 
     [Fact]
     public void FirstSighting_StartsASession_AndMarksTheGamePlaying_WithoutCountingYet()
@@ -181,6 +181,60 @@ public class SessionBookTests
 
         var back = Tick(book, 30, 10, Running(1));
         Assert.Equal(20, back.Active.Single().Seconds);
+    }
+
+    [Fact]
+    public void SubtractIdle_RemovesTheTimeCountedWhileNoInputWasMade_OnlyOnce()
+    {
+        var book = new SessionBook(new FakeStore());
+        Tick(book, 0, 10, Running(1));
+        Tick(book, 10, 10, Running(1), idleSeconds: 0);                 // 操作あり：10秒
+        Tick(book, 20, 10, Running(1), idleSeconds: 10, subtractIdle: true);   // 操作なしが始まる：20秒
+        Tick(book, 30, 10, Running(1), idleSeconds: 20, subtractIdle: true);   // 30秒
+        var detected = Tick(book, 40, 10, Running(1), idle: true, idleSeconds: 30, subtractIdle: true);
+
+        Assert.Equal(10, detected.Active.Single().Seconds);             // 操作のあった10秒だけが残る（20秒を差し引いた）
+        Assert.False(detected.Active.Single().Counting);
+
+        var still = Tick(book, 50, 10, Running(1), idle: true, idleSeconds: 40, subtractIdle: true);
+        Assert.Equal(10, still.Active.Single().Seconds);                // 放置が続いても、重ねて引かない
+    }
+
+    [Fact]
+    public void SubtractIdle_Off_KeepsTheTimeCountedBeforeTheIdleWasDetected()
+    {
+        var book = new SessionBook(new FakeStore());
+        Tick(book, 0, 10, Running(1));
+        Tick(book, 10, 10, Running(1), idleSeconds: 10);
+        Tick(book, 20, 10, Running(1), idleSeconds: 20);
+        var detected = Tick(book, 30, 10, Running(1), idle: true, idleSeconds: 30);
+
+        Assert.Equal(20, detected.Active.Single().Seconds);
+    }
+
+    [Fact]
+    public void SubtractIdle_InputInTheMiddle_StartsANewIdleStretch()
+    {
+        var book = new SessionBook(new FakeStore());
+        Tick(book, 0, 10, Running(1));
+        Tick(book, 10, 10, Running(1), idleSeconds: 10, subtractIdle: true);
+        Tick(book, 20, 10, Running(1), idleSeconds: 20, subtractIdle: true);   // 20秒
+        Tick(book, 30, 10, Running(1), idleSeconds: 0, subtractIdle: true);    // 操作があった：ここまでは確定、30秒
+        Tick(book, 40, 10, Running(1), idleSeconds: 10, subtractIdle: true);   // 40秒
+        var detected = Tick(book, 50, 10, Running(1), idle: true, idleSeconds: 20, subtractIdle: true);
+
+        Assert.Equal(30, detected.Active.Single().Seconds);             // 操作のあとの放置の分（10秒）だけ引く
+    }
+
+    [Fact]
+    public void SubtractIdle_NeverGoesBelowZero()
+    {
+        var book = new SessionBook(new FakeStore());
+        Tick(book, 0, 10, Running(1));
+        Tick(book, 10, 10, Running(1), idleSeconds: 1000, subtractIdle: true);
+        var detected = Tick(book, 20, 10, Running(1), idle: true, idleSeconds: 1010, subtractIdle: true);
+
+        Assert.Equal(0, detected.Active.Single().Seconds);
     }
 
     [Fact]

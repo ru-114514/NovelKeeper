@@ -133,14 +133,16 @@ public sealed class PlayTimeTracker : IDisposable
         _processes = seen; // 終了したプロセスの分は、ここで捨てる
 
         // ---- 「数える」条件（利用者の設定による） ----
-        var idle = _cfg.ExcludeIdle && NativeMethods.IdleSeconds() >= Math.Max(1, _cfg.IdleMinutes) * 60;
+        var idleSeconds = _cfg.ExcludeIdle ? NativeMethods.IdleSeconds() : 0;
+        var idle = _cfg.ExcludeIdle && idleSeconds >= Math.Max(1, _cfg.IdleMinutes) * 60;
         var foregroundPid = _cfg.ForegroundOnly ? NativeMethods.ForegroundProcessId() : 0;
 
         SessionUpdate update;
         lock (_lock)
         {
             if (_disposed) return;
-            update = _book.Update(now, add, running, idle, _cfg.ForegroundOnly, foregroundPid);
+            update = _book.Update(now, add, running, idle, _cfg.ForegroundOnly, foregroundPid,
+                idleSeconds, _cfg.ExcludeIdle && _cfg.SubtractIdleTime);
         }
 
         foreach (var (id, title) in update.Started) SessionStarted?.Invoke(id, title);

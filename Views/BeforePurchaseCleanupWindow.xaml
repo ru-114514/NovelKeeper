@@ -1,0 +1,51 @@
+<Window x:Class="ErogeLauncher.Views.BeforePurchaseCleanupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="購入前の作品の整理" Width="760" Height="560" MinWidth="560" MinHeight="380"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="購入前の作品を、批評空間とツールの両方から外します" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.8" Margin="0,6,0,0"
+                       Text="チェックした作品について、批評空間の「購入予定」を「ー」、「購入前得点」を空にして登録します（記録が空になり、批評空間から消えます）。批評空間への反映を確認できた作品だけ、ツールの一覧からも削除します。" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,8"
+                       Text="購入予定を入れている作品（発売前の予約など）は、残したい場合があるので、最初はどれもチェックしていません。「得点・感想あり」の作品は、購入予定を「ー」にしても得点や感想は残るため、一覧からは消えますが、批評空間には記録が残ります。" />
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <CheckBox x:Name="EraseCheck" Margin="0,0,0,8" Foreground="#E57373"
+                      Content="「得点・感想あり」の作品は、得点・感想も空にして、批評空間の記録を消す（書いた内容は失われます）"
+                      ToolTip="オフのままなら、得点・感想は残り、批評空間にも記録が残ります。オンにすると、チェックした作品の得点・一言感想・長文感想を空にします（元に戻せません）" />
+            <TextBlock x:Name="CountText" Margin="0,0,0,8" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="RunButton" Content="批評空間から外して削除…" Click="Run_Click" Padding="14,4" />
+                <Button Content="閉じる" IsCancel="True" Width="80" />
+            </StackPanel>
+        </StackPanel>
+
+        <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+            <Button Content="すべて選ぶ" Click="SelectAll_Click" />
+            <Button Content="すべて外す" Click="SelectNone_Click" />
+            <Button Content="購入予定が「ー」のものだけ選ぶ" Click="SelectNoWill_Click" />
+        </WrapPanel>
+
+        <DataGrid x:Name="ItemGrid" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                  SelectionMode="Single" HeadersVisibility="Column">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="選ぶ" Width="50">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding Checked, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"
+                                      Click="Check_Click" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="タイトル" Binding="{Binding Title}" Width="*" IsReadOnly="True" />
+                <DataGridTextColumn Header="ブランド" Binding="{Binding Brand}" Width="130" IsReadOnly="True" />
+                <DataGridTextColumn Header="発売日" Binding="{Binding SellDay}" Width="90" IsReadOnly="True" />
+                <DataGridTextColumn Header="購入予定" Binding="{Binding WillText}" Width="90" IsReadOnly="True" />
+                <DataGridTextColumn Header="備考" Binding="{Binding Note}" Width="100" IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

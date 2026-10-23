@@ -102,7 +102,10 @@ public static class PushEngine
                     "cleardate" => !plan.SentPlayed || plan.SentClear == null || rec?.ClearDate?.Date == plan.SentClear,
                     "score" => rec?.Score == plan.SentScore,
                     "giveup" => (rec?.GiveUp ?? false) == plan.SentDropped,
-                    _ => remote != null && !remote.Unreadable.Contains(key) && !Review.Diff(plan.SentReview, remote).Contains(key),
+                    // 批評空間に記録の行そのものがない（購入予定を「ー」にして、空になった記録が消えたときなど）は、
+                    // 送った値が空なら反映済み。空でない値を送ったのに行がないときは、反映されていない
+                    _ when remote == null => rec == null && !Review.Diff(plan.SentReview, new Review()).Contains(key),
+                    _ => !remote.Unreadable.Contains(key) && !Review.Diff(plan.SentReview, remote).Contains(key),
                 };
                 var unchangedLocally = key switch
                 {

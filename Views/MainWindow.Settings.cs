@@ -122,6 +122,7 @@ public partial class MainWindow
         {
             ExcludeIdleCheck.IsChecked = _cfg.ExcludeIdle;
             IdleMinutesBox.Text = _cfg.IdleMinutes.ToString();
+            SubtractIdleCheck.IsChecked = _cfg.SubtractIdleTime;
             ForegroundOnlyCheck.IsChecked = _cfg.ForegroundOnly;
             CloseToTrayCheck.IsChecked = _cfg.CloseToTray;
             AutoStartCheck.IsChecked = _cfg.AutoStart;
@@ -208,6 +209,7 @@ public partial class MainWindow
         var autoStartChanged = _cfg.AutoStart != (AutoStartCheck.IsChecked == true);
         _cfg.ExcludeIdle = ExcludeIdleCheck.IsChecked == true;
         _cfg.IdleMinutes = minutes;
+        _cfg.SubtractIdleTime = SubtractIdleCheck.IsChecked == true;
         _cfg.ForegroundOnly = ForegroundOnlyCheck.IsChecked == true;
         _cfg.CloseToTray = CloseToTrayCheck.IsChecked == true;
         _cfg.AutoStart = AutoStartCheck.IsChecked == true;
@@ -263,14 +265,14 @@ public partial class MainWindow
     // ================================================================
 
     /// <summary>常に表示する列（隠せない）</summary>
-    private static readonly HashSet<string> LockedColumns = new() { "タイトル", "ブランド", "状態", "プレイ時間", "起動設定" };
+    private static readonly HashSet<string> LockedColumns = new() { "タイトル", "ブランド", "状態", "購入予定", "購入確認", "プレイ時間", "起動設定" };
 
     /// <summary>初期状態では隠しておく列（批評空間から追加できる項目）</summary>
     private static readonly HashSet<string> DefaultHiddenColumns = new()
     {
-        "平均値", "データ数", "批評空間の得点", "批評空間の状態", "所持", "批評空間ID",
-        "総プレイ時間", "面白さが分かるまで", "おかず", "購入予定", "購入前得点", "開始日",
-        "platform", "動作状況", "詳細状況", "一言感想", "トップページに表示しない", "長文感想", "ネタバレ",
+        "平均値", "批評空間ID",
+        "総プレイ時間", "面白さが分かるまで", "おかず", "購入前得点", "開始日",
+        "platform", "動作状況", "詳細状況", "一言感想", "長文感想", "ネタバレ",
     };
 
     private readonly ObservableCollection<ColumnItem> _columnItems = new();
@@ -295,13 +297,46 @@ public partial class MainWindow
     /// <summary>保存されている列の設定を、今ある列に合わせて整える（新しく増えた列は最後に足す）</summary>
     private void EnsureColumnSettings()
     {
+        var fresh = _cfg.Columns.Count == 0; // 初期状態（列の初期化を含む）
         var keys = GameGrid.Columns.Select(ColumnKey).Where(k => k != "").ToList();
         var list = _cfg.Columns.Where(c => keys.Contains(c.Key)).GroupBy(c => c.Key).Select(g => g.First()).ToList();
         foreach (var key in keys.Where(k => list.All(c => c.Key != k)))
             list.Add(new ColumnSetting { Key = key, Visible = !DefaultHiddenColumns.Contains(key) });
+
+        // 初期の並び（先頭の列）に整える。保存済みの並びは、新しい初期の並びに1回だけ合わせ直す（そのあとは、ドラッグした並びを保つ）
+        var reorder = fresh || _cfg.ColumnOrderVersion < ColumnOrderVersionNow;
+        if (reorder)
+        {
+            var lead = DefaultLeadingColumns.Select(k => list.FirstOrDefault(c => c.Key == k)).OfType<ColumnSetting>().ToList();
+            list = lead.Concat(list.Where(c => !DefaultLeadingColumns.Contains(c.Key))).ToList();
+        }
+
+        // 「購入確認」は、いつも「購入予定」の隣に置く（固定）
+        var will = list.FindIndex(c => c.Key == "購入予定");
+        var check = list.FindIndex(c => c.Key == "購入確認");
+        if (will >= 0 && check >= 0 && check != will + 1)
+        {
+            var item = list[check];
+            list.RemoveAt(check);
+            list.Insert(list.FindIndex(c => c.Key == "購入予定") + 1, item);
+        }
         foreach (var c in list.Where(c => LockedColumns.Contains(c.Key))) c.Visible = true;
         _cfg.Columns = list;
+
+        if (reorder)
+        {
+            _cfg.ColumnOrderVersion = ColumnOrderVersionNow;
+            _cfg.Save();
+        }
     }
+
+    private const int ColumnOrderVersionNow = 2;
+
+    /// <summary>一覧の初期の並び（先頭から）。続きの列は、画面の作りの順</summary>
+    private static readonly string[] DefaultLeadingColumns =
+    {
+        "タイトル", "ブランド", "起動設定", "状態", "プレイ時間", "クリア日", "発売日", "所持", "購入予定", "購入確認", "得点", "中央値", "データ数", "購入額",
+    };
 
     /// <summary>列の設定を一覧に反映する</summary>
     private void ApplyColumnLayout()

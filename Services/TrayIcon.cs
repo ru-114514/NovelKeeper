@@ -31,11 +31,17 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _icon.DoubleClick += (_, _) => OpenRequested?.Invoke();
+        _icon.BalloonTipClicked += (_, _) => _balloonClicked?.Invoke();
     }
 
-    /// <summary>通知（バルーン）を表示する</summary>
-    public void Notify(string title, string text) =>
+    private Action? _balloonClicked;
+
+    /// <summary>通知（バルーン）を表示する。onClick は、その通知をクリックしたときの動作</summary>
+    public void Notify(string title, string text, Action? onClick = null)
+    {
+        _balloonClicked = onClick; // 直前の通知の動作を、あとの通知に持ち越さない
         _icon.ShowBalloonTip(3000, title, text, ToolTipIcon.Info);
+    }
 
     /// <summary>アイコンにマウスを乗せたときの文字（63文字まで）</summary>
     public void SetText(string text) =>

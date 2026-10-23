@@ -32,6 +32,10 @@
                                     <ComboBoxItem Content="プレイ済" />
                                     <ComboBoxItem Content="中断" />
                                     <ComboBoxItem Content="起動設定が未設定" />
+                                    <ComboBoxItem Content="発売前" />
+                                    <ComboBoxItem Content="発売後" />
+                                    <ComboBoxItem Content="購入前" />
+                                    <ComboBoxItem Content="購入確認が必要" />
                                 </ComboBox>
                             </StackPanel>
                             <Button Content="⇅ 並び替え…" Click="Sort_Click"
@@ -65,6 +69,7 @@
                                           Loaded="GameGrid_Loaded"
                                       CanUserResizeColumns="True" CanUserReorderColumns="True"
                                           ToolTip="exe やショートカットを作品の行にドラッグすると、実行ファイルを設定できます">
+
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="タイトル" Binding="{Binding Title}" Width="460" MinWidth="120" />
                                         <DataGridTextColumn Header="ブランド" Binding="{Binding Brand}" Width="180" MinWidth="60" />
@@ -72,26 +77,30 @@
                                         <DataGridTextColumn Header="中央値" Binding="{Binding Median}" Width="55" />
                                         <DataGridTextColumn Header="得点" Binding="{Binding MyScore}" Width="50" FontWeight="Bold" />
                                         <DataGridTextColumn Header="状態" Binding="{Binding StatusText}" Width="85" SortMemberPath="StatusOrder" />
+                                        <DataGridTextColumn Header="購入予定" Binding="{Binding PurchaseWillText}" Width="85" />
+                                        <!-- 発売済みなのに所持が付いていない購入予定の作品は、セルを赤く塗る（色は MainWindow.xaml.cs の ApplyCategoryColors） -->
+                                        <DataGridTextColumn Header="購入確認" Binding="{Binding PurchaseCheckText}" SortMemberPath="NeedsPurchaseCheck" Width="75" />
                                         <DataGridTextColumn Header="クリア日" Binding="{Binding ClearDateText}" Width="85" SortMemberPath="ClearDate" />
                                         <DataGridTextColumn Header="プレイ時間" Binding="{Binding PlayTimeText}" Width="90" SortMemberPath="TotalSeconds" />
                                         <!-- 批評空間の項目（詳細設定タブの「一覧の列」で表示を切り替える。初期状態は非表示） -->
+                                        <DataGridTextColumn Header="購入額" Binding="{Binding PriceText}" SortMemberPath="Price" Width="80">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock"><Setter Property="TextAlignment" Value="Right" /></Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
                                         <DataGridTextColumn Header="平均値" Binding="{Binding EgsAverage}" Width="55" />
                                         <DataGridTextColumn Header="データ数" Binding="{Binding EgsCount}" Width="65" />
-                                        <DataGridTextColumn Header="批評空間の得点" Binding="{Binding EgsScore}" Width="100" />
-                                        <DataGridTextColumn Header="批評空間の状態" Binding="{Binding EgsText}" Width="130" />
                                         <DataGridTextColumn Header="所持" Binding="{Binding PossessionText}" Width="50" />
                                         <DataGridTextColumn Header="批評空間ID" Binding="{Binding EgsId}" Width="80" />
                                         <DataGridTextColumn Header="総プレイ時間" Binding="{Binding TotalPlayTimeHours}" Width="90" />
                                         <DataGridTextColumn Header="面白さが分かるまで" Binding="{Binding FunTimeHours}" Width="120" />
                                         <DataGridTextColumn Header="おかず" Binding="{Binding OkazuText}" Width="120" />
-                                        <DataGridTextColumn Header="購入予定" Binding="{Binding PurchaseWillText}" Width="80" />
                                         <DataGridTextColumn Header="購入前得点" Binding="{Binding BeforeScore}" Width="80" />
                                         <DataGridTextColumn Header="開始日" Binding="{Binding StartDateText}" Width="85" SortMemberPath="StartDate" />
                                         <DataGridTextColumn Header="platform" Binding="{Binding PlatformText}" Width="120" />
                                         <DataGridTextColumn Header="動作状況" Binding="{Binding OperationText}" Width="110" />
                                         <DataGridTextColumn Header="詳細状況" Binding="{Binding PlatformMemoHead}" Width="160" />
                                         <DataGridTextColumn Header="一言感想" Binding="{Binding Hitokoto}" Width="200" />
-                                        <DataGridTextColumn Header="トップページに表示しない" Binding="{Binding SageText}" Width="60" />
                                         <DataGridTextColumn Header="長文感想" Binding="{Binding MemoHead}" Width="240" />
                                         <DataGridTextColumn Header="ネタバレ" Binding="{Binding NetabareText}" Width="70" />
                                         <!-- 起動設定：未設定の作品は、ここにショートカットや exe をドロップして設定する -->
@@ -207,7 +216,14 @@
 
                                             <!-- ② 記録（批評空間の得点登録フォームの項目） -->
                                             <StackPanel Width="290" Margin="0,0,24,12">
-                                                <TextBlock Text="記録" FontSize="14" FontWeight="Bold" Margin="0,0,0,4" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <TextBlock Text="記録" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" />
+                                                    <Border x:Name="UnreleasedBadge" Visibility="Collapsed" Margin="10,0,0,0" Padding="8,1" CornerRadius="3"
+                                                            Background="#F2A33A" VerticalAlignment="Center"
+                                                            ToolTip="発売日がまだ先の作品です">
+                                                        <TextBlock Text="発売前の作品" FontSize="12" FontWeight="Bold" Foreground="#2B1B00" />
+                                                    </Border>
+                                                </StackPanel>
                                                 <WrapPanel>
                                                     <CheckBox x:Name="PlayedCheck" Content="プレイ済" FontWeight="Bold"
                                                               Checked="PlayedCheck_Changed" Unchecked="PlayedCheck_Changed" />
@@ -239,6 +255,8 @@
                                                                     ToolTip="このツールで計測したプレイ時間（時間単位に四捨五入）を入れます" />
                                                             <TextBox x:Name="TotalPlayTimeBox" />
                                                         </DockPanel>
+                                                        <Button Content="計測した記録を補正…" Click="EditPlayTime_Click" HorizontalAlignment="Left" Margin="0,4,0,0"
+                                                                ToolTip="計測し忘れた分の追加や、まちがった記録の修正・削除ができます" />
                                                         <TextBlock Text="面白さが分かるまでのプレイ時間（時間）" Margin="0,8,0,0" />
                                                         <TextBox x:Name="FunTimeBox" Width="80" HorizontalAlignment="Left" Margin="0,2,0,0" />
                                                         <TextBlock Text="おかずに使えた?" Margin="0,8,0,0" />
@@ -247,6 +265,11 @@
                                                         <ComboBox x:Name="PurchaseWillBox" Margin="0,2,0,0" />
                                                         <TextBlock Text="購入前得点（0～100）" Margin="0,8,0,0" />
                                                         <TextBox x:Name="BeforeScoreBox" Width="80" HorizontalAlignment="Left" Margin="0,2,0,0" />
+                                                        <TextBlock Text="購入額（円・任意）" Margin="0,8,0,0"
+                                                                   ToolTip="このツールだけに保存します（批評空間には送りません）。空欄なら未入力です" />
+                                                        <TextBox x:Name="PriceBox" Width="100" HorizontalAlignment="Left" Margin="0,2,0,0"
+                                                                 TextChanged="PriceBox_TextChanged" InputMethod.IsInputMethodEnabled="False"
+                                                                 ToolTip="このツールだけに保存します（批評空間には送りません）。空欄なら未入力です" />
                                                     </StackPanel>
                                                 </Expander>
 
@@ -517,6 +540,84 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- ======================= データ出力タブ ======================= -->
+            <TabItem Header="データ出力" x:Name="ExportTab">
+                <DockPanel>
+                    <!-- サブナビゲーション：書き出す範囲 -->
+                    <ListBox x:Name="ExportNav" DockPanel.Dock="Left" Width="170" BorderThickness="0,0,1,0">
+                        <ListBoxItem Content="一覧に表示中" Tag="shown" Padding="14,9" />
+                        <ListBoxItem Content="全作品" Tag="all" Padding="14,9" />
+                        <ListBoxItem Content="バックアップ" Tag="backup" Padding="14,9" />
+                    </ListBox>
+
+                    <ScrollViewer x:Name="BackupPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="20,12" MaxWidth="820" HorizontalAlignment="Left">
+                            <TextBlock Text="バックアップ" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
+                            <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                                       Text="作品の一覧・プレイ時間・評価などの記録（games.db）と、設定（egs_config.json）を、1つの zip ファイルにまとめて書き出します。パソコンの引っ越しや、万一のときの復元に使えます。ログイン情報（ID・パスワード）は含みません。" />
+                            <Button Content="バックアップを書き出す…" Click="BackupExport_Click" FontWeight="Bold"
+                                    HorizontalAlignment="Left" Margin="0,16,0,0" Padding="16,4" />
+
+                            <Separator Margin="0,22,0,14" />
+                            <TextBlock Text="バックアップから戻す" FontWeight="Bold" />
+                            <TextBlock TextWrapping="Wrap" Margin="0,8,0,0" Text="バックアップファイルの内容に復元します。" />
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="1." FontWeight="Bold" Margin="0,0,10,8" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                                    <TextBlock TextWrapping="Wrap" Text="バックアップファイル（zip）は展開せず、そのまま使います。" />
+                                    <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="0,2,0,0" Text="※「NovelKeeper_backup_日付_時刻.zip」の名称のファイルです。" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="1" Text="2." FontWeight="Bold" Margin="0,0,10,8" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" TextWrapping="Wrap" Margin="0,0,0,8"
+                                           Text="「バックアップから戻す…」を押して、その zip を選びます。" />
+
+                                <TextBlock Grid.Row="2" Text="3." FontWeight="Bold" Margin="0,0,10,0" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" TextWrapping="Wrap"
+                                           Text="確認画面で、いまの作品数と戻す作品数を確かめて「OK」を押します。" />
+                            </Grid>
+                            <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="0,10,0,0"
+                                       Text="※置き換える前に、いまの内容を backups フォルダへ控えとして残します。そのあと、アプリが自動で終了して起動し直します。" />
+                            <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="0,6,0,0"
+                                       Text="※ゲームの起動設定は、このパソコンにファイルが見つかるものだけ残します。見つからない作品（別のパソコンへ移したときなど）は、起動設定が外れるので、「ゲーム起動設定」タブで自動検出するか、手動で設定してください。" />
+                            <CheckBox x:Name="BackupWithConfig" Margin="0,10,0,0"
+                                      Content="設定（列の並び・テーマ・ウィンドウ位置など）も戻す"
+                                      ToolTip="別のパソコンのバックアップを戻すときは、フォルダの場所などが合わないことがあるので、オフのままがおすすめです" />
+                            <Button Content="バックアップから戻す…" Click="BackupImport_Click"
+                                    HorizontalAlignment="Left" Margin="0,12,0,0" Padding="16,4" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="ExportPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="20,12" MaxWidth="820" HorizontalAlignment="Left">
+                            <TextBlock x:Name="ExportTitle" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
+                            <TextBlock x:Name="ExportDescription" TextWrapping="Wrap" Opacity="0.7" />
+                            <TextBlock x:Name="ExportCount" Margin="0,14,0,0" FontWeight="Bold" />
+
+                            <TextBlock Text="書き出す列" Margin="0,14,0,2" />
+                            <TextBlock x:Name="ExportColumns" TextWrapping="Wrap" Opacity="0.7" />
+                            <CheckBox x:Name="ExportReviewCheck" Content="感想（一言感想・長文感想）も書き出す" Margin="0,10,0,0"
+                                      Click="ExportReviewCheck_Click" />
+
+                            <Button Content="CSVに書き出す…" Click="ExportRun_Click" FontWeight="Bold"
+                                    HorizontalAlignment="Left" Margin="0,16,0,0" Padding="16,4" />
+                            <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,10,0,0"
+                                       Text="Excel などで開ける CSV（UTF-8）を書き出します。感想には他の人に見せたくない内容が含まれることがあるので、共有するときは確認してください。" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
             <!-- ======================= ログイン設定タブ ======================= -->
             <TabItem Header="ログイン設定" x:Name="LoginTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -628,8 +729,11 @@
                             <TextBox x:Name="IdleMinutesBox" Width="60" HorizontalContentAlignment="Right" LostFocus="PlaySetting_Changed" />
                             <TextBlock Text="分以上、マウス・キーボードの操作がないときは止める" VerticalAlignment="Center" Margin="6,0,0,0" />
                         </StackPanel>
+                        <CheckBox x:Name="SubtractIdleCheck" Margin="24,6,0,0" Click="PlaySetting_Changed"
+                                  IsEnabled="{Binding IsChecked, ElementName=ExcludeIdleCheck}"
+                                  Content="止めると判断したとき、操作がなかった分の時間もさかのぼって除く（寝落ち対策）" />
                         <TextBlock Margin="24,2,0,8" TextWrapping="Wrap" Opacity="0.7"
-                                   Text="オート再生で読み進めることが多い場合は、分数を長めにしてください。ゲームパッドの操作は検知できません。" />
+                                   Text="例：15分の設定では、操作がない時間が15分に達した時点で、それまでに数えてしまった15分を差し引きます（操作が戻れば、また数えます）。オート再生で読み進めることが多い場合は、分数を長めにするか、この☑を外してください。ゲームパッドの操作は検知できません。" />
                         <CheckBox x:Name="ForegroundOnlyCheck" Content="ゲームの画面が前面にあるときだけ数える" Click="PlaySetting_Changed" />
                         <TextBlock Margin="24,2,0,0" TextWrapping="Wrap" Opacity="0.7"
                                    Text="最小化していたり、ほかの画面の裏に回っていたりする間は数えません。" />
@@ -670,8 +774,12 @@
                                 <ComboBoxItem Content="表示しない" Tag="Hidden" />
                             </ComboBox>
                             <TextBlock Grid.Row="2" Text="購入前の作品" VerticalAlignment="Center" />
-                            <CheckBox Grid.Row="2" Grid.Column="1" x:Name="ShowBeforePurchaseCheck" Content="一覧に表示する（購入予定など）" Margin="0,4"
-                                      Checked="ShowBeforePurchase_Changed" Unchecked="ShowBeforePurchase_Changed" />
+                            <WrapPanel Grid.Row="2" Grid.Column="1" Margin="0,2">
+                                <CheckBox x:Name="ShowBeforePurchaseCheck" Content="一覧に表示する（購入予定など）" Margin="0,0,16,0" VerticalAlignment="Center"
+                                          Checked="ShowBeforePurchase_Changed" Unchecked="ShowBeforePurchase_Changed"
+                                          ToolTip="発売済みで購入確認が必要な作品は、オフでも一覧に出します" />
+                                <Button Content="購入前の作品を整理…" Click="CleanupBeforePurchase_Click"
+                                        ToolTip="購入前の作品を、批評空間（購入予定を「ー」にして記録を消す）とツールの一覧の両方から外します" />                            </WrapPanel>
                             <TextBlock Grid.Row="4" Text="作品の画像" VerticalAlignment="Center" />
                             <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
                                 <CheckBox x:Name="ShowImagesCheck" Content="詳細欄に表示する" VerticalAlignment="Center"
@@ -713,7 +821,7 @@
                             <Button Content="連携設定ファイルを開く（上級者向け）" Click="OpenConfig_Click" />
                         </WrapPanel>
                         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,4,0,0"
-                                   Text="作品の一覧・プレイ時間・設定・ログイン情報は、このフォルダに保存されます。バックアップするときは、このフォルダをコピーしてください。" />
+                                   Text="作品の一覧・プレイ時間・設定・ログイン情報は、このフォルダに保存されます。自動バックアップ（backups）や、エラーの記録（log.txt）もここにあります。バックアップは「データ出力」タブの「バックアップ」から行ってください（ログイン情報は含みません）。" />
                         <TextBlock x:Name="VersionText" Opacity="0.7" Margin="2,12,0,20" />
                     </StackPanel>
                 </ScrollViewer>

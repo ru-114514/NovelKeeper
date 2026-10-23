@@ -109,14 +109,7 @@ public class EgsClient
     /// <summary>タイトルで作品を検索する</summary>
     public async Task<List<EgsGame>> SearchAsync(string keyword)
     {
-        var sql = $"""
-            SELECT g.id, g.gamename, b.brandname, g.sellday, g.median, g.average2, g.count2
-            FROM gamelist g JOIN brandlist b ON g.brandname = b.id
-            WHERE g.gamename ILIKE '%{Esc(keyword)}%'
-            ORDER BY g.sellday DESC
-            LIMIT 50
-            """;
-        return (await QueryAsync(sql)).Select(ToGame).Where(g => g.Id > 0).ToList();
+        return (await QueryAsync(EgsSearchQuery.Build(keyword))).Select(ToGame).Where(g => g.Id > 0).ToList();
     }
 
     /// <summary>検索結果の1行を作品にする（id, gamename, brandname, sellday, median, average2, count2 の列が必要）</summary>
@@ -486,39 +479,48 @@ public class EgsClient
 
         var fields = ReadForm(form);
 
-        // ---- プレイ済（null なら今の状態のまま） ----
-        // 同じ名前の隠し項目（外したときの「0」）が先にあっても、☑を付けるときの値はチェック欄から読む
-        var playedInput = form.SelectSingleNode($".//input[@name='{_cfg.PlayedField}' and @type='checkbox']")
-                          ?? form.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']")!;
-        if (played == true)
-        {
-            var value = _cfg.PlayedValue != "" ? _cfg.PlayedValue : playedInput.GetAttributeValue("value", "on");
-            SetField(fields, _cfg.PlayedField, value);
-        }
-        else if (played == false)
-        {
-            UncheckField(form, fields, _cfg.PlayedField);
-        }
+        // 発売前の作品のページには、プレイ済・得点の欄がない「基本情報」だけのフォーム（購入予定・購入前得点）が出る。
+        // その場合は、プレイ済・クリア日・得点には触れず、フォームにある欄だけを書き換える
+        var hasPlayedField = form.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']") != null;
 
-        // ---- 得点（入力があれば書き換える。空にするのは、clearScore を指定したときだけ） ----
-        // 批評空間は、得点が入っていると「プレイ済」を外せない。未プレイに戻すときは、得点も空にして送る必要がある
-        if (EgsConfig.IsSet(_cfg.ScoreField))
+        if (hasPlayedField)
         {
-            if (score is int sc) SetField(fields, _cfg.ScoreField, sc.ToString());
-            else if (clearScore) SetField(fields, _cfg.ScoreField, "");
-        }
+            // ---- プレイ済（null なら今の状態のまま） ----
+            // 同じ名前の隠し項目（外したときの「0」）が先にあっても、☑を付けるときの値はチェック欄から読む
+            var playedInput = form.SelectSingleNode($".//input[@name='{_cfg.PlayedField}' and @type='checkbox']")
+                              ?? form.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']")!;
+            if (played == true)
+            {
+                var value = _cfg.PlayedValue != "" ? _cfg.PlayedValue : playedInput.GetAttributeValue("value", "on");
+                SetField(fields, _cfg.PlayedField, value);
+            }
+            else if (played == false)
+            {
+                UncheckField(form, fields, _cfg.PlayedField);
+            }
 
-        // ---- クリア日 ----
-        // 日付があれば書き換える。「プレイ済」を外すときは日付も空にする
-        // （批評空間側に日付が残っていると、その日付がそのまま再送信されて、プレイ済が外れないため）
-        if (clearDate != null || played == false)
-            SetClearDate(fields, clearDate);
+            // ---- 得点（入力があれば書き換える。空にするのは、clearScore を指定したときだけ） ----
+            // 批評空間は、得点が入っていると「プレイ済」を外せない。未プレイに戻すときは、得点も空にして送る必要がある
+            if (EgsConfig.IsSet(_cfg.ScoreField))
+            {
+                if (score is int sc) SetField(fields, _cfg.ScoreField, sc.ToString());
+                else if (clearScore) SetField(fields, _cfg.ScoreField, "");
+            }
+
+            // ---- クリア日 ----
+            // 日付があれば書き換える。「プレイ済」を外すときは日付も空にする
+            // （批評空間側に日付が残っていると、その日付がそのまま再送信されて、プレイ済が外れないため）
+            if (clearDate != null || played == false)
+                SetClearDate(fields, clearDate);
+        }
 
         // ---- そのほかの項目（所持・感想など。変更したものだけ） ----
         if (extra != null)
         {
             foreach (var (name, value) in extra)
             {
+                // 発売前のフォームにない欄は送らない（送っても反映されず、確認でも「未反映」のまま残る）
+                if (!hasPlayedField && form.SelectSingleNode($".//*[@name='{name}']") == null) continue;
                 if (value == null) UncheckField(form, fields, name);
                 else SetField(fields, name, value);
             }
@@ -567,8 +569,10 @@ public class EgsClient
     private async Task<HtmlNode?> FindReviewFormAsync(string url)
     {
         var doc = Load(await GetAsync(url));
-        return doc.DocumentNode.SelectNodes("//form")
-            ?.FirstOrDefault(f => f.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']") != null);
+        var forms = doc.DocumentNode.SelectNodes("//form");
+        return forms?.FirstOrDefault(f => f.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']") != null)
+               // 発売前の作品：プレイ済の欄がなく、購入予定の欄があるフォーム
+               ?? forms?.FirstOrDefault(f => f.SelectSingleNode($".//*[@name='{_cfg.ReviewFormField("purchase_will")}']") != null);
     }
 
     // ================================================================

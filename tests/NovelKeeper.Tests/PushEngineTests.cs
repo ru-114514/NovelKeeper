@@ -264,6 +264,30 @@ public class PushEngineTests
     }
 
     [Fact]
+    public void Complete_NoRowOnTheSite_CountsAsReflected_OnlyForEmptyValues()
+    {
+        // 購入予定を「ー」にして空になった記録は、批評空間から消える（行がない）。送った値が空なら、反映済み
+        Game WithPending(string key, Action<Review> set)
+        {
+            var g = NewGame();
+            set(g.Review);
+            g.PendingReview.Add(key);
+            return g;
+        }
+
+        var cleared = WithPending("purchase_will", r => r.PurchaseWill = "");
+        var plan = PushEngine.Plan(cleared)!;
+        Assert.Equal(["purchase_will"], PushEngine.Complete(plan, true, null, null, WithPending("purchase_will", r => r.PurchaseWill = "")));
+
+        // 値を送ったのに行がない／読み直しに失敗した／サイトに記録（rec）はあるのに行がない、は反映済みにしない
+        var set = WithPending("purchase_will", r => r.PurchaseWill = "1");
+        var setPlan = PushEngine.Plan(set)!;
+        Assert.Empty(PushEngine.Complete(setPlan, true, null, null, WithPending("purchase_will", r => r.PurchaseWill = "1")));
+        Assert.Empty(PushEngine.Complete(plan, false, null, null, WithPending("purchase_will", r => r.PurchaseWill = "")));
+        Assert.Empty(PushEngine.Complete(plan, true, Rec(), null, WithPending("purchase_will", r => r.PurchaseWill = "")));
+    }
+
+    [Fact]
     public void Complete_Possession_IsRecordedOnceReflected()
     {
         var g = NewGame();

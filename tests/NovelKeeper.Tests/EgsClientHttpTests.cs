@@ -206,6 +206,48 @@ public class EgsClientHttpTests
         Assert.Equal(["70"], f["data[tokuten]"]);          // 得点は clearScore を指定しない限り今のまま
     }
 
+    // 発売前の作品のページ：プレイ済・得点の欄がなく、購入予定と購入前得点だけのフォーム
+    private const string PreReleaseFormHtml = """
+        <form action="contents_post.php" method="post">
+          <input type="hidden" name="csrf" value="tok123">
+          <select name="data[before_purchase_will]"><option value="">-</option><option value="1" selected>必ず購入</option></select>
+          <input type="text" name="data[before_tokuten]" value="">
+          <input type="submit" name="submit" value="登録">
+        </form>
+        """;
+
+    [Fact]
+    public async Task UpdateReview_PreReleaseForm_SendsOnlyFieldsThatExist_AndLeavesPlayStateAlone()
+    {
+        var (client, site) = Create((_, _) => PreReleaseFormHtml);
+        client.LoggedIn = true;
+
+        await client.UpdateReviewAsync(5, played: false, clearDate: null, score: null, clearScore: true,
+            extra: new Dictionary<string, string?>
+            {
+                ["data[before_purchase_will]"] = "",
+                ["data[hitokoto]"] = "x", // 発売前のフォームにない欄は送らない
+            });
+
+        var f = ParseBody(site.Requests.Single(r => r.Method == HttpMethod.Post).Body);
+        Assert.Equal([""], f["data[before_purchase_will]"]);
+        Assert.Equal(["tok123"], f["csrf"]);
+        Assert.Equal(["登録"], f["submit"]);
+        Assert.DoesNotContain("data[hitokoto]", f.Keys);
+        Assert.DoesNotContain("data[play]", f.Keys);
+        Assert.DoesNotContain("data[tokuten]", f.Keys);
+        Assert.DoesNotContain("data[finish_date]", f.Keys);
+    }
+
+    [Fact]
+    public async Task UpdateReview_NoKnownForm_StillThrows()
+    {
+        var (client, _) = Create((_, _) => "<form action=\"x.php\" method=\"post\"><input type=\"text\" name=\"other\"></form>");
+        client.LoggedIn = true;
+
+        await Assert.ThrowsAsync<EgsException>(() => client.UpdateReviewAsync(5, played: true, clearDate: null, score: null));
+    }
+
     [Fact]
     public async Task UpdateReview_ClearScore_BlanksTheScoreField()
     {
