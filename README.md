@@ -162,6 +162,11 @@ A. ①「詳細設定」タブで「Windows の起動時に自動で起動する
 
 ソースからビルドしたい方は [docs/開発者向け.md](docs/開発者向け.md) をご覧ください。
 
+## 連絡先
+
+- 作者：[@ru_114514](https://x.com/ru_114514)（X）
+- 不具合の報告・要望：[Issues](https://github.com/ru-114514/NovelKeeper/issues)（問い合わせるときは、`%AppData%\NovelKeeper\log.txt` を添えてください。パスワードは記録されません）
+
 ## ライセンス
 
 [MIT License](LICENSE)（ソースコードについて。作品の画像などの権利は、それぞれの権利者にあります）
