@@ -76,6 +76,8 @@ copy /y "%OUT%\NovelKeeper.exe" "%DIST%\" > nul
 copy /y "%OUT_LITE%\NovelKeeper.exe" "%DIST_LITE%\" > nul
 copy /y "docs\使い方.txt" "%DIST%\" > nul
 copy /y "docs\使い方.txt" "%DIST_LITE%\" > nul
+copy /y "LICENSE" "%DIST%\" > nul
+copy /y "LICENSE" "%DIST_LITE%\" > nul
 rem zip の中の SHA256.txt は「ファイルが壊れていないか」の確認用。改ざんの確認には、zip の外に置く SHA256SUMS を使う
 powershell -NoProfile -Command "$h = (Get-FileHash '%DIST%\NovelKeeper.exe' -Algorithm SHA256).Hash; Set-Content -Path '%DIST%\SHA256.txt' -Value ('NovelKeeper.exe  SHA256: ' + $h) -Encoding UTF8"
 powershell -NoProfile -Command "$h = (Get-FileHash '%DIST_LITE%\NovelKeeper.exe' -Algorithm SHA256).Hash; Set-Content -Path '%DIST_LITE%\SHA256.txt' -Value ('NovelKeeper.exe  SHA256: ' + $h) -Encoding UTF8"
