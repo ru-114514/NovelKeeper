@@ -98,6 +98,7 @@ public partial class MainWindow : Window
         ShowBeforePurchaseCheck.IsChecked = _cfg.ShowBeforePurchase;
         InitSettingsTab();
         InitSummaryTab();
+        InitPostTab();
         InitExportTab();
 
         // 保存されているテーマを選択欄に表示（App で適用済み）

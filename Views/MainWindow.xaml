@@ -67,8 +67,7 @@
                                           HorizontalScrollBarVisibility="Auto"
                                           PreviewMouseWheel="GameGrid_PreviewMouseWheel"
                                           Loaded="GameGrid_Loaded"
-                                      CanUserResizeColumns="True" CanUserReorderColumns="True"
-                                          ToolTip="exe やショートカットを作品の行にドラッグすると、実行ファイルを設定できます">
+                                      CanUserResizeColumns="True" CanUserReorderColumns="True">
 
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="タイトル" Binding="{Binding Title}" Width="460" MinWidth="120" />
@@ -115,7 +114,8 @@
                                                         </Grid.ColumnDefinitions>
                                                         <Grid>
                                                         <!-- 未設定：ここにドロップ -->
-                                                        <Border Padding="4,1" CornerRadius="3" BorderThickness="1" BorderBrush="#E0A000" Background="#33E0A000">
+                                                        <Border Padding="4,1" CornerRadius="3" BorderThickness="1" BorderBrush="#E0A000" Background="#33E0A000"
+                                                                ToolTip="ゲーム起動設定で自動設定できない場合、&#10;ショートカットアイコンをドロップすることで設定可能。">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
                                                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -129,12 +129,20 @@
                                                             <TextBlock Text="⬇ ここにドロップ" />
                                                         </Border>
                                                         <!-- 設定済み：緑。ダブルクリックで起動（▼ か右クリックで、起動するもの（収録作など）を選び替えられる） -->
-                                                        <Border Padding="4,1" CornerRadius="3" BorderThickness="1" BorderBrush="#3FC456" Background="#333FC456"
-                                                                ToolTip="ダブルクリックで起動します（右の ▼ で、起動するものを選び替えられます）">
+                                                        <!-- 管理者権限で起動する作品は、紫 -->
+                                                        <Border Padding="4,1" CornerRadius="3" BorderThickness="1">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
+                                                                    <Setter Property="BorderBrush" Value="#3FC456" />
+                                                                    <Setter Property="Background" Value="#333FC456" />
                                                                     <Setter Property="Visibility" Value="Visible" />
+                                                                    <Setter Property="ToolTip" Value="通常権限で起動。&#10;右の ▼ で起動ファイル変更可能。" />
                                                                     <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RunsAsAdmin}" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#9B59D0" />
+                                                                            <Setter Property="Background" Value="#339B59D0" />
+                                                                            <Setter Property="ToolTip" Value="管理者権限で起動。&#10;※ユーザーアカウント制御画面で「はい」を選択。&#10;※右クリックで権限設定変更可能。" />
+                                                                        </DataTrigger>
                                                                         <DataTrigger Binding="{Binding IsLaunchUnset}" Value="True">
                                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                                         </DataTrigger>
@@ -147,7 +155,7 @@
                                                         <Button Grid.Column="1" Content="▼" Padding="5,0" Margin="3,0,0,0" MinHeight="0" MinWidth="0"
                                                                 VerticalAlignment="Stretch" Click="RowTargetMenu_Click" Cursor="Arrow"
                                                                 IsEnabled="{Binding IsLaunchSet}"
-                                                                ToolTip="起動するもの（収録作など）を選び替えます" />
+                                                                ToolTip="起動するファイルを選択。&#10;追加・編集は詳細欄の起動ファイル設定項目で可能。" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
@@ -189,7 +197,13 @@
                                                 <Image x:Name="DetailImage" MaxHeight="260" MaxWidth="290" Stretch="Uniform"
                                                        HorizontalAlignment="Left" Margin="0,0,0,8" Visibility="Collapsed" />
                                                 <TextBlock x:Name="DetailImageInfo" Opacity="0.6" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed" />
-                                                <TextBlock Text="起動するもの（▶ が今使うもの）" />
+                                                <!-- 管理者権限で起動する作品のときだけ表示（一覧の紫と同じ） -->
+                                                <Border x:Name="AdminBadge" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,0,0,6" Padding="8,1"
+                                                        CornerRadius="3" BorderThickness="1" BorderBrush="#9B59D0" Background="#339B59D0"
+                                                        ToolTip="この作品は管理者権限で起動します（Windows の確認画面が出ます）。変えるときは、一覧の「起動設定」欄を右クリックします">
+                                                    <TextBlock Text="🛡 管理者権限で起動します" FontSize="12" FontWeight="Bold" />
+                                                </Border>
+                                                <TextBlock Text="起動ファイル設定" />
                                                 <TextBlock Text="ファイルをここにドラッグして追加できます。名前・ファイル・監視の欄はダブルクリックで編集。"
                                                            TextWrapping="Wrap" Opacity="0.7" FontSize="11" Margin="0,0,0,2" />
                                                 <DataGrid x:Name="TargetGrid" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
@@ -367,7 +381,7 @@
                         <DatePicker x:Name="SummaryToPicker" Width="125" SelectedDateChanged="SummaryDate_Changed" />
                     </WrapPanel>
                     <!-- 2列目：欄の表示と並べ方（幅が広くても、常にここに表示する） -->
-                    <WrapPanel DockPanel.Dock="Top" VerticalAlignment="Center" Margin="0,4,0,0">
+                    <WrapPanel x:Name="SummaryToggleBar" DockPanel.Dock="Top" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="表示:" VerticalAlignment="Center" Margin="0,0,4,0" />
                         <ToggleButton x:Name="SummaryChartToggle" Content="グラフ" Tag="chart" Click="SummaryPanelToggle_Click" Margin="0,0,4,0" Padding="8,3" />
                         <ToggleButton x:Name="SummaryCalendarToggle" Content="カレンダー" Tag="calendar" Click="SummaryPanelToggle_Click" Margin="0,0,4,0" Padding="8,3" />
@@ -537,6 +551,176 @@
                                        Text="青い場所以外で離すと、別ウィンドウになり好きな位置に置けます（Esc で取り消し）" />
                         </Grid>
                     </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ======================= 投稿設定タブ（SNS などに載せる画像を作る） ======================= -->
+            <TabItem Header="投稿設定" x:Name="PostTab">
+                <DockPanel Margin="12,8">
+                    <!-- 最上部（固定）：出力期間と画像出力。この下のレポートエリアだけが画像になる -->
+                    <WrapPanel DockPanel.Dock="Top" VerticalAlignment="Center">
+                        <TextBlock Text="起点の日:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <DatePicker x:Name="PostStartPicker" Width="125" SelectedDateChanged="PostSetting_Changed" />
+                        <TextBlock Text="期間:" VerticalAlignment="Center" Margin="14,0,4,0" />
+                        <RadioButton x:Name="PostMonthRadio" Content="1か月" GroupName="PostPeriod" IsChecked="True" VerticalAlignment="Center" Click="PostSetting_Changed" />
+                        <RadioButton x:Name="PostYearRadio" Content="1年" GroupName="PostPeriod" VerticalAlignment="Center" Margin="10,0,0,0" Click="PostSetting_Changed" />
+                        <TextBlock Text="マイベストブランド:" VerticalAlignment="Center" Margin="14,0,4,0" />
+                        <ComboBox x:Name="PostBrandModeBox" Width="150" SelectionChanged="PostSetting_Changed">
+                            <ComboBoxItem Content="一番プレイしたブランド" />
+                            <ComboBoxItem Content="最高点のブランド" />
+                            <ComboBoxItem Content="任意のブランド" />
+                        </ComboBox>
+                        <ComboBox x:Name="PostBrandBox" Width="170" Margin="4,0,0,0" Visibility="Collapsed" SelectionChanged="PostSetting_Changed" />
+                        <TextBlock Text="背景:" VerticalAlignment="Center" Margin="14,0,4,0" />
+                        <ComboBox x:Name="PostBackgroundBox" Width="80" SelectionChanged="PostSetting_Changed">
+                            <ComboBoxItem Content="明るい" />
+                            <ComboBoxItem Content="暗い" />
+                        </ComboBox>
+                        <CheckBox x:Name="PostExcludeClearedCheck" Content="起点の日より前にクリアした作品を除く" Margin="14,0,0,0" VerticalAlignment="Center" Click="PostSetting_Changed"
+                                  ToolTip="プレイした作品の欄から、起点の日より前に終了日がある作品を外します" />
+                        <Button x:Name="PostExportButton" Content="画像出力" Margin="14,0,0,0" Padding="14,4" Click="PostExport_Click"
+                                ToolTip="下のレポートエリアを、NovelKeeper_年月日.jpg の画像として保存します" />
+                    </WrapPanel>
+                    <!-- 2列目：レイアウト（カラム数・パネルの追加・初期配置） -->
+                    <WrapPanel DockPanel.Dock="Top" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="レイアウト:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <TextBlock Text="カラム数" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ComboBox x:Name="PostColumnsBox" Width="60" SelectionChanged="PostColumns_Changed">
+                            <ComboBoxItem Content="2" />
+                            <ComboBoxItem Content="3" />
+                            <ComboBoxItem Content="4" />
+                        </ComboBox>
+                        <Button x:Name="PostAddButton" Content="＋ パネルを追加" Margin="10,0,0,0" Padding="12,4" Click="PostAdd_Click"
+                                ToolTip="パネルを追加します（空いている場所のうち、いちばん上・左に置きます）" />
+                        <Button Content="初期配置に戻す" Margin="10,0,0,0" Padding="12,4" Click="PostResetLayout_Click" />
+                        <Button Content="デザイン設定" Margin="10,0,0,0" Padding="12,4" Click="PostDesign_Click"
+                                ToolTip="背景の色・画像、パネルの色と透過率、フォントと文字色を設定します" />
+                    </WrapPanel>
+                    <TextBlock x:Name="PostStatus" DockPanel.Dock="Top" Opacity="0.7" Margin="2,6,0,6" />
+                    <!-- 全体のデザイン設定（「デザイン設定」ボタンで開く。パネルの設定とは、どちらか一方だけ開く） -->
+                    <Border x:Name="PostDesignPanel" DockPanel.Dock="Right" Width="300" Margin="10,0,0,0" Padding="12" Visibility="Collapsed"
+                            BorderThickness="1" BorderBrush="#55888888" CornerRadius="6">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="デザイン設定" FontWeight="Bold" FontSize="14" />
+                                <TextBlock Text="背景色（#RRGGBB。空欄は、「背景: 明るい / 暗い」の色）" Margin="0,10,0,2" Opacity="0.7" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="PostDesBackColor" Width="110" MaxLength="9" TextChanged="PostDesColor_Changed" Tag="PostDesBackSample" />
+                                    <Border x:Name="PostDesBackSample" Width="24" Height="24" Margin="8,0,0,0" BorderBrush="Gray" BorderThickness="1" />
+                                </StackPanel>
+                                <TextBlock Text="背景の画像" Margin="0,10,0,2" Opacity="0.7" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="画像を選ぶ…" Padding="12,3" Click="PostDesPickImage_Click" />
+                                    <Button Content="画像を外す" Padding="12,3" Margin="8,0,0,0" Click="PostDesClearImage_Click" />
+                                </StackPanel>
+                                <TextBlock x:Name="PostDesImageName" Opacity="0.7" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <TextBlock Text="パネルの色（#RRGGBB。空欄は標準）" Margin="0,10,0,2" Opacity="0.7" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="PostDesCardColor" Width="110" MaxLength="9" TextChanged="PostDesColor_Changed" Tag="PostDesCardSample" />
+                                    <Border x:Name="PostDesCardSample" Width="24" Height="24" Margin="8,0,0,0" BorderBrush="Gray" BorderThickness="1" />
+                                </StackPanel>
+                                <TextBlock Text="パネルの透過率（すべてのパネルに効きます）" Margin="0,10,0,2" Opacity="0.7" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Slider x:Name="PostDesTransparency" Width="190" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center" ValueChanged="PostDesTransparency_Changed" />
+                                    <TextBlock x:Name="PostDesTransparencyText" Width="46" Margin="8,0,0,0" VerticalAlignment="Center" TextAlignment="Right" />
+                                </StackPanel>
+                                <TextBlock Text="0% は透かさない、100% は完全に透明です。背景の画像を見せたいときに上げます" Opacity="0.6" FontSize="11" TextWrapping="Wrap" />
+                                <TextBlock Text="フォント（全体）" Margin="0,10,0,2" Opacity="0.7" />
+                                <ComboBox x:Name="PostDesFontBox" />
+                                <TextBlock Text="文字の色（#RRGGBB。空欄は標準）" Margin="0,10,0,2" Opacity="0.7" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="PostDesTextColor" Width="110" MaxLength="9" TextChanged="PostDesColor_Changed" Tag="PostDesTextSample" />
+                                    <Border x:Name="PostDesTextSample" Width="24" Height="24" Margin="8,0,0,0" BorderBrush="Gray" BorderThickness="1" />
+                                </StackPanel>
+                                <TextBlock x:Name="PostDesError" Foreground="#E5534B" TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Content="適用" Padding="16,4" Click="PostDesApply_Click" />
+                                    <Button Content="標準に戻す" Padding="12,4" Margin="8,0,0,0" Click="PostDesReset_Click" />
+                                    <Button Content="閉じる" Padding="12,4" Margin="8,0,0,0" Click="PostDesClose_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                    <!-- パネルの設定（各パネルの ⚙ を押すと開く） -->
+                    <Border x:Name="PostSettingsPanel" DockPanel.Dock="Right" Width="300" Margin="10,0,0,0" Padding="12" Visibility="Collapsed"
+                            BorderThickness="1" BorderBrush="#55888888" CornerRadius="6">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="パネルの設定" FontWeight="Bold" FontSize="14" />
+                                <TextBlock Text="項目" Margin="0,10,0,2" Opacity="0.7" />
+                                <ComboBox x:Name="PostSetKindBox" SelectionChanged="PostSetKind_Changed" />
+                                <TextBlock Text="タイトル（空欄は、項目の標準の名前）" Margin="0,10,0,2" Opacity="0.7" />
+                                <TextBox x:Name="PostSetTitleBox" MaxLength="40" />
+                                <TextBlock Text="場所（段・列）と横幅" Margin="0,10,0,2" Opacity="0.7" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="PostSetRowBox" Width="40" HorizontalContentAlignment="Center" />
+                                    <TextBlock Text="段目" VerticalAlignment="Center" Margin="4,0,10,0" />
+                                    <ComboBox x:Name="PostSetColBox" Width="80" />
+                                    <ComboBox x:Name="PostSetSpanBox" Width="100" Margin="10,0,0,0" />
+                                </StackPanel>
+                                <TextBlock Text="縦幅（1段の高さは決まっています）" Margin="0,10,0,2" Opacity="0.7" />
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="PostSetRowSpanBox" Width="100" />
+                                    <Button Content="中身に合わせる" Margin="8,0,0,0" Padding="10,3" Click="PostSetFit_Click"
+                                            ToolTip="いまの設定で、中身が収まる段数を測って入れます（「適用」で反映）" />
+                                </StackPanel>
+                                <StackPanel x:Name="PostSetItemsGroup">
+                                    <TextBlock Text="作品の表示" Margin="0,10,0,2" Opacity="0.7" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="件数" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                        <TextBox x:Name="PostSetCountBox" Width="40" HorizontalContentAlignment="Center" />
+                                        <TextBlock Text="列数" VerticalAlignment="Center" Margin="12,0,4,0" />
+                                        <ComboBox x:Name="PostSetItemColsBox" Width="60" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <StackPanel x:Name="PostSetPriorityGroup">
+                                    <TextBlock x:Name="PostSetPickLabel" Text="優先したい作品を選ぶ（未プレイから）" Margin="0,10,0,2" Opacity="0.7" TextWrapping="Wrap" />
+                                    <TextBox x:Name="PostSetSearchBox" TextChanged="PostSetSearch_Changed" ToolTip="作品名で絞り込み" />
+                                    <ListBox x:Name="PostSetGamesList" Height="190" Margin="0,4,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Title}" IsChecked="{Binding Selected, Mode=TwoWay}" Click="PostPick_Click" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                                <StackPanel x:Name="PostSetTextGroup">
+                                    <TextBlock Text="文章（500文字まで）" Margin="0,10,0,2" Opacity="0.7" />
+                                    <TextBox x:Name="PostSetTextBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxLength="500" VerticalScrollBarVisibility="Auto" />
+                                </StackPanel>
+                                <StackPanel x:Name="PostSetFontGroup">
+                                    <TextBlock Text="フォント" Margin="0,10,0,2" Opacity="0.7" />
+                                    <ComboBox x:Name="PostSetFontBox" />
+                                    <TextBlock Text="色（#RRGGBB。空欄は標準の色）" Margin="0,10,0,2" Opacity="0.7" />
+                                    <TextBox x:Name="PostSetColorBox" Width="110" HorizontalAlignment="Left" MaxLength="9" />
+                                    <WrapPanel Margin="0,4,0,0" x:Name="PostSetSwatches" />
+                                    <TextBlock Text="大きさ（8〜96。空欄は標準）" Margin="0,10,0,2" Opacity="0.7" />
+                                    <TextBox x:Name="PostSetFontSizeBox" Width="60" HorizontalAlignment="Left" HorizontalContentAlignment="Center" MaxLength="2" />
+                                    <CheckBox x:Name="PostSetPeriodCheck" Content="期間（年月日〜年月日）も表示する" Margin="0,10,0,0" />
+                                </StackPanel>
+                                <StackPanel x:Name="PostSetTransGroup">
+                                    <TextBlock Text="枠の広げ方" Margin="0,10,0,2" Opacity="0.7" />
+                                    <CheckBox x:Name="PostSetBleedCheck" Content="画面（画像）の端まで広げる" ToolTip="外すと、ほかのパネルと同じ余白のある枠になります" />
+                                    <TextBlock Text="透過率（このパネルだけ）" Margin="0,10,0,2" Opacity="0.7" />
+                                    <CheckBox x:Name="PostSetTransFollow" Content="全体の透過率に従う（デザイン設定）" Click="PostSetTransFollow_Click" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <Slider x:Name="PostSetTrans" Width="190" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center" ValueChanged="PostSetTrans_Changed" />
+                                        <TextBlock x:Name="PostSetTransText" Width="46" Margin="8,0,0,0" VerticalAlignment="Center" TextAlignment="Right" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <TextBlock x:Name="PostSetError" Foreground="#E5534B" TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Content="適用" Padding="16,4" Click="PostSetApply_Click" />
+                                    <Button Content="閉じる" Padding="16,4" Margin="8,0,0,0" Click="PostSetClose_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                    <ScrollViewer x:Name="PostScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" ScrollChanged="PostScroll_Changed">
+                        <Border x:Name="PostReportHost" Padding="20" VerticalAlignment="Top" HorizontalAlignment="Left" Width="900" />
+                    </ScrollViewer>
                 </DockPanel>
             </TabItem>
 
@@ -743,6 +927,13 @@
                         <CheckBox x:Name="CloseToTrayCheck" Content="閉じるボタンで終了せず、タスクバー右下に常駐する" Click="PlaySetting_Changed" />
                         <CheckBox x:Name="AutoStartCheck" Content="Windows の起動時に、常駐した状態で自動で起動する" Click="PlaySetting_Changed" Margin="0,6,0,0" />
                         <CheckBox x:Name="NotifyCheck" Content="プレイ時間の計測の開始・終了を通知する" Click="PlaySetting_Changed" Margin="0,6,0,0" />
+                        <CheckBox x:Name="AlwaysAdminCheck" Content="すべての作品を、常に管理者権限で起動する ※" Click="PlaySetting_Changed" Margin="0,12,0,0" />
+                        <TextBlock Margin="24,2,0,0" TextWrapping="Wrap" Opacity="0.7"
+                                   Text="起動のたびに、Windows の確認画面（ユーザーアカウント制御）が出ます。&#10;※ Steam・DMM Game Player など URL 形式の起動は、管理者権限にできません（通常権限で起動します）。&#10;作品ごとの設定は、一覧の「起動設定」欄を右クリックして行えます。" />
+                        <StackPanel Orientation="Horizontal" Margin="24,6,0,0">
+                            <Button x:Name="ClearAdminButton" Content="管理者権限の設定を、すべての作品から外す…" Click="ClearAdmin_Click" />
+                            <TextBlock x:Name="AdminCountText" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />
+                        </StackPanel>
 
                         <!-- 表示 -->
                         <TextBlock Text="表示" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />

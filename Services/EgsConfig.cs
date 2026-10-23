@@ -101,6 +101,8 @@ public class EgsConfig
     public bool SubtractIdleTime { get; set; } = true;
     /// <summary>ゲームの画面が前面にあるときだけ数えるか</summary>
     public bool ForegroundOnly { get; set; } = false;
+    /// <summary>すべての作品を管理者権限で起動するか（作品ごとの設定は残るが、この間は無視する）</summary>
+    public bool AlwaysRunAsAdmin { get; set; } = false;
     /// <summary>閉じるボタンで終了せず、通知領域に常駐するか</summary>
     public bool CloseToTray { get; set; } = true;
     /// <summary>Windows の起動時に自動で起動するか</summary>
@@ -148,6 +150,45 @@ public class EgsConfig
 
     /// <summary>詳細欄に作品の画像を表示するか</summary>
     public bool ShowImages { get; set; } = true;
+
+    /// <summary>投稿設定：期間を1年にするか（false は1か月）</summary>
+    public bool PostOneYear { get; set; }
+
+    /// <summary>投稿設定：パネルのレイアウト（カラム数と、パネルの置き場所・設定）</summary>
+    public PostLayout PostLayout { get; set; } = PostLayout.CreateDefault();
+
+    /// <summary>投稿設定のデザイン：背景色（#RRGGBB。空なら、「背景: 明るい / 暗い」の色）</summary>
+    public string? PostBackColor { get; set; }
+
+    /// <summary>投稿設定のデザイン：背景の画像ファイル（空なら、画像なし）</summary>
+    public string? PostBackImage { get; set; }
+
+    /// <summary>投稿設定のデザイン：パネルの色（#RRGGBB。空なら標準）</summary>
+    public string? PostCardColor { get; set; }
+
+    /// <summary>投稿設定のデザイン：パネルを透かす割合（0〜100。0 は透かさない。背景の画像を見せたいときに上げる）</summary>
+    public int PostPanelTransparency { get; set; }
+
+    /// <summary>投稿設定のデザイン：全体のフォント（空なら標準）</summary>
+    public string? PostFontFamily { get; set; }
+
+    /// <summary>投稿設定のデザイン：全体の文字の色（#RRGGBB。空なら標準）</summary>
+    public string? PostTextColor { get; set; }
+
+    /// <summary>投稿設定：画像の背景を暗くするか（false は明るい）</summary>
+    public bool PostDarkBackground { get; set; }
+
+    /// <summary>投稿設定：画像の見出し（自由入力）</summary>
+    public string PostTitle { get; set; } = "ノベルゲーム　プレイレポート";
+
+    /// <summary>投稿設定：起点の日より前にクリアした作品を、作品の欄から除くか</summary>
+    public bool PostExcludeClearedBefore { get; set; } = true;
+
+    /// <summary>投稿設定：マイベストブランドの選び方（PostBrandMode の値）</summary>
+    public int PostBrandMode { get; set; }
+
+    /// <summary>投稿設定：「任意のブランド」で選んだブランド</summary>
+    public string? PostBrandName { get; set; }
 
     /// <summary>詳細欄で開いているグループ（プレイ時間・購入／動作環境／感想）</summary>
     public List<string> ExpandedSections { get; set; } = new();

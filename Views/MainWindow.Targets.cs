@@ -73,7 +73,7 @@ public partial class MainWindow
         foreach (var mi in TargetMenuItems(g)) menu.Items.Add(mi);
         if (menu.Items.Count == 0) return;
         menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem { Header = "追加・編集は、詳細欄の「起動するもの」で行えます", IsEnabled = false });
+        menu.Items.Add(new MenuItem { Header = "追加・編集は詳細欄の起動ファイル設定項目で可能。", IsEnabled = false });
         menu.IsOpen = true;
     }
 
@@ -299,17 +299,75 @@ public partial class MainWindow
 
     private void Launch()
     {
-        var g = Selected;
-        if (g == null) return;
+        if (Selected is { } g) Launch(g);
+    }
+
+    private void Launch(Game g, bool once = false)
+    {
         try
         {
-            _tracker.Launch(g);
-            StatusText.Text = $"起動しました：{g.Title}（ゲームが動き出すと、自動でプレイ時間の計測を始めます）";
+            if (!_tracker.Launch(g, once))
+            {
+                StatusText.Text = $"管理者権限の確認で「いいえ」が選ばれたため、起動しませんでした：{g.Title}";
+                return;
+            }
+            var admin = PlayTimeTracker.NeedsAdmin(_cfg.AlwaysRunAsAdmin, g.RunAsAdmin, once, ShortcutResolver.IsUrl(g.ExePath ?? ""));
+            StatusText.Text = $"{(admin ? "管理者権限で" : "")}起動しました：{g.Title}（ゲームが動き出すと、自動でプレイ時間の計測を始めます）";
         }
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "起動できません", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>右クリックの「管理者権限で起動」。この作品で初めて選んだときは、説明と「今後は確認しない」の選択を出す</summary>
+    private void LaunchAsAdmin(Game g)
+    {
+        if (!g.RunAsAdmin && !_cfg.AlwaysRunAsAdmin)
+        {
+            var always = new CheckBox
+            {
+                Content = "今後、この作品は確認なしで管理者権限で起動する（通常の起動も管理者権限になります）",
+                Margin = new Thickness(0, 12, 0, 0),
+            };
+            var text = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Text = "「管理者権限で実行」が必要なゲームを、管理者権限で起動します。\n" +
+                       "起動のたびに、Windows の確認画面（ユーザーアカウント制御）が表示されます。\n" +
+                       "この設定は、この作品だけに適用されます（外すときは、右クリックのメニューから）。",
+            };
+            var ok = new Button { Content = "管理者権限で起動", IsDefault = true, MinWidth = 120, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = "キャンセル", IsCancel = true, MinWidth = 80 };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            buttons.Children.Add(ok);
+            buttons.Children.Add(cancel);
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            panel.Children.Add(text);
+            panel.Children.Add(always);
+            panel.Children.Add(buttons);
+            var dlg = new Window
+            {
+                Title = "管理者権限で起動：" + g.Title,
+                Content = panel,
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                SizeToContent = SizeToContent.Height,
+                Width = 480,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false,
+            };
+            ok.Click += (_, _) => dlg.DialogResult = true;
+            if (dlg.ShowDialog() != true) return;
+            if (always.IsChecked == true)
+            {
+                g.RunAsAdmin = true;
+                _db.Update(g);
+                GameGrid.Items.Refresh();
+                UpdateAdminCount();
+            }
+        }
+        Launch(g, once: true);
     }
 
 }

@@ -144,6 +144,7 @@ public partial class MainWindow
         var r = g?.Review ?? new Review();
         PossessionCheck.IsChecked = (g?.Review.Possession ?? g?.EgsPossession) == true;
         UnreleasedBadge.Visibility = g?.IsUnreleased == true ? Visibility.Visible : Visibility.Collapsed;
+        UpdateAdminBadge(g);
         StartDatePicker.SelectedDate = r.StartDate;
         TotalPlayTimeBox.Text = r.TotalPlayTime?.ToString() ?? "";
         FunTimeBox.Text = r.FunTime?.ToString() ?? "";

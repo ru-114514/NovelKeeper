@@ -28,6 +28,7 @@ public partial class MainWindow
         // 置き場所の大きさが変わったら、グラフを描き直す（高さを置き場所に合わせるため）
         foreach (var sv in new[] { SummaryMainScroll, SummaryRightScroll, SummaryBottomScroll })
             sv.SizeChanged += (_, _) => DrawSummaryChart();
+        InitSummaryExtras();
         ApplySummaryLayout();
         MainTabs.SelectionChanged += (s, e) =>
         {
@@ -73,7 +74,8 @@ public partial class MainWindow
         var to = (SummaryToPicker.SelectedDate ?? DateTime.Today).Date;
         if (to < from) (from, to) = (to, from);
 
-        var rows = _db.GetSessions(from, to.AddDays(1));
+        var rows = _summaryRows = _db.GetSessions(from, to.AddDays(1)).ToList();
+        _summaryGames = _db.GetAll();
         var r = _summary = SummaryCalculator.Build(rows, from, to);
 
         var range = r.DayCount == 1 ? $"{from:yyyy/MM/dd}" : $"{from:yyyy/MM/dd} 〜 {to:yyyy/MM/dd}（{r.DayCount}日間）";
@@ -110,6 +112,7 @@ public partial class MainWindow
 
         ShowSummaryGames();
         DrawSummaryChart();
+        DrawSummaryExtras();
     }
 
     /// <summary>作品欄の中身。下に置いたときは、横に並べて見やすくする（1件の幅を決めて折り返す）</summary>

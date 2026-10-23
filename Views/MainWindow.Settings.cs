@@ -127,6 +127,8 @@ public partial class MainWindow
             CloseToTrayCheck.IsChecked = _cfg.CloseToTray;
             AutoStartCheck.IsChecked = _cfg.AutoStart;
             NotifyCheck.IsChecked = _cfg.NotifyOnStart;
+            AlwaysAdminCheck.IsChecked = _cfg.AlwaysRunAsAdmin;
+            Game.AlwaysRunAsAdmin = _cfg.AlwaysRunAsAdmin;
             ZoomText.Text = $"{_cfg.ListZoom * 100:0}%";
             ShowImagesCheck.IsChecked = _cfg.ShowImages;
             SyncDetailPositionBox();
@@ -140,6 +142,7 @@ public partial class MainWindow
         InitLoginTab();
         InitLaunchTab();
         InitColumnList();
+        UpdateAdminCount();
 
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         VersionText.Text = $"NovelKeeper {version?.ToString(3)}";
@@ -214,6 +217,13 @@ public partial class MainWindow
         _cfg.CloseToTray = CloseToTrayCheck.IsChecked == true;
         _cfg.AutoStart = AutoStartCheck.IsChecked == true;
         _cfg.NotifyOnStart = NotifyCheck.IsChecked == true;
+        _cfg.AlwaysRunAsAdmin = AlwaysAdminCheck.IsChecked == true;
+        if (Game.AlwaysRunAsAdmin != _cfg.AlwaysRunAsAdmin)
+        {
+            Game.AlwaysRunAsAdmin = _cfg.AlwaysRunAsAdmin;
+            GameGrid.Items.Refresh(); // 一覧の紫を付け直す
+            UpdateAdminBadge();
+        }
         _cfg.Save();
 
         if (autoStartChanged)
@@ -222,6 +232,34 @@ public partial class MainWindow
             catch (Exception ex) { MessageBox.Show("自動起動の設定に失敗しました：" + ex.Message); }
         }
         StatusText.Text = "設定を保存しました";
+    }
+
+    /// <summary>詳細欄の「管理者権限で起動します」の表示を、選んでいる作品に合わせる</summary>
+    private void UpdateAdminBadge(Game? g = null)
+    {
+        g ??= Selected;
+        AdminBadge.Visibility = g?.RunsAsAdmin == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>管理者権限で起動する印がついた作品の件数を、設定画面に表示する</summary>
+    private void UpdateAdminCount()
+    {
+        var n = _db.GetAll().Count(x => x.RunAsAdmin);
+        AdminCountText.Text = n == 0 ? "（印がついた作品はありません）" : $"（現在 {n} 件）";
+        ClearAdminButton.IsEnabled = n > 0;
+        UpdateAdminBadge();
+    }
+
+    private void ClearAdmin_Click(object sender, RoutedEventArgs e)
+    {
+        var n = _db.GetAll().Count(x => x.RunAsAdmin);
+        if (n == 0) { UpdateAdminCount(); return; }
+        if (MessageBox.Show($"管理者権限で起動する設定を、{n} 件の作品から外します。\n（「すべての作品を常に管理者権限で起動する」の☑は、そのままです）",
+                "確認", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+        var cleared = _db.ClearAllRunAsAdmin();
+        Reload();
+        UpdateAdminCount();
+        StatusText.Text = $"管理者権限の設定を {cleared} 件の作品から外しました";
     }
 
     /// <summary>詳細欄の位置の選択欄を、今の状態に合わせる</summary>
@@ -413,6 +451,36 @@ public partial class MainWindow
         Dispatcher.InvokeAsync(InitColumnList, DispatcherPriority.Background);
     }
 
+    /// <summary>右クリックのメニューに、管理者権限で起動する項目を足す（Steam など URL 形式の起動には使えない）</summary>
+    private void AddAdminMenuItems(ContextMenu menu, Game g)
+    {
+        var isUrl = ShortcutResolver.IsUrl(g.ExePath ?? "");
+        var launch = new MenuItem { Header = "管理者権限で起動", IsEnabled = !isUrl };
+        launch.Click += (_, _) => LaunchAsAdmin(g);
+        var always = new MenuItem
+        {
+            Header = "この作品は常に管理者権限で起動する",
+            IsCheckable = true,
+            IsChecked = g.RunAsAdmin,
+            IsEnabled = !isUrl,
+            StaysOpenOnClick = false,
+        };
+        always.Click += (_, _) =>
+        {
+            g.RunAsAdmin = always.IsChecked;
+            _db.Update(g);
+            GameGrid.Items.Refresh();
+            UpdateAdminCount();
+            StatusText.Text = g.RunAsAdmin
+                ? $"この作品は管理者権限で起動します：{g.Title}"
+                : $"管理者権限での起動を外しました：{g.Title}";
+        };
+        menu.Items.Add(launch);
+        menu.Items.Add(always);
+        if (isUrl) menu.Items.Add(new MenuItem { Header = "（Steam など URL 形式の起動には使えません）", IsEnabled = false });
+        menu.Items.Add(new Separator());
+    }
+
     /// <summary>一覧を右クリック：列の表示・非表示をその場で切り替える</summary>
     private void GameGrid_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
@@ -422,12 +490,16 @@ public partial class MainWindow
 
         // 「起動設定」欄の上で右クリックしたら、起動するもの（収録作など）の選び替えを先頭に出す
         var cell = FindParent<DataGridCell>(e.OriginalSource as DependencyObject);
-        if (cell?.Column?.Header?.ToString() == "起動設定" && cell.DataContext is Game g && g.Targets.Count > 0)
+        if (cell?.Column?.Header?.ToString() == "起動設定" && cell.DataContext is Game g)
         {
             GameGrid.SelectedItem = g;
-            menu.Items.Add(new MenuItem { Header = "起動するもの", IsEnabled = false });
-            foreach (var mi in TargetMenuItems(g)) menu.Items.Add(mi);
-            menu.Items.Add(new Separator());
+            if (g.Targets.Count > 0)
+            {
+                menu.Items.Add(new MenuItem { Header = "起動ファイル一覧", IsEnabled = false });
+                foreach (var mi in TargetMenuItems(g)) menu.Items.Add(mi);
+                menu.Items.Add(new Separator());
+            }
+            if (!g.IsLaunchUnset) AddAdminMenuItems(menu, g);
         }
 
         menu.Items.Add(new MenuItem { Header = "表示する列", IsEnabled = false });

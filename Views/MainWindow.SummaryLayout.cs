@@ -13,11 +13,18 @@ namespace ErogeLauncher.Views;
 public partial class MainWindow
 {
     private const string SummaryDragFormat = "NovelKeeper.SummaryPanel";
-    private static readonly string[] SummaryKeys = { "chart", "calendar", "games" };
+    private static readonly string[] SummaryKeys = { "chart", "calendar", "games", "heat", "scatter", "cleared" };
+    private const int SummaryBasicCount = 3; // 「並べ方」で並べ直すのは、最初の3つ（グラフ・カレンダー・作品）だけ
     private static readonly Dictionary<string, string> SummaryNames = new()
     {
         ["chart"] = "プレイ時間のグラフ", ["calendar"] = "カレンダー", ["games"] = "プレイした作品",
+        ["heat"] = "時間帯ヒートマップ", ["scatter"] = "点数×プレイ時間", ["cleared"] = "クリアと積みゲー",
     };
+    private static readonly Dictionary<string, string> SummaryShortNames = new()
+    {
+        ["heat"] = "ヒートマップ", ["scatter"] = "点数×時間", ["cleared"] = "クリア",
+    };
+    private readonly Dictionary<string, ToggleButton> _summaryToggles = new();
 
     private readonly Dictionary<string, Window> _summaryFloats = new(); // 「別ウィンドウ」にした欄
     private string _summaryStarZone = "Main"; // 上段で伸び縮みする置き場所
@@ -30,21 +37,27 @@ public partial class MainWindow
     {
         "chart" => SummaryChartFrame,
         "calendar" => SummaryCalendarFrame,
-        _ => SummaryGamesFrame,
+        "games" => SummaryGamesFrame,
+        _ => _summaryExtra[key].Frame,
     };
 
     private ToggleButton SummaryToggle(string key) => key switch
     {
         "chart" => SummaryChartToggle,
         "calendar" => SummaryCalendarToggle,
-        _ => SummaryGamesToggle,
+        "games" => SummaryGamesToggle,
+        _ => _summaryToggles[key],
     };
 
     /// <summary>欄の状態（なければ、初期の置き場所で作る：作品は右、ほかはメイン）</summary>
     private SummaryPanelState SummaryPanel(string key)
     {
         if (!_cfg.SummaryPanels.TryGetValue(key, out var s))
-            _cfg.SummaryPanels[key] = s = new SummaryPanelState { Position = key == "games" ? "Right" : "Main" };
+            _cfg.SummaryPanels[key] = s = new SummaryPanelState
+            {
+                Position = key == "games" ? "Right" : "Main",
+                Visible = Array.IndexOf(SummaryKeys, key) < SummaryBasicCount, // 追加欄は、表示ボタンで出す
+            };
         return s;
     }
 
@@ -184,6 +197,7 @@ public partial class MainWindow
 
         ShowSummaryGames(); // 作品は、置き場所によって並べ方を変える
         DrawSummaryChart();
+        DrawSummaryExtras();
     }
 
     // ================================================================
@@ -283,7 +297,7 @@ public partial class MainWindow
             "Columns" => new[] { "Left", "Main", "Right" },  // 横に3列（左から グラフ・カレンダー・作品）
             _ => new[] { "Main", "Main", "Right" },          // 初期配置
         };
-        for (var i = 0; i < SummaryKeys.Length; i++)
+        for (var i = 0; i < SummaryBasicCount; i++)
         {
             var s = SummaryPanel(SummaryKeys[i]);
             s.Position = positions[i];

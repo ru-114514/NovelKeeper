@@ -55,8 +55,18 @@ public sealed class PlayTimeTracker : IDisposable
     // 起動
     // ================================================================
 
-    /// <summary>ゲームを起動する（計測は常駐の監視が自動で行う）</summary>
-    public void Launch(Game game)
+    /// <summary>管理者権限で起動するか。URL 形式（Steam など）の起動には付けられない</summary>
+    /// <param name="always">設定の「常に管理者権限で実行する」</param>
+    /// <param name="gameFlag">その作品の「管理者権限で起動する」</param>
+    /// <param name="once">今回だけ管理者で起動すると選んだ</param>
+    internal static bool NeedsAdmin(bool always, bool gameFlag, bool once, bool isUrl) =>
+        !isUrl && (always || gameFlag || once);
+
+    /// <summary>
+    /// ゲームを起動する（計測は常駐の監視が自動で行う）。
+    /// 管理者権限の確認画面で「いいえ」が選ばれたときは、起動せず false を返す
+    /// </summary>
+    public bool Launch(Game game, bool once = false)
     {
         if (string.IsNullOrWhiteSpace(game.ExePath))
             throw new InvalidOperationException("実行ファイルが設定されていません。");
@@ -69,7 +79,16 @@ public sealed class PlayTimeTracker : IDisposable
 
         var psi = new ProcessStartInfo(game.ExePath) { UseShellExecute = true };
         if (!isUrl) psi.WorkingDirectory = Path.GetDirectoryName(game.ExePath)!; // セーブ等の相対パス対策
-        Process.Start(psi)?.Dispose();
+        if (NeedsAdmin(_cfg.AlwaysRunAsAdmin, game.RunAsAdmin, once, isUrl)) psi.Verb = "runas";
+        try
+        {
+            Process.Start(psi)?.Dispose();
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) // 確認画面で「いいえ」
+        {
+            return false;
+        }
     }
 
     // ================================================================

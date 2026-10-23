@@ -67,6 +67,7 @@ public class Database : ISessionStore
         AddColumnIfMissing(conn, "games", "review_json", "TEXT");    // 得点登録フォームのその他の項目
         AddColumnIfMissing(conn, "games", "review_pending", "TEXT"); // まだ批評空間に反映していない項目（カンマ区切り）
         AddColumnIfMissing(conn, "games", "price", "INTEGER");       // 購入額（円。ツールだけに保存）
+        AddColumnIfMissing(conn, "games", "run_as_admin", "INTEGER NOT NULL DEFAULT 0"); // 1 = 管理者権限で起動する
         AddColumnIfMissing(conn, "sessions", "manual", "INTEGER NOT NULL DEFAULT 0"); // 1 = 補正画面で追加・編集した記録
 
         // 起動するもの（1作品に複数）
@@ -134,7 +135,8 @@ public class Database : ISessionStore
                 ExePath = Str(r["exe_path"]),
                 MonitorProcess = Str(r["monitor_process"]),
                 InstallDir = Str(r["install_dir"]),
-                Status = (GameStatus)Convert.ToInt32(r["status"]),
+                RunAsAdmin = Convert.ToInt32(r["run_as_admin"]) != 0,
+                Status =(GameStatus)Convert.ToInt32(r["status"]),
                 ClearDate = ParseDate(Str(r["clear_date"]), DateFormat),
                 EgsPlayed = Convert.ToInt32(r["egs_played"]) != 0,
                 EgsGiveUp = Convert.ToInt32(r["egs_giveup"]) != 0,
@@ -335,12 +337,13 @@ public class Database : ISessionStore
                 egs_id = $egs, title = $title, brand = $brand, sellday = $sellday, median = $median,
                 egs_average = $egsAverage, egs_count = $egsCount,
                 exe_path = $exe, monitor_process = $proc, install_dir = $installDir, status = $status, clear_date = $clear, my_score = $myScore,
-                review_json = $review, review_pending = $reviewPending, price = $price,
+                review_json = $review, review_pending = $reviewPending, price = $price, run_as_admin = $runAsAdmin,
                 egs_played = $egsPlayed, egs_giveup = $egsGiveUp, egs_possession = $egsPossession, egs_score = $egsScore, egs_clear_date = $egsClear, egs_synced_at = $egsSynced
             WHERE id = $id
             """;
         AddCommonParams(cmd, g);
         cmd.Parameters.AddWithValue("$price", Db(g.Price));
+        cmd.Parameters.AddWithValue("$runAsAdmin", g.RunAsAdmin ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsPlayed", g.EgsPlayed ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsGiveUp", g.EgsGiveUp ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsPossession", g.EgsPossession is bool pos ? (pos ? 1 : 0) : DBNull.Value);
@@ -360,6 +363,15 @@ public class Database : ISessionStore
                 UpdateTarget(t);
             }
         }
+    }
+
+    /// <summary>管理者権限で起動する印を、すべての作品から外す。外した件数を返す</summary>
+    public int ClearAllRunAsAdmin()
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE games SET run_as_admin = 0 WHERE run_as_admin <> 0";
+        return cmd.ExecuteNonQuery();
     }
 
     public void Delete(long id)

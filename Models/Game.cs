@@ -30,6 +30,8 @@ public class Game
     public string? MonitorProcess { get; set; }
     /// <summary>ゲームのフォルダ（プレイ中の判定に使う。空なら実行ファイルのフォルダ）</summary>
     public string? InstallDir { get; set; }
+    /// <summary>この作品は、管理者権限で起動する（Windows の確認画面が出る。URL 形式の起動には使えない）</summary>
+    public bool RunAsAdmin { get; set; }
 
     /// <summary>起動するものの一覧（収録作ごと。数に制限なし）。ExePath は「今使うもの」</summary>
     public List<LaunchTarget> Targets { get; set; } = new();
@@ -161,6 +163,13 @@ public class Game
     /// <summary>実行ファイルが未設定か（一覧の「起動設定」欄で使う）</summary>
     public bool IsLaunchUnset => string.IsNullOrWhiteSpace(ExePath);
     public bool IsLaunchSet => !IsLaunchUnset;
+
+    /// <summary>設定の「すべての作品を常に管理者権限で起動する」（一覧の色分け用。画面側が設定と同じ値にそろえる）</summary>
+    public static bool AlwaysRunAsAdmin { get; set; }
+
+    /// <summary>いま管理者権限で起動される作品か（一覧で紫にする。URL 形式の起動は管理者にできないので対象外）</summary>
+    public bool RunsAsAdmin =>
+        IsLaunchSet && (RunAsAdmin || AlwaysRunAsAdmin) && !ErogeLauncher.Services.ShortcutResolver.IsUrl(ExePath!);
 
     public string LaunchText =>
         IsLaunchUnset ? "⬇ ここにドロップ"
