@@ -360,6 +360,12 @@ public partial class MainWindow
         foreach (var key in keys.Where(k => list.All(c => c.Key != k)))
         {
             var setting = new ColumnSetting { Key = key, Visible = !IsDefaultHidden(key) };
+            // 「特例」は、「状態」の隣に置く
+            if (key == "特例")
+            {
+                var state = list.FindIndex(c => c.Key == "状態");
+                if (state >= 0) { list.Insert(state + 1, setting); continue; }
+            }
             // 任意評価基準の項目の列は、選びやすいよう「得点」の隣（先の項目の後ろ）に置く
             if (key.StartsWith(ScoreColumnPrefix))
             {
@@ -402,7 +408,7 @@ public partial class MainWindow
     /// <summary>一覧の初期の並び（先頭から）。続きの列は、画面の作りの順</summary>
     private static readonly string[] DefaultLeadingColumns =
     {
-        "タイトル", "ブランド", "起動設定", "状態", "プレイ時間", "クリア日", "発売日", "所持", "購入予定", "購入確認", "得点", "中央値", "データ数", "購入額",
+        "タイトル", "ブランド", "起動設定", "状態", "特例", "プレイ時間", "クリア日", "発売日", "所持", "購入予定", "購入確認", "得点", "中央値", "データ数", "購入額",
     };
 
     /// <summary>列の設定を一覧に反映する</summary>

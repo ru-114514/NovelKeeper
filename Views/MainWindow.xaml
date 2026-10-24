@@ -56,7 +56,7 @@
                             <Button Content="🎲 次の1本…" Click="NextPick_Click"
                                     ToolTip="批評空間の中央値・POV・タグ・ジャンルで、未プレイ・プレイ中の作品を絞り込み、次に遊ぶ1本を選びます" />
                             <Button Content="🔍 放置作品の見直し…" Click="StaleReview_Click"
-                                    ToolTip="長く遊んでいないプレイ中の作品や、手つかずの未プレイ作品を、継続・優先・除外・中断に振り分けます" />
+                                    ToolTip="長く遊んでいないプレイ中の作品や、手つかずの未プレイ作品を、継続・特例・中断に振り分けます" />
                             <Button x:Name="DetailToggleButton" Content="詳細欄を隠す" Click="ToggleDetail_Click" />
                         </StackPanel>
                         <!-- 入りきらないボタンはここから選ぶ（ほかのボタンと同じ文字の大きさ） -->
@@ -113,7 +113,8 @@
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
-                                        <DataGridTextColumn Header="状態" Binding="{Binding StatusText}" Width="130" SortMemberPath="StatusOrder" />
+                                        <DataGridTextColumn Header="状態" Binding="{Binding StatusText}" Width="85" SortMemberPath="StatusOrder" />
+                                        <DataGridTextColumn Header="特例" Binding="{Binding MarkText}" Width="90" SortMemberPath="IsPriority" />
                                         <DataGridTextColumn Header="購入予定" Binding="{Binding PurchaseWillText}" Width="85" />
                                         <!-- 発売済みなのに所持が付いていない購入予定の作品は、セルを赤く塗る（色は MainWindow.xaml.cs の ApplyCategoryColors） -->
                                         <DataGridTextColumn Header="購入確認" Binding="{Binding PurchaseCheckText}" SortMemberPath="NeedsPurchaseCheck" Width="75" />

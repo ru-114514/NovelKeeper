@@ -90,8 +90,8 @@ public class Game
 
     public string StatusText => Status switch
     {
-        GameStatus.Unplayed => "未プレイ" + (IsBacklogExcluded ? "・除外" : "") + PriorityMark,
-        GameStatus.Playing => "プレイ中" + PriorityMark,
+        GameStatus.Unplayed => "未プレイ",
+        GameStatus.Playing => "プレイ中",
         GameStatus.Played => "☑ プレイ済",
         GameStatus.Dropped => "中断",
         _ => "",
@@ -105,7 +105,8 @@ public class Game
 
     public bool IsBacklogExcluded => BacklogExcludedIds.Contains(Id);
     public bool IsPriority => PriorityIds.Contains(Id);
-    private string PriorityMark => IsPriority ? " ★優先" : "";
+    /// <summary>一覧の「特例」列の文字（優先に入れた作品は「★優先」、積みゲーに数えない作品は「除外」）</summary>
+    public string MarkText => (IsPriority ? "★優先" : "") + (IsPriority && IsBacklogExcluded ? " " : "") + (IsBacklogExcluded ? "除外" : "");
 
     /// <summary>並び替え用の状態の順番：プレイ中 ＞ 未プレイ ＞ 中断（放棄） ＞ プレイ済</summary>
     public int StatusOrder => Status switch

@@ -234,7 +234,7 @@ public class StaleReviewWindow : Window
         _status.Text = total == 0
             ? "変更はありません（すべて「継続」です）"
             : $"反映しました（優先 {priority.Count}本、優先を外す {unprioritized}本、除外 {excluded}本、中断 {dropped}本）" +
-              (priority.Count > 0 ? "　優先は、投稿設定の「今後優先したい作品」パネルに入れました（一覧の状態に★が付きます）" : "");
+              (priority.Count > 0 ? "　優先は、投稿設定の「今後優先したい作品」パネルに入れました（一覧の「特例」列に★優先と出ます）" : "");
         Refresh();
     }
 }
