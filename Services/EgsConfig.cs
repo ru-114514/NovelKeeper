@@ -91,6 +91,19 @@ public class EgsConfig
 
     // ---- 一覧の並び順（画面で変更すると自動で保存される） ----
     public List<SortKey> SortKeys { get; set; } = new() { new SortKey { Property = "Title" } };
+    /// <summary>並び替えの設定1〜3（一覧の「設定1〜3」ボタンで、ワンクリックで切り替える）。空のものは未設定</summary>
+    public List<List<SortKey>> SortPresets { get; set; } = new() { new(), new(), new() };
+
+    public const int SortPresetCount = 3;
+
+    /// <summary>設定ファイルから読んだ並び替えの設定を、必ず3つ（足りなければ未設定）にそろえる</summary>
+    public void NormalizeSortPresets()
+    {
+        SortPresets ??= new();
+        while (SortPresets.Count < SortPresetCount) SortPresets.Add(new());
+        if (SortPresets.Count > SortPresetCount) SortPresets.RemoveRange(SortPresetCount, SortPresets.Count - SortPresetCount);
+        for (var i = 0; i < SortPresets.Count; i++) SortPresets[i] ??= new();
+    }
 
     // ---- プレイ時間の計測 ----
     /// <summary>操作がない時間を除外するか</summary>
@@ -139,6 +152,16 @@ public class EgsConfig
     /// <summary>下の置き場所の高さ</summary>
     public double SummaryBottomHeight { get; set; } = 260;
 
+    // ---- プレイの目標（0 は未設定） ----
+    /// <summary>年間の目標：プレイ時間（時間）</summary>
+    public int GoalYearHours { get; set; }
+    /// <summary>年間の目標：クリア数（本）</summary>
+    public int GoalYearClears { get; set; }
+    /// <summary>月間の目標：プレイ時間（時間）</summary>
+    public int GoalMonthHours { get; set; }
+    /// <summary>月間の目標：クリア数（本）</summary>
+    public int GoalMonthClears { get; set; }
+
     /// <summary>一覧の列の幅（見出し → 幅）。見出しの境目をドラッグして変えると保存される</summary>
     public Dictionary<string, double> ColumnWidths { get; set; } = new();
 
@@ -175,6 +198,19 @@ public class EgsConfig
     /// <summary>投稿設定のデザイン：全体の文字の色（#RRGGBB。空なら標準）</summary>
     public string? PostTextColor { get; set; }
 
+    /// <summary>自動バックアップをするか</summary>
+    public bool AutoBackupEnabled { get; set; } = true;
+    /// <summary>自動バックアップの間隔（日。1 か 7）</summary>
+    public int AutoBackupIntervalDays { get; set; } = 1;
+    /// <summary>自動バックアップで残す世代数（3〜14）</summary>
+    public int AutoBackupKeep { get; set; } = AutoBackup.DefaultKeep;
+
+    /// <summary>任意評価基準を使うか（オフでも、設定した項目と作品ごとの項目別の点数は残す）</summary>
+    public bool ScoreItemsEnabled { get; set; }
+
+    /// <summary>任意評価基準の項目（最高点の合計はちょうど 100）</summary>
+    public List<ScoreItem> ScoreItems { get; set; } = new();
+
     /// <summary>投稿設定：画像の背景を暗くするか（false は明るい）</summary>
     public bool PostDarkBackground { get; set; }
 
@@ -183,6 +219,12 @@ public class EgsConfig
 
     /// <summary>投稿設定：起点の日より前にクリアした作品を、作品の欄から除くか</summary>
     public bool PostExcludeClearedBefore { get; set; } = true;
+    /// <summary>投稿設定：起点の日より前にクリア済みでも、再プレイとして集計に含める作品（作品の ID）</summary>
+    public List<long> PostReplayGameIds { get; set; } = new();
+    /// <summary>投稿設定で「隠す」にした作品（クリア済みでなくても、プレイ記録の集計から外す。作品の ID）</summary>
+    public List<long> PostHiddenGameIds { get; set; } = new();
+    /// <summary>投稿設定のデザイン：パネルの項目名（見出し）の大きさ（0 なら標準の 13）</summary>
+    public int PostLabelSize { get; set; }
 
     /// <summary>投稿設定：マイベストブランドの選び方（PostBrandMode の値）</summary>
     public int PostBrandMode { get; set; }
@@ -266,6 +308,7 @@ public class EgsConfig
                 if (loaded != null)
                 {
                     loaded.FilePath = path;
+                    loaded.NormalizeSortPresets();
                     loaded.Save(); // 新しく増えた項目を書き足す
                     return loaded;
                 }
@@ -314,6 +357,10 @@ public class SortKey
 {
     public string Property { get; set; } = "Title";
     public bool Descending { get; set; }
+
+    /// <summary>2つの並び順が同じか（条件の項目・向き・順番がすべて同じ）</summary>
+    public static bool SameOrder(IReadOnlyList<SortKey> a, IReadOnlyList<SortKey> b) =>
+        a.Count == b.Count && a.Zip(b).All(p => p.First.Property == p.Second.Property && p.First.Descending == p.Second.Descending);
 }
 
 /// <summary>一覧の列1つ分の設定</summary>

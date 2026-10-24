@@ -4,19 +4,16 @@ using Microsoft.Data.Sqlite;
 namespace ErogeLauncher.Services;
 
 /// <summary>
-/// 作品の一覧・プレイ時間（games.db）の自動バックアップ。
-/// 1日に1回、%AppData%\NovelKeeper\backups\games_日付.db に残し、新しい方から7日分だけ持つ。
+/// 作品の一覧・プレイ時間（games.db）のコピーに使う部品。
+/// 自動バックアップ本体は AutoBackup（世代・件数・大きさ・空き容量の上限つき）。
 /// SQLite のバックアップ機能を使うので、プレイ時間を計測中でも壊れたコピーにならない。
 /// </summary>
 public static class DbBackup
 {
-    private const int Keep = 7;
-
-    public static void RunDaily() => Run(AppPaths.Database, Path.Combine(AppPaths.Dir, "backups"));
-
     /// <summary>
     /// 大きな変更（まとめての削除など）の直前に、日次とは別に控えを残す。
-    /// 日次の「新しい方から7日分」には数えず、自動では消さない。失敗したら null（呼び出し側は、続けるか判断する）
+    /// 日次の世代には数えない。新しい方から5件だけ残し、古いものは自動バックアップのときに消える。
+    /// 失敗したら null（呼び出し側は、続けるか判断する）
     /// </summary>
     public static string? Snapshot(string dbPath, string backupDir, string tag)
     {
@@ -40,37 +37,27 @@ public static class DbBackup
     internal static void CopyDatabase(string dbPath, string destPath)
     {
         var tmp = destPath + ".tmp";
-        using (var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbPath, Mode = SqliteOpenMode.ReadOnly }.ToString()))
-        using (var dest = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = tmp }.ToString()))
-        {
-            source.Open();
-            dest.Open();
-            source.BackupDatabase(dest);
-        }
-        SqliteConnection.ClearAllPools(); // コピー先を閉じて、ファイルを移せるようにする
-        File.Move(tmp, destPath);
-    }
-
-    public static void Run(string dbPath, string backupDir)
-    {
         try
         {
-            if (!File.Exists(dbPath) || new FileInfo(dbPath).Length == 0) return;
-            Directory.CreateDirectory(backupDir);
-
-            var today = Path.Combine(backupDir, $"games_{DateTime.Now:yyyyMMdd}.db");
-            if (!File.Exists(today))
+            using (var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbPath, Mode = SqliteOpenMode.ReadOnly }.ToString()))
+            using (var dest = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = tmp }.ToString()))
             {
-                CopyDatabase(dbPath, today);
-                Log.Info("データベースをバックアップしました: " + today);
+                source.Open();
+                dest.Open();
+                source.BackupDatabase(dest);
             }
-
-            foreach (var old in Directory.GetFiles(backupDir, "games_*.db").OrderByDescending(f => f).Skip(Keep))
-                File.Delete(old);
+            SqliteConnection.ClearAllPools(); // コピー先を閉じて、ファイルを移せるようにする
+            File.Move(tmp, destPath);
         }
-        catch (Exception ex)
+        catch
         {
-            Log.Warn("データベースのバックアップに失敗", ex);
+            SqliteConnection.ClearAllPools();
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+            throw;
         }
     }
+
+    /// <summary>設定の既定値（毎日・7世代、設定ファイルは含めない）で自動バックアップを行う</summary>
+    public static void Run(string dbPath, string backupDir) =>
+        AutoBackup.Run(dbPath, "", backupDir, new AutoBackupSettings());
 }

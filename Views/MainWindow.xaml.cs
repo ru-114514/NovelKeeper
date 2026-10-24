@@ -34,11 +34,11 @@ public partial class MainWindow : Window
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         if (version != null) Title = $"NovelKeeper {version.ToString(3)} ― ノベルゲーム ランチャー";
         _cfg = App.Config;
-        DbBackup.RunDaily();
+        AutoBackup.RunScheduled(_cfg);
         _db = new Database(AppPaths.Database);
-        // 常駐したまま日をまたいでも、1日1回バックアップを取る
+        // 常駐したまま日をまたいでも、間隔が来ていればバックアップを取る（設定は、そのときの内容を使う）
         var backupTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
-        backupTimer.Tick += (_, _) => Task.Run(DbBackup.RunDaily);
+        backupTimer.Tick += (_, _) => Task.Run(() => AutoBackup.RunScheduled(_cfg));
         backupTimer.Start();
         _egs = new EgsClient(_cfg);
 
@@ -135,6 +135,9 @@ public partial class MainWindow : Window
 
         GameGrid.CellStyle = RowColorStyle();
 
+        // 「得点」列の赤い枠は、列のテンプレート（MainWindow.xaml）で表示する
+        ApplyScoreColumnStyles(RowColorStyle);
+
         // 「購入確認」列：購入確認が必要な作品のセルを赤く塗る（選択中の行でも赤のまま）
         var check = GameGrid.Columns.FirstOrDefault(c => ColumnKey(c) == "購入確認");
         if (check != null)
@@ -218,6 +221,7 @@ public partial class MainWindow : Window
                 ? null
                 : key.Descending ? ListSortDirection.Descending : ListSortDirection.Ascending;
         }
+        RefreshSortPresetButtons();
     }
 
     /// <summary>見出しのクリック（Shift+クリックで条件を追加）で並び替えたとき、その条件を保存する</summary>
@@ -251,9 +255,12 @@ public partial class MainWindow : Window
         var dlg = new SortWindow(_cfg.SortKeys) { Owner = this };
         if (dlg.ShowDialog() != true) return;
         _cfg.SortKeys = dlg.Result;
+        _cfg.NormalizeSortPresets();
+        if (dlg.SaveToPreset is int save)
+            _cfg.SortPresets[save] = dlg.Result.Select(k => new SortKey { Property = k.Property, Descending = k.Descending }).ToList();
         _cfg.Save();
         ApplySort();
-    }
+        if (dlg.SaveToPreset is int saved) StatusText.Text = $"設定{saved + 1}に保存しました：{DescribeSort(dlg.Result)}";    }
 
     private void ShowBeforePurchase_Changed(object sender, RoutedEventArgs e)
     {

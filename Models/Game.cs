@@ -1,3 +1,5 @@
+using ErogeLauncher.Services;
+
 namespace ErogeLauncher.Models;
 
 public enum GameStatus
@@ -55,6 +57,21 @@ public class Game
     /// <summary>購入額（円。任意。このツールだけに保存し、批評空間には送らない。未入力なら null）</summary>
     public int? Price { get; set; }
     /// <summary>一覧の「購入額」列の表示（3,300 のようにカンマ区切り。未入力なら空欄）</summary>
+    /// <summary>任意評価基準を使っていて、項目別の点数の合計と得点が食い違っているか（一覧の「得点」を赤くする）</summary>
+    public bool ScoreMismatch => ScoreItemSettings.Enabled && ScoreItemRules.TotalMismatch(Review, MyScore);
+
+    /// <summary>任意評価基準の基準が変わって、採点し直しが必要か</summary>
+    public bool ScoreNeedsRescore => ScoreItemSettings.Enabled && ScoreItemRules.NeedsRescore(ScoreItemSettings.Items, Review);
+
+    /// <summary>一覧の「得点」を赤い枠で囲むか（項目の合計と食い違っている、または基準が変わって採点し直しが必要）</summary>
+    public bool ScoreNeedsAttention => ScoreMismatch || ScoreNeedsRescore;
+
+    /// <summary>「得点」が赤いときの説明（マウスを合わせたときに出す）</summary>
+    public string ScoreAttentionText =>
+        ScoreMismatch ? "項目の合計と得点が食い違っています。詳細欄で確認してください。"
+        : ScoreNeedsRescore ? "登録後に基準を変更しています。採点し直してください。"
+        : "";
+
     public string PriceText => Price?.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) ?? "";
     /// <summary>初めて起動した日時（プレイ時間の記録から）</summary>
     public DateTime? FirstPlayed { get; set; }

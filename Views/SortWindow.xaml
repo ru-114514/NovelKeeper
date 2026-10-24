@@ -1,7 +1,7 @@
 <Window x:Class="ErogeLauncher.Views.SortWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="並び替え" SizeToContent="Height" Width="400"
+        Title="並び替え" SizeToContent="Height" Width="460"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
     <StackPanel Margin="16">
         <TextBlock Text="上の条件から順に並び替えます" Margin="0,0,0,10" />
@@ -32,9 +32,11 @@
         </Grid>
 
         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="0,10,0,12"
-                   Text="一覧の見出しをクリックしても並び替えられます。Shift キーを押しながら別の見出しをクリックすると、条件を追加できます。" />
+                   Text="一覧の見出しをクリックしても並び替えられます。Shift キーを押しながら別の見出しをクリックすると、条件を追加できます。下のプルダウンで設定1〜3に保存すると、一覧の「設定1〜3」ボタンでワンクリックで切り替えられます。" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <ComboBox x:Name="PresetBox" Width="190" VerticalAlignment="Center" Margin="0,0,8,0"
+                      ToolTip="OK を押したときに、いまの条件を設定1〜3に保存します（設定を空にするときは、一覧の設定ボタンの横の「×」を押します）" />
             <Button Content="OK" Click="Ok_Click" IsDefault="True" FontWeight="Bold" Width="80" />
             <Button Content="キャンセル" IsCancel="True" />
         </StackPanel>

@@ -58,7 +58,9 @@ public partial class MainWindow
             var first = _db.GetSessions(DateTime.MinValue, today.AddDays(1)).Select(r => r.Start.Date).DefaultIfEmpty(today).Min();
             SetSummaryRange(first, today);
         }
-        else if (days == 30) SetSummaryRange(today.AddMonths(-1).AddDays(1), today);
+        else if (days == -1) SetSummaryRange(new DateTime(today.Year, today.Month, 1), today);
+        else if (days == -2) SetSummaryRange(new DateTime(today.Year, 1, 1), today);
+        else if (days == 30)SetSummaryRange(today.AddMonths(-1).AddDays(1), today);
         else SetSummaryRange(today.AddDays(-(days - 1)), today);
         RefreshSummary();
     }
@@ -103,6 +105,9 @@ public partial class MainWindow
         if (r.LongestSession is { } longest)
             parts.Add($"最長の1回：{longest.Title} {SummaryCalculator.FormatDuration(longest.Seconds)}（{longest.Start:M/d}）");
         if (r.PeakHour is int peak) parts.Add($"よく遊ぶ時間帯：{peak}時台");
+        if (r.DayCount > 1 && SummaryExtras.LongestStreak(r.DailySeconds, r.From, r.To) is { Days: > 0 } streak)
+            parts.Add($"最長の連続：{streak.Days}日（{streak.Start:M/d}〜{streak.End:M/d}）");
+        SummaryHighlights.ToolTip = "連続は、1日の合計が10分以上プレイした日が続いた数です";
         SummaryHighlights.Text = string.Join("　／　", parts);
         SummaryHighlights.Visibility = parts.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         SummaryChartTitle.Text = r.IsHourly ? "時間帯別のプレイ時間（0:00〜23:59）"
@@ -112,6 +117,7 @@ public partial class MainWindow
 
         ShowSummaryGames();
         DrawSummaryChart();
+        LoadSummaryRecap();
         DrawSummaryExtras();
     }
 

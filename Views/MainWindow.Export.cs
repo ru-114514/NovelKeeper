@@ -47,8 +47,11 @@ public partial class MainWindow
             ? "登録している作品をすべて書き出します。「一覧」タブの絞り込み（表示:）には関係なく、状態を問わず全件が対象です。ただし購入前の作品は、「詳細設定」の「購入前の作品を一覧に表示する」がオフのときは含めません（一覧と同じ扱いです。ただし、発売済みで購入確認が必要な作品は含めます）。"
             : "いま「一覧」タブに表示している作品だけを、一覧の並び順のままで書き出します。「一覧」タブの「表示」（絞り込み）を変えると、対象も変わります。";
         ExportCount.Text = $"対象：{ExportGames().Count}作品";
-        ExportColumns.Text = string.Join("、", CsvExporter.ColumnNames(ExportReviewCheck.IsChecked == true));
+        ExportColumns.Text = string.Join("、", CsvExporter.ColumnNames(ExportReviewCheck.IsChecked == true, CsvScoreItems()));
     }
+
+    /// <summary>任意評価基準を使っているときだけ、CSV に項目別の点数の列を足す</summary>
+    private IReadOnlyList<ScoreItem>? CsvScoreItems() => ScoreItemSettings.Enabled ? ScoreItemSettings.Items : null;
 
     private void ExportReviewCheck_Click(object sender, RoutedEventArgs e) => RefreshExportPanel();
 
@@ -112,12 +115,7 @@ public partial class MainWindow
         try
         {
             DataBackup.Stage(dlg.FileName, DataBackup.PendingDir, withConfig);
-            var exe = Environment.ProcessPath;
-            if (exe == null) throw new InvalidOperationException("アプリの場所を取得できませんでした。");
-            // このアプリが終わるのを待ってから、新しく起動する（二重起動を防ぐため、少し待つ）
-            Process.Start(new ProcessStartInfo("cmd.exe", $"/c timeout /t 3 /nobreak >nul & start \"\" \"{exe}\"")
-            { CreateNoWindow = true, UseShellExecute = false });
-            ExitApp();
+            RestartApp();
         }
         catch (Exception ex)
         {
@@ -125,6 +123,16 @@ public partial class MainWindow
             try { if (Directory.Exists(DataBackup.PendingDir)) Directory.Delete(DataBackup.PendingDir, true); } catch { }
             MessageBox.Show(this, "バックアップを取り込めませんでした。\n\n" + ex.Message, "バックアップ", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>このアプリを終了して、少し待ってから起動し直す（取り込みの反映のため。二重起動を防ぐ）</summary>
+    private void RestartApp()
+    {
+        var exe = Environment.ProcessPath;
+        if (exe == null) throw new InvalidOperationException("アプリの場所を取得できませんでした。");
+        Process.Start(new ProcessStartInfo("cmd.exe", $"/c timeout /t 3 /nobreak >nul & start \"\" \"{exe}\"")
+        { CreateNoWindow = true, UseShellExecute = false });
+        ExitApp();
     }
 
     private void ExportRun_Click(object sender, RoutedEventArgs e)
@@ -156,7 +164,7 @@ public partial class MainWindow
         {
             var path = CsvExporter.UniquePath(dlg.FileName);
             _exportDir = Path.GetDirectoryName(path);
-            CsvExporter.Write(path, games, includeReview);
+            CsvExporter.Write(path, games, includeReview, CsvScoreItems());
             StatusText.Text = $"CSV に書き出しました（{games.Count}作品）：{path}";
         }
         catch (Exception ex)

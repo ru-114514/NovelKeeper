@@ -28,8 +28,8 @@ public class PostLayoutTests
         Assert.Equal(PostLayout.CurrentVersion, l.Version);
         Assert.Equal(7, l.Panels.Count);
         var t = l.Panels[0];
-        Assert.Equal((PostPanelKind.Title, 0, 0, 2, 1), (t.Kind, t.Row, t.Col, t.Span, t.RowSpan));
-        Assert.Equal(new[] { (1, 0), (1, 1), (2, 0), (2, 1), (3, 0), (3, 1) }, l.Panels.Skip(1).Select(p => (p.Row, p.Col)));
+        Assert.Equal((PostPanelKind.Title, 0, 0, 2, 2), (t.Kind, t.Row, t.Col, t.Span, t.RowSpan));
+        Assert.Equal(new[] { (2, 0), (2, 1), (4, 0), (4, 1), (6, 0), (6, 1) }, l.Panels.Skip(1).Select(p => (p.Row, p.Col)));
         AssertNoOverlap(l);
     }
 
@@ -41,13 +41,13 @@ public class PostLayoutTests
         Assert.True(works.RowSpan > 2);
 
         var a = l.Add(PostPanelKind.DaysPlayed);
-        Assert.Equal((4, 0), (a.Row, a.Col)); // 作品の隣の、空いた段（ブランドの下）
+        Assert.Equal((8, 0), (a.Row, a.Col)); // 作品の隣の、空いた段（ブランドの下）
         var b = l.Add(PostPanelKind.PeakHour);
-        Assert.Equal((5, 0), (b.Row, b.Col));
+        Assert.Equal((10, 0), (b.Row, b.Col));
 
         l.Panels.Remove(l.Panels.Single(p => p.Kind == PostPanelKind.Score)); // (2,0) を空ける
         var c = l.Add(PostPanelKind.Score, rowSpan: 1);
-        Assert.Equal((2, 0), (c.Row, c.Col)); // 上の段の空きを優先する
+        Assert.Equal((4, 0), (c.Row, c.Col)); // 上の段の空きを優先する
         AssertNoOverlap(l);
     }
 
@@ -85,16 +85,16 @@ public class PostLayoutTests
     {
         var l = PostLayout.CreateDefault();
         var p = l.Panels[1]; // 総プレイ時間（1,0）
-        Assert.NotNull(l.TryPlace(p, 1, 1, 1));  // クリア数と重なる
-        Assert.NotNull(l.TryPlace(p, 1, 1, 2));  // はみ出す
-        Assert.NotNull(l.TryPlace(p, 1, 0, 3));  // 2カラムなのに横幅3
-        Assert.NotNull(l.TryPlace(p, 1, 0, 2));  // 隣と重なる
-        Assert.NotNull(l.TryPlace(p, 5, 1, 1));  // 作品（縦に長い）と重なる
-        Assert.NotNull(l.TryPlace(p, 0, 0, 1, rowSpan: 21)); // 縦幅が大きすぎる
-        Assert.Equal((1, 0, 1, 1), (p.Row, p.Col, p.Span, p.RowSpan));
+        Assert.NotNull(l.TryPlace(p, 2, 1, 1));  // クリア数と重なる
+        Assert.NotNull(l.TryPlace(p, 2, 1, 2));  // はみ出す
+        Assert.NotNull(l.TryPlace(p, 2, 0, 3));  // 2カラムなのに横幅3
+        Assert.NotNull(l.TryPlace(p, 2, 0, 2));  // 隣と重なる
+        Assert.NotNull(l.TryPlace(p, 8, 1, 1));  // 作品（縦に長い）と重なる
+        Assert.NotNull(l.TryPlace(p, 0, 0, 1, rowSpan: 41)); // 縦幅が大きすぎる
+        Assert.Equal((2, 0, 1, 2), (p.Row, p.Col, p.Span, p.RowSpan));
 
-        Assert.Null(l.TryPlace(p, 12, 0, 2, rowSpan: 2));
-        Assert.Equal((12, 0, 2, 2), (p.Row, p.Col, p.Span, p.RowSpan));
+        Assert.Null(l.TryPlace(p, 40, 0, 2, rowSpan: 2));
+        Assert.Equal((40, 0, 2, 2), (p.Row, p.Col, p.Span, p.RowSpan));
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class PostLayoutTests
         Assert.Null(l.TryPlace(brand, brand.Row, brand.Col, brand.Span));
         Assert.Null(l.TryPlace(brand, brand.Row, brand.Col, brand.Span, rowSpan: 4));
         Assert.Equal(4, brand.RowSpan);
-        Assert.NotNull(l.TryPlace(brand, 2, 0, 1, rowSpan: 2)); // 上へ伸ばすと、点数と重なる
+        Assert.NotNull(l.TryPlace(brand, 4, 0, 1, rowSpan: 2)); // 上へ伸ばすと、点数と重なる
     }
 
     [Fact]
@@ -137,9 +137,9 @@ public class PostLayoutTests
 
         // 同じ大きさ（全カラム幅・1段）の別のパネルが、タイトルと入れ替わることはない
         var wide = l.Add(PostPanelKind.Memo, rowSpan: 1);
-        l.TryPlace(wide, 20, 0, l.Columns);
+        l.TryPlace(wide, 30, 0, l.Columns);
         Assert.NotNull(l.TryMove(wide, 0, 0));
-        Assert.Equal(20, wide.Row);
+        Assert.Equal(30, wide.Row);
         Assert.Equal(0, t.Row);
 
         Assert.Null(l.TryPlace(t, 0, 0, l.Columns, rowSpan: 1)); // 縦幅は、そのまま変えられる
@@ -162,13 +162,58 @@ public class PostLayoutTests
         var l = PostLayout.CreateDefault();
         var a = l.Panels[1]; // 総プレイ時間（1,0）
         var b = l.Panels[2]; // クリア数（1,1）
-        Assert.Null(l.TryMove(a, 1, 1));                // 同じ大きさのパネルの場所へ → 入れ替え
-        Assert.Equal((1, 1), (a.Row, a.Col));
-        Assert.Equal((1, 0), (b.Row, b.Col));
+        Assert.Null(l.TryMove(a, 2, 1));                // 同じ大きさのパネルの場所へ → 入れ替え
+        Assert.Equal((2, 1), (a.Row, a.Col));
+        Assert.Equal((2, 0), (b.Row, b.Col));
 
-        var works = l.Panels.Single(p => p.Kind == PostPanelKind.Works);
-        Assert.NotNull(l.TryMove(a, works.Row + 1, works.Col)); // 縦長の作品の上は、大きさが違うので置けない
-        Assert.Equal((1, 1), (a.Row, a.Col));
+        AssertNoOverlap(l);
+    }
+
+    [Fact]
+    public void TryMove_OntoDifferentSizedPanel_SwapsOrShifts_WithoutOverlap()
+    {
+        var l = PostLayout.CreateDefault();
+        var a = l.Panels[1]; // 総プレイ時間（1,0）1x1
+        var works = l.Panels.Single(p => p.Kind == PostPanelKind.Works); // 縦長
+        var ra = (a.Row, a.Col);
+        Assert.Null(l.TryMove(a, works.Row + 1, works.Col)); // 縦長の作品の上へ → 置ける（入れ替えかずらし）
+        Assert.Equal(works.Col, a.Col);
+        AssertNoOverlap(l);
+        Assert.NotEqual(ra, (a.Row, a.Col));
+    }
+
+    [Fact]
+    public void TryResize_PushesPanelsBelowDown_WithoutOverlap()
+    {
+        var l = PostLayout.CreateDefault();
+        var a = l.Panels[1]; // 総プレイ時間（1,0）
+        var below = l.Panels.Single(p => p.Kind == PostPanelKind.Score); // その下（2,0）
+        Assert.Null(l.TryResize(a, 6));
+        Assert.Equal(6, a.RowSpan);
+        Assert.True(below.Row >= a.Row + 6);
+        AssertNoOverlap(l);
+    }
+
+    [Fact]
+    public void TryMove_OntoPanel_ShiftsDownwardsInCascade_AndNeverTouchesTitle()
+    {
+        var l = new PostLayout { Columns = 2 };
+        var a = P(PostPanelKind.TotalTime, 0, 0); var b = P(PostPanelKind.ClearCount, 1, 0); var c = P(PostPanelKind.Score, 2, 0);
+        var d = P(PostPanelKind.DaysPlayed, 3, 1);
+        b.RowSpan = 2; // b は縦2段（行1〜2）で c と接しないよう調整
+        c.Row = 3; c.Col = 0;
+        var e = P(PostPanelKind.AvgPerDay, 4, 1); // 入れ替え先（d の場所）に b が収まらないようにする
+        l.Panels.AddRange([a, b, c, d, e]);
+        Assert.Null(l.TryMove(d, 1, 0)); // b の位置へ。大きさが違うので、b は下へずれ、c もずれる
+        AssertNoOverlap(l);
+        Assert.Equal((1, 0), (d.Row, d.Col));
+        Assert.True(b.Row >= 2 && c.Row >= b.Row + b.RowSpan);
+
+        var l2 = PostLayout.CreateDefault();
+        var t = l2.Panels[0];
+        var other = l2.Panels[1];
+        Assert.NotNull(l2.TryMove(other, 0, 0)); // タイトルの上には置けない
+        Assert.Equal(0, t.Row);
     }
 
     [Fact]
@@ -234,7 +279,7 @@ public class PostLayoutTests
         Assert.Equal(PostLayout.MaxRowSpan, a.RowSpan);
         Assert.Equal(8, a.FontSize);
         Assert.Equal(PostLayout.MaxPriorityGames, a.ItemCount);
-        Assert.Equal(1, a.ItemColumns);
+        Assert.Equal(0, a.ItemColumns); // 0 は自動
         Assert.Equal(PostLayout.MaxPriorityGames, a.GameIds.Count);
         Assert.Equal(PostLayout.MaxWorks, l.Panels[1].ItemCount);
         AssertNoOverlap(l);
@@ -254,13 +299,27 @@ public class PostLayoutTests
         Assert.Equal(PostLayout.CurrentVersion, old.Version);
         var t = old.Panels[0];
         Assert.Equal((PostPanelKind.Title, "私のレポート", 0, 0, 4), (t.Kind, t.Title, t.Row, t.Col, t.Span));
-        Assert.Equal(1, old.Panels[1].Row); // 1段ずつ下がる
+        Assert.Equal(2, old.Panels[1].Row); // タイトルの分だけ下がる
         Assert.True(old.Panels[2].RowSpan > 2);   // 作品は、中身に合わせた段数になる
-        Assert.Equal(2, old.Panels[3].RowSpan);   // グラフ
+        Assert.Equal(4, old.Panels[3].RowSpan);   // グラフ
         AssertNoOverlap(old);
 
         old.MigrateToCurrent("もう一度"); // 2回目は何もしない
         Assert.Equal(4, old.Panels.Count);
+    }
+
+    [Fact]
+    public void Migrate_FromVersion2_DoublesRowsAndSpans_Once()
+    {
+        var l = new PostLayout { Columns = 2, Version = 2 };
+        l.Panels.Add(new PostPanel { Kind = PostPanelKind.Title, Row = 0, Col = 0, Span = 2, RowSpan = 1 });
+        l.Panels.Add(new PostPanel { Kind = PostPanelKind.Works, Row = 3, Col = 1, RowSpan = 4 });
+        l.MigrateToCurrent(null);
+        Assert.Equal(PostLayout.CurrentVersion, l.Version);
+        Assert.Equal((0, 2), (l.Panels[0].Row, l.Panels[0].RowSpan));
+        Assert.Equal((6, 8), (l.Panels[1].Row, l.Panels[1].RowSpan));
+        l.MigrateToCurrent(null); // 2回目は何もしない
+        Assert.Equal((6, 8), (l.Panels[1].Row, l.Panels[1].RowSpan));
     }
 
     [Fact]

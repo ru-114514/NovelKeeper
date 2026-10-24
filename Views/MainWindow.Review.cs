@@ -69,7 +69,7 @@ public partial class MainWindow
         void Mark() { if (!_loadingDetail) _detailDirty = true; }
         foreach (var box in new[] { ScoreBox, TotalPlayTimeBox, FunTimeBox, BeforeScoreBox, PriceBox, PlatformMemoBox, HitokotoBox, MemoBox })
             box.TextChanged += (_, _) => Mark();
-        foreach (var check in new[] { PlayedCheck, PossessionCheck, SageCheck, NetabareCheck })
+        foreach (var check in new[] { PlayedCheck, PossessionCheck, SageCheck, NetabareCheck, ExcludeClearCheck })
             check.Click += (_, _) => Mark();
         foreach (var combo in new[] { StatusBox, OkazuBox, PurchaseWillBox, PlatformBox, OperationBox })
             combo.SelectionChanged += (_, _) => Mark();
@@ -159,6 +159,8 @@ public partial class MainWindow
         SageCheck.IsChecked = r.Sage;
         MemoBox.Text = r.Memo;
         NetabareCheck.IsChecked = r.Netabare;
+        ExcludeClearCheck.IsChecked = r.ExcludeFromClearCount;
+        ShowScoreItems(g);
     }
 
     /// <summary>詳細欄の各項目を読み取る。入力が正しくなければ、メッセージを出して null を返す</summary>
@@ -196,6 +198,7 @@ public partial class MainWindow
         r.PlatformMemo = PlatformMemoBox.Text;
         r.Hitokoto = HitokotoBox.Text.Trim();
         r.Sage = SageCheck.IsChecked == true;
+        r.ExcludeFromClearCount = ExcludeClearCheck.IsChecked == true;
         r.Memo = MemoBox.Text;
         r.Netabare = NetabareCheck.IsChecked == true;
         return r;

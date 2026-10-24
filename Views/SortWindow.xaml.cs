@@ -32,10 +32,15 @@ public partial class SortWindow : Window
     private readonly (ComboBox Key, ComboBox Dir)[] _rows;
 
     public List<SortKey> Result { get; private set; } = new();
+    /// <summary>OK のときに、いまの条件を保存する設定の番号（0〜2。保存しないなら null）</summary>
+    public int? SaveToPreset { get; private set; }
 
     public SortWindow(List<SortKey> current)
     {
         InitializeComponent();
+        PresetBox.Items.Add("設定には保存しない");
+        for (var i = 1; i <= EgsConfig.SortPresetCount; i++) PresetBox.Items.Add($"設定{i}へ保存");
+        PresetBox.SelectedIndex = 0;
         _rows = new[] { (Key1, Dir1), (Key2, Dir2), (Key3, Dir3) };
 
         for (var i = 0; i < _rows.Length; i++)
@@ -63,6 +68,18 @@ public partial class SortWindow : Window
             })
             .GroupBy(k => k.Property).Select(g => g.First()) // 同じ項目の重複は最初の1つだけ
             .ToList();
+
+        var n = EgsConfig.SortPresetCount;
+        var pick = PresetBox.SelectedIndex;
+        if (pick >= 1 && pick <= n)
+        {
+            if (Result.Count == 0)
+            {
+                MessageBox.Show(this, "条件が1つもないので、設定には保存できません。", "並び替え");
+                return;
+            }
+            SaveToPreset = pick - 1;
+        }
         DialogResult = true;
     }
 }

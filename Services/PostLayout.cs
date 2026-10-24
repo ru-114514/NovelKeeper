@@ -27,6 +27,8 @@ public enum PostPanelKind
     Memo = 21,            // 自由に書ける文章
     Heading = 22,         // 見出し（区切り）
     Title = 23,           // 画像のタイトル（全カラムの幅。期間も表示できる）
+    LongestStreak = 24,   // 最長の連続プレイ日数（1日10分以上）
+    GoalProgress = 25,    // 目標の達成度（レポートで決めた年間・月間の目標）
 }
 
 /// <summary>投稿設定のパネル1枚分の設定</summary>
@@ -48,8 +50,12 @@ public class PostPanel
     public int Height { get; set; }
     /// <summary>作品を並べるパネルの表示件数</summary>
     public int ItemCount { get; set; } = 12;
-    /// <summary>作品を並べるパネルの列数</summary>
+    /// <summary>作品を並べるパネルの列数（0 なら自動：パネルの幅に入るだけ並べ、余った余白は表示位置に従って寄せる）</summary>
     public int ItemColumns { get; set; } = 3;
+    /// <summary>カレンダー（1行に並べる月の数）・ブランド別ランキング（行を分ける列数）の列数。0 なら自動（カレンダーは幅に合わせて折り返し、ランキングは1列）</summary>
+    public int ViewColumns { get; set; }
+    /// <summary>中身の表示位置（余白ができるとき）：0=左寄せ、1=中央寄せ、2=右寄せ</summary>
+    public int Align { get; set; }
     /// <summary>「今後優先したい作品」で選んだ作品（選んだ順）</summary>
     public List<long> GameIds { get; set; } = new();
     /// <summary>「メモ」の文章</summary>
@@ -82,10 +88,14 @@ public class PostLayout
     public const int MinColumns = 2, MaxColumns = 4;
     public const int MaxPriorityGames = 10;
     public const int MaxWorks = 30;
-    public const int MaxRow = 50;
-    public const int MaxRowSpan = 20;
+    public const int MaxRow = 100;
+    public const int MaxRowSpan = 40;
     public const int MaxTextLength = 500;
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
+    /// <summary>1段の高さ（px。パネルの外側の余白 4px ずつを含む）</summary>
+    public const double RowUnitPx = 64;
+    /// <summary>「タイトル」パネルの標準の縦幅（段）</summary>
+    public const int TitleRowSpan = 2;
 
     /// <summary>設定の版（2 未満は、タイトルが上部の入力欄だった時代の設定。読み込み時に作り替える）</summary>
     public int Version { get; set; }
@@ -118,6 +128,8 @@ public class PostLayout
         PostPanelKind.Memo => "メモ",
         PostPanelKind.Heading => "見出し",
         PostPanelKind.Title => "ノベルゲーム　プレイレポート",
+        PostPanelKind.LongestStreak => "最長の連続プレイ日数",
+        PostPanelKind.GoalProgress => "目標の達成度",
         _ => "",
     };
 
@@ -129,7 +141,7 @@ public class PostLayout
     {
         ("数字", new[] { PostPanelKind.TotalTime, PostPanelKind.ClearCount, PostPanelKind.Score, PostPanelKind.DaysPlayed,
             PostPanelKind.AvgPerDay, PostPanelKind.WorksCount, PostPanelKind.LongestSession, PostPanelKind.BestDay,
-            PostPanelKind.PeakHour, PostPanelKind.PrevComparison, PostPanelKind.ScoreVsMedian, PostPanelKind.BestBrand }),
+            PostPanelKind.PeakHour, PostPanelKind.LongestStreak, PostPanelKind.GoalProgress, PostPanelKind.PrevComparison, PostPanelKind.ScoreVsMedian, PostPanelKind.BestBrand }),
         ("作品の一覧", new[] { PostPanelKind.Works, PostPanelKind.ClearedWorks, PostPanelKind.TopScoreWorks,
             PostPanelKind.BrandRanking, PostPanelKind.Priority }),
         ("グラフ", new[] { PostPanelKind.DailyChart, PostPanelKind.ScoreDistribution, PostPanelKind.Calendar }),
@@ -140,6 +152,15 @@ public class PostLayout
     /// <summary>作品や行を並べるパネルか（件数・列数の設定を持つ）</summary>
     public static bool UsesItems(PostPanelKind kind) => kind is PostPanelKind.Works or PostPanelKind.Priority
         or PostPanelKind.ClearedWorks or PostPanelKind.TopScoreWorks or PostPanelKind.BrandRanking;
+
+    /// <summary>表示の列数（ViewColumns）を選べるパネルか（カレンダーの月・ランキングの行）</summary>
+    public static bool UsesViewColumns(PostPanelKind kind) => kind is PostPanelKind.Calendar or PostPanelKind.BrandRanking;
+
+    /// <summary>作品の並び（ItemColumns）の列数を持つパネルか。ランキングは ViewColumns を使う</summary>
+    public static bool UsesItemColumns(PostPanelKind kind) => UsesItems(kind) && kind != PostPanelKind.BrandRanking;
+
+    /// <summary>中身の表示位置（左・中央・右寄せ）を選べるパネルか</summary>
+    public static bool UsesAlign(PostPanelKind kind) => kind is not (PostPanelKind.Title or PostPanelKind.Heading);
 
     /// <summary>文字の設定（フォント・色・大きさ）を持つパネルか</summary>
     public static bool UsesFont(PostPanelKind kind) => kind is PostPanelKind.Title or PostPanelKind.Heading or PostPanelKind.Memo;
@@ -154,7 +175,7 @@ public class PostLayout
     public static int MaxItems(PostPanelKind kind) => kind == PostPanelKind.Priority ? MaxPriorityGames : MaxWorks;
 
     /// <summary>
-    /// 中身に必要な段数のおおよその見積り（1段 = 約128px。作品の1組 = 約216px）。
+    /// 中身に必要な段数のおおよその見積り（1段 = 64px。作品の1組 = 約216px）。
     /// 画面で測れるときは、画面側で実際の大きさから求める。これは、初期値と古い設定の引き継ぎ用
     /// </summary>
     public static int EstimateRowSpan(PostPanelKind kind, int itemCount, int itemColumns)
@@ -162,13 +183,13 @@ public class PostLayout
         double px = kind switch
         {
             PostPanelKind.Works or PostPanelKind.Priority or PostPanelKind.ClearedWorks or PostPanelKind.TopScoreWorks
-                => 72 + Math.Ceiling(itemCount / (double)Math.Max(1, itemColumns)) * 216,
+                => 72 + Math.Ceiling(itemCount / (double)(itemColumns <= 0 ? 2 : itemColumns)) * 216,
             PostPanelKind.BrandRanking => 72 + itemCount * 26,
             PostPanelKind.DailyChart or PostPanelKind.ScoreDistribution => 240,
             PostPanelKind.Calendar => 330,
             _ => 0,
         };
-        return px == 0 ? 1 : Math.Clamp((int)Math.Ceiling((px + 8) / 128), 1, MaxRowSpan);
+        return px == 0 ? 2 : Math.Clamp((int)Math.Ceiling((px + 8) / RowUnitPx), 1, MaxRowSpan); // 数字などの小さなパネルは 2 段（約128px）
     }
 
     /// <summary>初期の配置：2カラム。1段目はタイトル（全カラムの幅）</summary>
@@ -178,9 +199,9 @@ public class PostLayout
         (PostPanelKind, int, int)[] cells =
         {
             (PostPanelKind.Title, 0, 0),
-            (PostPanelKind.TotalTime, 1, 0), (PostPanelKind.ClearCount, 1, 1),
-            (PostPanelKind.Score, 2, 0), (PostPanelKind.Backlog, 2, 1),
-            (PostPanelKind.BestBrand, 3, 0), (PostPanelKind.Works, 3, 1),
+            (PostPanelKind.TotalTime, 2, 0), (PostPanelKind.ClearCount, 2, 1),
+            (PostPanelKind.Score, 4, 0), (PostPanelKind.Backlog, 4, 1),
+            (PostPanelKind.BestBrand, 6, 0), (PostPanelKind.Works, 6, 1),
         };
         foreach (var (kind, row, col) in cells)
         {
@@ -206,7 +227,7 @@ public class PostLayout
             },
             ItemColumns = 3,
         };
-        p.RowSpan = EstimateRowSpan(kind, p.ItemCount, p.ItemColumns);
+        p.RowSpan = kind == PostPanelKind.Title ? TitleRowSpan : EstimateRowSpan(kind, p.ItemCount, p.ItemColumns);
         return p;
     }
 
@@ -262,33 +283,110 @@ public class PostLayout
     }
 
     /// <summary>
-    /// ドラッグ＆ドロップでの移動。空いていればそこへ。ほかのパネル1枚と重なり、大きさ（横幅・縦幅）が同じなら、場所を入れ替える。
-    /// それ以外は、理由を返して何も変えない
+    /// ドラッグ＆ドロップでの移動。空いていればそこへ。ほかのパネルと重なるときは、
+    ///  - 重なる相手が1枚で、お互いの場所に収まるなら、場所を入れ替える（大きさが違っても可）
+    ///  - 入れ替えられないときは、重なる相手を下へずらす（その下のパネルも、順にずれる）
+    /// 移動できないパネル（タイトル）と重なる場合、段の上限を超える場合は、理由を返して何も変えない
     /// </summary>
     public string? TryMove(PostPanel p, int row, int col)
     {
         if (IsLocked(p.Kind)) return "このパネルは移動できません。";
-        var (r, c, swap) = PlanMove(p, row, col, out var ok);
-        if (!ok) return "その場所は、ほかのパネルと重なります（同じ大きさのパネルとは、入れ替えられます）。";
-        if (swap != null) (swap.Row, swap.Col) = (p.Row, p.Col);
-        p.Row = r; p.Col = c;
+        var plan = Plan(p, row, col);
+        if (plan == null) return "その場所には、動かせません（タイトルと重なるか、段の上限を超えます）。";
+        foreach (var (panel, r, c) in plan.Moves) (panel.Row, panel.Col) = (r, c);
         return null;
     }
 
-    /// <summary>ドラッグ中の見た目用：その場所へ動かせるか（動かす先の段・列、入れ替える相手。何も変えない）</summary>
+    private record MovePlan(IReadOnlyList<(PostPanel Panel, int Row, int Col)> Moves, PostPanel? Swap);
+
+    /// <summary>縦幅を変える。下のパネルに重なるときは、重なる相手を下へずらす（入れ替えはしない）。置けないときは、理由を返して何も変えない</summary>
+    public string? TryResize(PostPanel p, int rowSpan)
+    {
+        rowSpan = Math.Clamp(rowSpan, 1, MaxRowSpan);
+        var old = p.RowSpan;
+        p.RowSpan = rowSpan;
+        var plan = Plan(p, p.Row, p.Col, allowSwap: false);
+        if (plan == null) { p.RowSpan = old; return "縦幅を広げると、段の上限を超えます。"; }
+        foreach (var (panel, r, c) in plan.Moves) (panel.Row, panel.Col) = (r, c);
+        return null;
+    }
+
+    private MovePlan? Plan(PostPanel p, int row, int col, bool allowSwap = true)
+    {
+        row = Math.Clamp(row, 0, MaxRow);
+        col = Math.Clamp(col, 0, Columns - p.Span);
+        if (IsFree(row, col, p.Span, p, p.RowSpan)) return new MovePlan([(p, row, col)], null);
+
+        var hit = Panels.Where(o => !ReferenceEquals(o, p) && Overlaps(o, row, col, p.Span, p.RowSpan)).ToList();
+        if (hit.Any(h => IsLocked(h.Kind))) return null;
+
+        // 入れ替え：相手が1枚で、互いの場所（左上を合わせる）に、ほかと重ならずに収まる
+        if (allowSwap && hit.Count == 1)
+        {
+            var h = hit[0];
+            var pCol = Math.Clamp(col, 0, Columns - p.Span);
+            var hCol = Math.Min(p.Col, Columns - h.Span);
+            var others = Panels.Where(o => !ReferenceEquals(o, p) && !ReferenceEquals(o, h)).ToList();
+            if (IsFree(others, row, pCol, p.Span, p.RowSpan, null) && IsFree(others, p.Row, hCol, h.Span, h.RowSpan, null)
+                && !(row < p.Row + h.RowSpan && p.Row < row + p.RowSpan && pCol < hCol + h.Span && hCol < pCol + p.Span))
+                return new MovePlan([(p, row, pCol), (h, p.Row, hCol)], h);
+        }
+
+        // ずらし：置いたパネルの下へ、重なる相手を押し下げる（押し下げた先で重なるパネルも、順に下へ）
+        var pos = Panels.ToDictionary(o => o, o => (o.Row, o.Col));
+        pos[p] = (row, col);
+        var queue = new Queue<PostPanel>();
+        var fixedSet = new HashSet<PostPanel> { p };
+        foreach (var h in hit.OrderBy(h => h.Row).ThenBy(h => h.Col)) queue.Enqueue(h);
+        var guard = 0;
+        while (queue.Count > 0)
+        {
+            if (++guard > 1000) return null;
+            var d = queue.Dequeue();
+            // いま置いてあるパネルのうち、d と重なるものの、いちばん下の端の次の段へ
+            while (true) // 重なりがなくなるまで、重なる相手の下端へ送る
+            {
+                var blockers = pos.Where(kv => !ReferenceEquals(kv.Key, d) && fixedSet.Contains(kv.Key)
+                        && kv.Value.Row < pos[d].Row + d.RowSpan && pos[d].Row < kv.Value.Row + kv.Key.RowSpan
+                        && kv.Value.Col < pos[d].Col + d.Span && pos[d].Col < kv.Value.Col + kv.Key.Span).ToList();
+                if (blockers.Count == 0) break;
+                pos[d] = (blockers.Max(b => b.Value.Row + b.Key.RowSpan), pos[d].Col);
+            }
+            if (pos[d].Row + d.RowSpan - 1 > MaxRow + MaxRowSpan) return null;
+            fixedSet.Add(d);
+            foreach (var o in Panels)
+            {
+                if (ReferenceEquals(o, d) || fixedSet.Contains(o) || queue.Contains(o)) continue;
+                var q = pos[o];
+                if (q.Row < pos[d].Row + d.RowSpan && pos[d].Row < q.Row + o.RowSpan && q.Col < pos[d].Col + d.Span && pos[d].Col < q.Col + o.Span)
+                {
+                    if (IsLocked(o.Kind)) return null;
+                    queue.Enqueue(o);
+                }
+            }
+        }
+        return new MovePlan(pos.Select(kv => (Panel: kv.Key, Row: kv.Value.Row, Col: kv.Value.Col))
+            .Where(m => m.Panel.Row != m.Row || m.Panel.Col != m.Col).ToList(), null);
+    }
+
+    /// <summary>ドラッグ中の見た目用：その場所へ動かせるか（置く先の段・列、入れ替える相手。何も変えない。相手がいなければ、ずらしか単なる移動）</summary>
     public (int Row, int Col, PostPanel? Swap) PlanMove(PostPanel p, int row, int col, out bool ok)
     {
         row = Math.Clamp(row, 0, MaxRow);
         col = Math.Clamp(col, 0, Columns - p.Span);
         ok = !IsLocked(p.Kind);
         if (!ok) return (p.Row, p.Col, null);
-        if (IsFree(row, col, p.Span, p, p.RowSpan)) return (row, col, null);
+        var plan = Plan(p, row, col);
+        ok = plan != null;
+        return (row, col, plan?.Swap);
+    }
 
-        var hit = Panels.Where(o => !ReferenceEquals(o, p) && Overlaps(o, row, col, p.Span, p.RowSpan)).ToList();
-        if (hit.Count == 1 && hit[0].Span == p.Span && hit[0].RowSpan == p.RowSpan && !IsLocked(hit[0].Kind))
-            return (hit[0].Row, hit[0].Col, hit[0]);
-        ok = false;
-        return (row, col, null);
+    /// <summary>その場所へ置くと、ほかのパネルがずれるか（見た目の案内用。入れ替えは含まない）</summary>
+    public bool WouldShift(PostPanel p, int row, int col)
+    {
+        row = Math.Clamp(row, 0, MaxRow);
+        col = Math.Clamp(col, 0, Columns - p.Span);
+        return !IsLocked(p.Kind) && !IsFree(row, col, p.Span, p, p.RowSpan) && Plan(p, row, col) is { Swap: null };
     }
 
     /// <summary>全体のカラム数を変える。はみ出す・重なるパネルは、幅を縮めて、空いている場所に置き直す</summary>
@@ -315,10 +413,21 @@ public class PostLayout
     public void MigrateToCurrent(string? oldTitle)
     {
         if (Version >= CurrentVersion) return;
+        if (Version >= 2)
+        {
+            // 版 2 → 3：1段の高さを半分にしたので、段の位置と縦幅を2倍にする（見た目は変わらない）
+            foreach (var p in Panels)
+            {
+                p.Row *= 2;
+                p.RowSpan = Math.Clamp(p.RowSpan * 2, 1, MaxRowSpan);
+            }
+            Version = CurrentVersion;
+            return;
+        }
         foreach (var p in Panels)
         {
             p.RowSpan = EstimateRowSpan(p.Kind, p.ItemCount, p.ItemColumns);
-            p.Row += 1;
+            p.Row = p.Row * 2 + TitleRowSpan;
         }
         var title = NewPanel(PostPanelKind.Title);
         title.Title = string.IsNullOrWhiteSpace(oldTitle) ? null : oldTitle.Trim();
@@ -334,7 +443,9 @@ public class PostLayout
         {
             p.Height = Math.Clamp(p.Height, 0, 3000);
             p.RowSpan = Math.Clamp(p.RowSpan, 1, MaxRowSpan);
-            p.ItemColumns = Math.Clamp(p.ItemColumns, 1, 4);
+            p.ItemColumns = Math.Clamp(p.ItemColumns, 0, 4); // 0 は自動（パネルの幅に入るだけ並べる）
+            p.ViewColumns = Math.Clamp(p.ViewColumns, 0, 4);
+            p.Align = Math.Clamp(p.Align, 0, 2);
             p.ItemCount = Math.Clamp(p.ItemCount, 1, MaxItems(p.Kind));
             p.FontSize = p.FontSize <= 0 ? 0 : Math.Clamp(p.FontSize, 8, 96);
             if (p.Transparency is int t) p.Transparency = Math.Clamp(t, 0, 100);

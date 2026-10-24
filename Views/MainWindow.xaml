@@ -40,6 +40,19 @@
                             </StackPanel>
                             <Button Content="⇅ 並び替え…" Click="Sort_Click"
                                     ToolTip="見出しをクリックしても並び替えられます（Shift を押しながらクリックすると条件を追加）" />
+                            <!-- 並び替えの設定1〜3：設定ボタンと、設定済みのときだけ出る「×」（解除）。MainWindow.SortPresets.cs -->
+                            <StackPanel x:Name="SortPresetPanel1" Orientation="Horizontal" Tag="preset">
+                                <Button x:Name="SortPreset1" Content="設定1" Tag="0" Click="SortPreset_Click" />
+                                <Button x:Name="SortPresetClear1" Content="×" Tag="0" Click="SortPresetClear_Click" Margin="-4,4,4,4" Padding="6,0" Visibility="Collapsed" />
+                            </StackPanel>
+                            <StackPanel x:Name="SortPresetPanel2" Orientation="Horizontal" Tag="preset">
+                                <Button x:Name="SortPreset2" Content="設定2" Tag="1" Click="SortPreset_Click" />
+                                <Button x:Name="SortPresetClear2" Content="×" Tag="1" Click="SortPresetClear_Click" Margin="-4,4,4,4" Padding="6,0" Visibility="Collapsed" />
+                            </StackPanel>
+                            <StackPanel x:Name="SortPresetPanel3" Orientation="Horizontal" Tag="preset">
+                                <Button x:Name="SortPreset3" Content="設定3" Tag="2" Click="SortPreset_Click" />
+                                <Button x:Name="SortPresetClear3" Content="×" Tag="2" Click="SortPresetClear_Click" Margin="-4,4,4,4" Padding="6,0" Visibility="Collapsed" />
+                            </StackPanel>
                             <Button x:Name="DetailToggleButton" Content="詳細欄を隠す" Click="ToggleDetail_Click" />
                         </StackPanel>
                         <!-- 入りきらないボタンはここから選ぶ（ほかのボタンと同じ文字の大きさ） -->
@@ -74,7 +87,28 @@
                                         <DataGridTextColumn Header="ブランド" Binding="{Binding Brand}" Width="180" MinWidth="60" />
                                         <DataGridTextColumn Header="発売日" Binding="{Binding SellDay}" Width="90" />
                                         <DataGridTextColumn Header="中央値" Binding="{Binding Median}" Width="55" />
-                                        <DataGridTextColumn Header="得点" Binding="{Binding MyScore}" Width="50" FontWeight="Bold" />
+                                        <!-- 得点：任意評価基準で、項目の合計と食い違う作品・基準が変わった作品は、起動設定欄と同じ角丸の赤い枠で囲む -->
+                                        <DataGridTemplateColumn Header="得点" Width="60" SortMemberPath="MyScore">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border Padding="4,1" CornerRadius="3" BorderThickness="1" HorizontalAlignment="Left" MinWidth="30">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="BorderBrush" Value="Transparent" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ScoreNeedsAttention}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="#E5534B" />
+                                                                        <Setter Property="Background" Value="#33E5534B" />
+                                                                        <Setter Property="ToolTip" Value="{Binding ScoreAttentionText}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding MyScore}" FontWeight="Bold" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                         <DataGridTextColumn Header="状態" Binding="{Binding StatusText}" Width="85" SortMemberPath="StatusOrder" />
                                         <DataGridTextColumn Header="購入予定" Binding="{Binding PurchaseWillText}" Width="85" />
                                         <!-- 発売済みなのに所持が付いていない購入予定の作品は、セルを赤く塗る（色は MainWindow.xaml.cs の ApplyCategoryColors） -->
@@ -250,7 +284,16 @@
                                                     <ComboBoxItem Content="中断（批評空間の「放棄」）" />
                                                 </ComboBox>
                                                 <TextBlock Text="自分の得点（0～100、空欄なら未入力）" Margin="0,8,0,0" />
-                                                <TextBox x:Name="ScoreBox" Margin="0,2,0,0" Width="80" HorizontalAlignment="Left" />
+                                                <TextBox x:Name="ScoreBox" Margin="0,2,0,0" Width="100" HorizontalAlignment="Left" />
+                                                <!-- 任意評価基準（詳細設定タブでオンにしたときだけ表示。MainWindow.ScoreItems.cs） -->
+                                                <StackPanel x:Name="ScoreItemsPanel" Visibility="Collapsed" Margin="0,6,0,0">
+                                                    <TextBlock Text="項目ごとの採点（合計が自分の得点になります）" Opacity="0.8" />
+                                                    <StackPanel x:Name="ScoreItemRowsDetail" Margin="0,2,0,0" />
+                                                    <TextBlock x:Name="ScoreItemsNote" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
+                                                    <Button x:Name="ScoreItemsClearButton" Content="項目別の点数を消す" Click="ScoreItemsClear_Click" HorizontalAlignment="Left"
+                                                            Margin="0,4,0,0" Visibility="Collapsed"
+                                                            ToolTip="項目別の点数を消して、得点欄に直接入力する状態に戻します（得点は変わりません）" />
+                                                </StackPanel>
                                                 <TextBlock Text="ゲーム開始日" Margin="0,8,0,0" />
                                                 <DockPanel Margin="0,2,0,0">
                                                     <Button DockPanel.Dock="Right" Content="初回起動日" Click="FillStartDate_Click"
@@ -259,6 +302,8 @@
                                                 </DockPanel>
                                                 <TextBlock Text="ゲーム終了日（クリア日）" Margin="0,8,0,0" />
                                                 <DatePicker x:Name="ClearDatePicker" Margin="0,2,0,0" />
+                                                <CheckBox x:Name="ExcludeClearCheck" Content="クリア数の集計から除外する" Margin="0,6,0,0"
+                                                          ToolTip="過去にクリアして記録を忘れた作品などに使います。レポート・目標・投稿設定のクリア数と点数の集計から外します（プレイ時間はそのまま数えます）。批評空間には送りません" />
 
                                                 <Expander x:Name="ExpPlay" Tag="play" Header="プレイ時間・購入" Margin="0,12,0,0"
                                                           Expanded="DetailExpander_Changed" Collapsed="DetailExpander_Changed">
@@ -272,13 +317,13 @@
                                                         <Button Content="計測した記録を補正…" Click="EditPlayTime_Click" HorizontalAlignment="Left" Margin="0,4,0,0"
                                                                 ToolTip="計測し忘れた分の追加や、まちがった記録の修正・削除ができます" />
                                                         <TextBlock Text="面白さが分かるまでのプレイ時間（時間）" Margin="0,8,0,0" />
-                                                        <TextBox x:Name="FunTimeBox" Width="80" HorizontalAlignment="Left" Margin="0,2,0,0" />
+                                                        <TextBox x:Name="FunTimeBox" Width="100" HorizontalAlignment="Left" Margin="0,2,0,0" />
                                                         <TextBlock Text="おかずに使えた?" Margin="0,8,0,0" />
                                                         <ComboBox x:Name="OkazuBox" Margin="0,2,0,0" />
                                                         <TextBlock Text="購入予定" Margin="0,8,0,0" />
                                                         <ComboBox x:Name="PurchaseWillBox" Margin="0,2,0,0" />
                                                         <TextBlock Text="購入前得点（0～100）" Margin="0,8,0,0" />
-                                                        <TextBox x:Name="BeforeScoreBox" Width="80" HorizontalAlignment="Left" Margin="0,2,0,0" />
+                                                        <TextBox x:Name="BeforeScoreBox" Width="100" HorizontalAlignment="Left" Margin="0,2,0,0" />
                                                         <TextBlock Text="購入額（円・任意）" Margin="0,8,0,0"
                                                                    ToolTip="このツールだけに保存します（批評空間には送りません）。空欄なら未入力です" />
                                                         <TextBox x:Name="PriceBox" Width="100" HorizontalAlignment="Left" Margin="0,2,0,0"
@@ -374,6 +419,8 @@
                         <Button Content="3日" Tag="3" Click="SummaryPreset_Click" ToolTip="今日を含む直近3日" />
                         <Button Content="1週間" Tag="7" Click="SummaryPreset_Click" ToolTip="今日を含む直近7日" />
                         <Button Content="1か月" Tag="30" Click="SummaryPreset_Click" ToolTip="今日を含む直近1か月" />
+                        <Button Content="今月" Tag="-1" Click="SummaryPreset_Click" ToolTip="今月1日から今日まで" />
+                        <Button Content="今年" Tag="-2" Click="SummaryPreset_Click" ToolTip="1月1日から今日まで" />
                         <Button Content="全期間" Tag="0" Click="SummaryPreset_Click" ToolTip="最初の記録から今日まで" />
                         <TextBlock Text="期間:" VerticalAlignment="Center" Margin="14,0,4,0" />
                         <DatePicker x:Name="SummaryFromPicker" Width="125" SelectedDateChanged="SummaryDate_Changed" />
@@ -562,10 +609,10 @@
                         <TextBlock Text="起点の日:" VerticalAlignment="Center" Margin="0,0,4,0" />
                         <DatePicker x:Name="PostStartPicker" Width="125" SelectedDateChanged="PostSetting_Changed" />
                         <TextBlock Text="期間:" VerticalAlignment="Center" Margin="14,0,4,0" />
-                        <RadioButton x:Name="PostMonthRadio" Content="1か月" GroupName="PostPeriod" IsChecked="True" VerticalAlignment="Center" Click="PostSetting_Changed" />
-                        <RadioButton x:Name="PostYearRadio" Content="1年" GroupName="PostPeriod" VerticalAlignment="Center" Margin="10,0,0,0" Click="PostSetting_Changed" />
+                        <RadioButton x:Name="PostMonthRadio" Content="1か月" GroupName="PostPeriod" IsChecked="True" VerticalAlignment="Center" MinWidth="0" Click="PostSetting_Changed" />
+                        <RadioButton x:Name="PostYearRadio" Content="1年" GroupName="PostPeriod" VerticalAlignment="Center" MinWidth="0" Margin="10,0,0,0" Click="PostSetting_Changed" />
                         <TextBlock Text="マイベストブランド:" VerticalAlignment="Center" Margin="14,0,4,0" />
-                        <ComboBox x:Name="PostBrandModeBox" Width="150" SelectionChanged="PostSetting_Changed">
+                        <ComboBox x:Name="PostBrandModeBox" Width="190" SelectionChanged="PostSetting_Changed">
                             <ComboBoxItem Content="一番プレイしたブランド" />
                             <ComboBoxItem Content="最高点のブランド" />
                             <ComboBoxItem Content="任意のブランド" />
@@ -577,7 +624,11 @@
                             <ComboBoxItem Content="暗い" />
                         </ComboBox>
                         <CheckBox x:Name="PostExcludeClearedCheck" Content="起点の日より前にクリアした作品を除く" Margin="14,0,0,0" VerticalAlignment="Center" Click="PostSetting_Changed"
-                                  ToolTip="プレイした作品の欄から、起点の日より前に終了日がある作品を外します" />
+                                  ToolTip="起点の日より前にクリア済み（終了日が空欄のプレイ済を含む）の作品を、プレイ時間・日数・グラフ・作品の欄など、プレイ記録の集計すべてから外します" />
+                        <Button x:Name="PostReplayButton" Content="再プレイを追加…" Margin="6,0,0,0" Padding="10,4" Click="PostReplay_Click"
+                                ToolTip="再プレイした作品だけ、集計に含めます（作品ごとに保存されます）" />
+                        <Button x:Name="PostHideButton" Content="作品を隠す…" Margin="6,0,0,0" Padding="10,4" Click="PostHide_Click"
+                                ToolTip="クリア済みでなくても、☑した作品をプレイ時間・日数・グラフ・作品の欄など、プレイ記録の集計すべてから外します（作品ごとに保存されます）" />
                         <Button x:Name="PostExportButton" Content="画像出力" Margin="14,0,0,0" Padding="14,4" Click="PostExport_Click"
                                 ToolTip="下のレポートエリアを、NovelKeeper_年月日.jpg の画像として保存します" />
                     </WrapPanel>
@@ -628,6 +679,9 @@
                                 <TextBlock Text="0% は透かさない、100% は完全に透明です。背景の画像を見せたいときに上げます" Opacity="0.6" FontSize="11" TextWrapping="Wrap" />
                                 <TextBlock Text="フォント（全体）" Margin="0,10,0,2" Opacity="0.7" />
                                 <ComboBox x:Name="PostDesFontBox" />
+                                <TextBlock Text="フォントを変えて適用すると、各パネルで個別に決めたフォントも、このフォントに置き換わります" Opacity="0.6" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                <TextBlock Text="項目名の大きさ（8〜40。空欄は標準の 13。すべてのパネルに効きます）" Margin="0,10,0,2" Opacity="0.7" TextWrapping="Wrap" />
+                                <TextBox x:Name="PostDesLabelSize" Width="60" MaxLength="2" HorizontalAlignment="Left" HorizontalContentAlignment="Center" />
                                 <TextBlock Text="文字の色（#RRGGBB。空欄は標準）" Margin="0,10,0,2" Opacity="0.7" />
                                 <StackPanel Orientation="Horizontal">
                                     <TextBox x:Name="PostDesTextColor" Width="110" MaxLength="9" TextChanged="PostDesColor_Changed" Tag="PostDesTextSample" />
@@ -670,17 +724,55 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="件数" VerticalAlignment="Center" Margin="0,0,4,0" />
                                         <TextBox x:Name="PostSetCountBox" Width="40" HorizontalContentAlignment="Center" />
-                                        <TextBlock Text="列数" VerticalAlignment="Center" Margin="12,0,4,0" />
+                                        <TextBlock x:Name="PostSetItemColsLabel" Text="列数" VerticalAlignment="Center" Margin="12,0,4,0" />
                                         <ComboBox x:Name="PostSetItemColsBox" Width="60" />
                                     </StackPanel>
                                 </StackPanel>
+                                <StackPanel x:Name="PostSetViewColsGroup" Orientation="Horizontal" Margin="0,10,0,0">
+                                    <TextBlock Text="表示の列数" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <ComboBox x:Name="PostSetViewColsBox" Width="70" />
+                                    <TextBlock Text="（カレンダーは1行に並べる月の数）" VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.7" />
+                                </StackPanel>
+                                <StackPanel x:Name="PostSetAlignGroup" Orientation="Horizontal" Margin="0,10,0,0">
+                                    <TextBlock Text="表示位置" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <ComboBox x:Name="PostSetAlignBox" Width="90" />
+                                    <TextBlock Text="（余白があるとき）" VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.7" />
+                                </StackPanel>
                                 <StackPanel x:Name="PostSetPriorityGroup">
-                                    <TextBlock x:Name="PostSetPickLabel" Text="優先したい作品を選ぶ（未プレイから）" Margin="0,10,0,2" Opacity="0.7" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="PostSetPickLabel" Margin="0,10,0,2" Opacity="0.7" TextWrapping="Wrap" />
                                     <TextBox x:Name="PostSetSearchBox" TextChanged="PostSetSearch_Changed" ToolTip="作品名で絞り込み" />
-                                    <ListBox x:Name="PostSetGamesList" Height="190" Margin="0,4,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox x:Name="PostSetGamesList" Height="150" Margin="0,4,0,0" SelectionMode="Extended"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="PostPickCandidate_DoubleClick">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <CheckBox Content="{Binding Title}" IsChecked="{Binding Selected, Mode=TwoWay}" Click="PostPick_Click" />
+                                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Button Content="↓ 選んだ作品に追加" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="10,3" Click="PostPickAdd_Click" />
+                                    <TextBlock x:Name="PostSetChosenLabel" Margin="0,10,0,2" Opacity="0.7" TextWrapping="Wrap" />
+                                    <ListBox x:Name="PostSetChosenList" MinHeight="60" MaxHeight="220" AllowDrop="True"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             PreviewMouseLeftButtonDown="PostChosen_PreviewMouseDown" PreviewMouseMove="PostChosen_PreviewMouseMove" Drop="PostChosen_Drop">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                    <Button Grid.Column="1" Content="▲" Padding="6,0" Margin="4,0,0,0" Click="PostPickUp_Click" ToolTip="上へ" />
+                                                    <Button Grid.Column="2" Content="▼" Padding="6,0" Margin="2,0,0,0" Click="PostPickDown_Click" ToolTip="下へ" />
+                                                    <Button Grid.Column="3" Content="×" Padding="7,0" Margin="2,0,0,0" Click="PostPickRemove_Click" ToolTip="リストから外す" />
+                                                </Grid>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
@@ -737,13 +829,42 @@
                     <ScrollViewer x:Name="BackupPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="20,12" MaxWidth="820" HorizontalAlignment="Left">
                             <TextBlock Text="バックアップ" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
-                            <TextBlock TextWrapping="Wrap" Opacity="0.7"
-                                       Text="作品の一覧・プレイ時間・評価などの記録（games.db）と、設定（egs_config.json）を、1つの zip ファイルにまとめて書き出します。パソコンの引っ越しや、万一のときの復元に使えます。ログイン情報（ID・パスワード）は含みません。" />
-                            <Button Content="バックアップを書き出す…" Click="BackupExport_Click" FontWeight="Bold"
-                                    HorizontalAlignment="Left" Margin="0,16,0,0" Padding="16,4" />
+
+                            <!-- ① 自動バックアップ（バックアップに関する設定・操作は、すべてこのタブにまとめる） -->
+                            <TextBlock Text="① 自動バックアップ" FontWeight="Bold" Margin="0,8,0,0" />
+                            <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="0,4,0,6"
+                                       Text="作品の一覧・プレイ時間と設定を、決まった間隔で自動的にコピーしておきます（ログイン情報は含めません）。前回から変わっていないとき、ドライブの空き容量が 500MB 未満のときは作りません。古いものは、世代数・件数・合計 50MB の上限を超えると、古い順に完全に削除します（ごみ箱には入りません）。" />
+                            <CheckBox x:Name="AutoBackupCheck" Content="自動でバックアップする" Click="AutoBackupSetting_Changed" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock Text="間隔" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <ComboBox x:Name="AutoBackupIntervalBox" Width="110" SelectionChanged="AutoBackupSetting_Changed">
+                                    <ComboBoxItem Content="毎日" Tag="1" />
+                                    <ComboBoxItem Content="7日ごと" Tag="7" />
+                                </ComboBox>
+                                <TextBlock Text="残す世代" VerticalAlignment="Center" Margin="18,0,6,0" />
+                                <ComboBox x:Name="AutoBackupKeepBox" Width="90" SelectionChanged="AutoBackupSetting_Changed" />
+                            </StackPanel>
+                            <TextBlock x:Name="AutoBackupInfo" TextWrapping="Wrap" Margin="2,8,0,0" Opacity="0.85" />
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Content="今すぐバックアップ" Click="AutoBackupNow_Click" />
+                                <Button Content="自動バックアップから戻す…" Click="AutoBackupRestore_Click" />
+                                <Button Content="バックアップのフォルダを開く" Click="AutoBackupOpenFolder_Click" />
+                                <Button Content="データの検査" Click="AutoBackupCheck_Click"
+                                        ToolTip="作品データが壊れていないかを調べます（起動のたびにも、自動で調べています）" />
+                            </WrapPanel>
+                            <TextBlock x:Name="AutoBackupResultText" TextWrapping="Wrap" Margin="2,4,0,0" />
 
                             <Separator Margin="0,22,0,14" />
-                            <TextBlock Text="バックアップから戻す" FontWeight="Bold" />
+
+                            <!-- ② 手動バックアップ（zip） -->
+                            <TextBlock Text="② 手動バックアップ（zip ファイル）" FontWeight="Bold" />
+                            <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="0,4,0,0"
+                                       Text="作品の一覧・プレイ時間・評価などの記録（games.db）と、設定（egs_config.json）を、1つの zip ファイルにまとめて書き出します。パソコンの引っ越しや、万一のときの復元に使えます。ログイン情報（ID・パスワード）は含みません。" />
+                            <Button Content="バックアップを書き出す…" Click="BackupExport_Click" FontWeight="Bold"
+                                    HorizontalAlignment="Left" Margin="0,12,0,0" Padding="16,4" />
+
+                            <Separator Margin="0,22,0,14" />
+                            <TextBlock Text="zip のバックアップから戻す" FontWeight="Bold" />
                             <TextBlock TextWrapping="Wrap" Margin="0,8,0,0" Text="バックアップファイルの内容に復元します。" />
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions>
@@ -764,7 +885,7 @@
 
                                 <TextBlock Grid.Row="1" Text="2." FontWeight="Bold" Margin="0,0,10,8" />
                                 <TextBlock Grid.Row="1" Grid.Column="1" TextWrapping="Wrap" Margin="0,0,0,8"
-                                           Text="「バックアップから戻す…」を押して、その zip を選びます。" />
+                                           Text="「zip から戻す…」を押して、その zip を選びます。" />
 
                                 <TextBlock Grid.Row="2" Text="3." FontWeight="Bold" Margin="0,0,10,0" />
                                 <TextBlock Grid.Row="2" Grid.Column="1" TextWrapping="Wrap"
@@ -777,7 +898,7 @@
                             <CheckBox x:Name="BackupWithConfig" Margin="0,10,0,0"
                                       Content="設定（列の並び・テーマ・ウィンドウ位置など）も戻す"
                                       ToolTip="別のパソコンのバックアップを戻すときは、フォルダの場所などが合わないことがあるので、オフのままがおすすめです" />
-                            <Button Content="バックアップから戻す…" Click="BackupImport_Click"
+                            <Button Content="zip から戻す…" Click="BackupImport_Click"
                                     HorizontalAlignment="Left" Margin="0,12,0,0" Padding="16,4" />
                         </StackPanel>
                     </ScrollViewer>
@@ -871,25 +992,26 @@
                                    Text="下のフォルダなどから、作品の実行ファイルをまとめて探して設定します。見つからなかった作品は、一覧の「起動設定」欄にショートカットや exe をドラッグしてください。" />
 
                         <TextBlock Text="ゲームを入れているフォルダ" Margin="0,12,0,2" />
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0">
+                        <!-- 一覧のすぐ右にボタンを置く（画面が広くても、離れないように） -->
+                        <StackPanel Orientation="Horizontal">
+                            <ListBox x:Name="GameFolderList" Height="100" Width="480" />
+                            <StackPanel Margin="6,0,0,0" VerticalAlignment="Top">
                                 <Button Content="追加…" Click="GameFolderAdd_Click" />
                                 <Button Content="削除" Click="GameFolderRemove_Click" />
                             </StackPanel>
-                            <ListBox x:Name="GameFolderList" Height="100" Width="480" HorizontalAlignment="Left" />
-                        </DockPanel>
+                        </StackPanel>
                         <CheckBox x:Name="ScanSteamCheck" Content="Steam のゲームも探す" Click="LaunchSetting_Changed" Margin="0,6,0,0" />
 
                         <CheckBox x:Name="UseShortcutsSettingCheck" Content="ショートカットも判定に使う" Click="LaunchSetting_Changed" Margin="0,12,0,0" />
                         <StackPanel Margin="24,4,0,0" IsEnabled="{Binding IsChecked, ElementName=UseShortcutsSettingCheck}">
                             <TextBlock Text="ショートカットを置いているフォルダ（フォルダの直下だけを探します）" Margin="0,0,0,2" />
-                            <DockPanel>
-                                <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <ListBox x:Name="ShortcutFolderList" Height="90" Width="456" />
+                                <StackPanel Margin="6,0,0,0" VerticalAlignment="Top">
                                     <Button Content="追加…" Click="ShortcutFolderAdd_Click" />
                                     <Button Content="削除" Click="ShortcutFolderRemove_Click" />
                                 </StackPanel>
-                                <ListBox x:Name="ShortcutFolderList" Height="90" Width="456" HorizontalAlignment="Left" />
-                            </DockPanel>
+                            </StackPanel>
                             <CheckBox x:Name="ScanStartMenuCheck" Content="スタートメニューのショートカットも探す" Click="LaunchSetting_Changed" Margin="0,6,0,0" />
                         </StackPanel>
 
@@ -985,17 +1107,32 @@
                             </StackPanel>
                         </Grid>
 
+                        <!-- 任意評価基準 -->
+                        <TextBlock Text="任意評価基準" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,0,0,4"
+                                   Text="オンにすると、詳細欄で項目ごとに採点でき、合計が自分の得点に入ります。批評空間に送るのは合計の得点だけです（項目別の点数はツールにだけ残します）。オフにすると、これまでどおり得点欄に直接入力します（項目の設定と点数は消えません）。" />
+                        <CheckBox x:Name="ScoreItemsCheck" Content="項目ごとの採点を使う" Click="ScoreItemsCheck_Click" />
+                        <StackPanel x:Name="ScoreItemsEditor" Margin="0,8,0,0">
+                            <TextBlock Text="項目（名前と最高点。最高点の合計をちょうど 100 にします）" />
+                            <StackPanel x:Name="ScoreItemRows" Margin="0,4,0,0" />
+                            <WrapPanel Margin="0,4,0,0">
+                                <Button Content="＋ 項目を追加" Click="ScoreItemAdd_Click" />
+                                <Button Content="最高点を均等に振り分ける" Click="ScoreItemDistribute_Click" Margin="6,0,0,0" />
+                            </WrapPanel>
+                            <TextBlock x:Name="ScoreItemSum" Margin="0,6,0,0" FontWeight="Bold" />
+                            <TextBlock x:Name="ScoreItemError" Foreground="#E5534B" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button x:Name="ScoreItemSaveButton" Content="基準を保存" Click="ScoreItemSave_Click" Padding="14,3" />
+                                <Button Content="元に戻す" Click="ScoreItemRevert_Click" Margin="6,0,0,0" />
+                            </WrapPanel>
+                        </StackPanel>
+
                         <!-- 一覧の列 -->
                         <TextBlock Text="一覧の列" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
                         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,0,0,4"
-                                   Text="☑ を付けた列を表示します。↑↓ で並び順を変えられます（一覧の見出しをドラッグしても変えられます）。タイトル・ブランド・状態・プレイ時間・起動設定は常に表示します。批評空間の項目（平均値・感想など）を追加できます。一覧を右クリックしても切り替えられます。" />
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0">
-                                <Button Content="↑" Click="ColumnUp_Click" Width="40" />
-                                <Button Content="↓" Click="ColumnDown_Click" Width="40" />
-                                <Button Content="初期状態" Click="ColumnReset_Click" />
-                            </StackPanel>
-                            <ListBox x:Name="ColumnList" Height="260" Width="320" HorizontalAlignment="Left">
+                                   Text="☑ を付けた列を表示します。↑↓ で並び順を変えられます（一覧の見出しをドラッグしても変えられます）。タイトル・ブランド・状態・プレイ時間・起動設定は常に表示します。批評空間の項目（平均値・感想など）を追加できます。「任意評価基準」をオンにすると、「採点:項目名」の列（項目ごとの点数）も選べます。一覧を右クリックしても切り替えられます。" />
+                        <StackPanel Orientation="Horizontal">
+                            <ListBox x:Name="ColumnList" Height="260" Width="320">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <CheckBox Content="{Binding Name}" IsChecked="{Binding Visible, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -1003,16 +1140,21 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                        </DockPanel>
+                            <StackPanel Margin="6,0,0,0" VerticalAlignment="Top">
+                                <Button Content="↑" Click="ColumnUp_Click" Width="40" />
+                                <Button Content="↓" Click="ColumnDown_Click" Width="40" />
+                                <Button Content="初期状態" Click="ColumnReset_Click" />
+                            </StackPanel>
+                        </StackPanel>
 
                         <!-- データ -->
-                        <TextBlock Text="データ" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
+                        <TextBlock Text="保存場所・設定ファイル" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
                         <WrapPanel>
                             <Button Content="データの保存フォルダを開く" Click="OpenDataFolder_Click" />
                             <Button Content="連携設定ファイルを開く（上級者向け）" Click="OpenConfig_Click" />
                         </WrapPanel>
                         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,4,0,0"
-                                   Text="作品の一覧・プレイ時間・設定・ログイン情報は、このフォルダに保存されます。自動バックアップ（backups）や、エラーの記録（log.txt）もここにあります。バックアップは「データ出力」タブの「バックアップ」から行ってください（ログイン情報は含みません）。" />
+                                   Text="作品の一覧・プレイ時間・設定・ログイン情報は、このフォルダに保存されます。自動バックアップ（backups）や、エラーの記録（log.txt）もここにあります。バックアップに関する設定と操作（自動バックアップ・zip の書き出し・戻す）は、すべて「データ出力」タブの「バックアップ」にまとめています（ログイン情報は含みません）。" />
                         <TextBlock x:Name="VersionText" Opacity="0.7" Margin="2,12,0,20" />
                     </StackPanel>
                 </ScrollViewer>

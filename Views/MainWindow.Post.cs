@@ -15,7 +15,6 @@ internal sealed class PostPick
 {
     public long Id { get; set; }
     public string Title { get; set; } = "";
-    public bool Selected { get; set; }
 }
 
 /// <summary>投稿設定タブ：起点の日から1か月（または1年）のプレイ記録を、パネルを並べた1枚の画像にまとめる</summary>
@@ -51,6 +50,7 @@ public partial class MainWindow
     private readonly List<FrameworkElement> _postEditButtons = new(); // 各パネルの ⚙ ×（画像には入れない）
     private PostPanel? _postEditing;                                  // 設定を開いているパネル
     private List<PostPick> _postPicks = new();
+    private readonly System.Collections.ObjectModel.ObservableCollection<PostPick> _postChosen = new();
 
     private PostLayout Layout => _cfg.PostLayout;
 
@@ -202,7 +202,10 @@ public partial class MainWindow
         var previous = prevFrom >= new DateTime(1900, 1, 1) ? _db.GetSessions(prevFrom, prevTo.AddDays(1)) : [];
         _post = PostReportCalculator.Build(games, _db.GetSessions(start, end.AddDays(1)), start, end,
             mode, PostBrandBox.SelectedItem as string, excludeClearedBefore: PostExcludeClearedCheck.IsChecked == true,
-            previousSessions: previous);
+            previousSessions: previous, replayGameIds: _cfg.PostReplayGameIds.ToHashSet(),
+            hiddenGameIds: _cfg.PostHiddenGameIds.ToHashSet());
+        PostHideButton.Content = _cfg.PostHiddenGameIds.Count > 0 ? $"作品を隠す…（{_cfg.PostHiddenGameIds.Count}）" : "作品を隠す…";
+        PostReplayButton.IsEnabled = PostExcludeClearedCheck.IsChecked == true;
         RebuildPostReport();
     }
 
@@ -282,7 +285,7 @@ public partial class MainWindow
         PostReportHost.Child = root;
     }
 
-    private const double PostRowUnit = 128; // 1段の高さ（パネルの外側の余白 4px ずつを含む）
+    private const double PostRowUnit = PostLayout.RowUnitPx; // 1段の高さ（パネルの外側の余白 4px ずつを含む）
     private bool _postMeasuring;            // 中身の大きさを測っている間（グラフの高さを標準にする）
 
     /// <summary>#RRGGBB の色を読む（空・読めない値は null）</summary>
@@ -322,13 +325,19 @@ public partial class MainWindow
         {
             var title = panel.Kind == PostPanelKind.Heading
                 ? PostStyledText(panel.DisplayTitle, panel, panel.FontSize > 0 ? panel.FontSize : 20, bold: true)
-                : PostText(panel.DisplayTitle, 13, opacity: 0.7);
+                : PostText(panel.DisplayTitle, _cfg.PostLabelSize > 0 ? _cfg.PostLabelSize : PostLabelSizeDefault, opacity: 0.7);
             title.Margin = new Thickness(0, 0, 56, 0); // 右上のボタンと重ならないように
             body.Children.Add(title);
             if (!frameless)
             {
                 var content = BuildPostContent(panel, r);
                 content.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 6, 0, 0));
+                if (PostLayout.UsesAlign(panel.Kind) && panel.Align is 1 or 2 && content is FrameworkElement fe)
+                {
+                    // 余白ができるとき、中身を中央・右に寄せる（複数行の文字も、同じ側に揃える）
+                    fe.HorizontalAlignment = panel.Align == 1 ? HorizontalAlignment.Center : HorizontalAlignment.Right;
+                    if (fe is TextBlock tb) tb.TextAlignment = panel.Align == 1 ? TextAlignment.Center : TextAlignment.Right;
+                }
                 body.Children.Add(content);
             }
         }
@@ -338,6 +347,22 @@ public partial class MainWindow
             Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, -8, -8, 0),
         };
+        if (!measure && !_postMeasuring && _post != null && panel.Kind != PostPanelKind.DailyChart) // グラフは縦幅に合わせて高さが変わるので、対象外
+        {
+            // 中身が縦幅に収まらず、切れているとき：クリックで必要な段数まで広げる（下のパネルはずれる）
+            var need = MeasurePostRowSpan(panel);
+            if (need > panel.RowSpan)
+            {
+                var warn = PostPanelButton("⚠", $"中身が切れています。クリックで縦幅を {need} 段に広げます（下のパネルはずれます）", (_, _) =>
+                {
+                    var error = Layout.TryResize(panel, need);
+                    PostStatus.Text = error ?? $"「{panel.DisplayTitle}」の縦幅を {need} 段に広げました";
+                    if (error == null) Dispatcher.BeginInvoke(new Action(SaveLayoutAndRebuild));
+                });
+                warn.Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x1E));
+                buttons.Children.Add(warn);
+            }
+        }
         buttons.Children.Add(PostPanelButton("⚙", "このパネルの設定", (_, _) => OpenPostSettings(panel)));
         buttons.Children.Add(PostPanelButton("×", "このパネルを削除", (_, _) => RemovePostPanel(panel)));
         _postEditButtons.Add(buttons);
@@ -461,6 +486,30 @@ public partial class MainWindow
                     : PostValue("―", "プレイの記録なし");
             case PostPanelKind.PeakHour:
                 return r.PeakHour is int h ? PostValue($"{h} 時台", "いちばんよく遊ぶ時間帯") : PostValue("―", "プレイの記録なし");
+            case PostPanelKind.LongestStreak:
+            {
+                var st = SummaryExtras.LongestStreak(r.DailySeconds, r.From, r.To);
+                return st.Days == 0
+                    ? PostValue("―", "1日10分以上遊んだ日の連続なし")
+                    : PostValue($"{st.Days} 日", $"{st.Start:M/d}〜{st.End:M/d}（1日10分以上）");
+            }
+            case PostPanelKind.GoalProgress:
+            {
+                // 期間が1年ほどなら年間の目標、それ以外は月間の目標と比べる
+                var year = r.DayCount >= 360;
+                var hoursGoal = year ? _cfg.GoalYearHours : _cfg.GoalMonthHours;
+                var clearGoal = year ? _cfg.GoalYearClears : _cfg.GoalMonthClears;
+                var name = year ? "年間" : "月間";
+                if (hoursGoal == 0 && clearGoal == 0)
+                    return PostValue("―", $"レポートの「目標」で、{name}の目標を決めてください");
+                var lines = new List<string>();
+                if (hoursGoal > 0) lines.Add($"プレイ時間 {SummaryCalculator.FormatDuration(r.TotalSeconds)} / {hoursGoal}時間");
+                if (clearGoal > 0) lines.Add($"クリア {r.ClearCount}本 / {clearGoal}本");
+                var main = hoursGoal > 0
+                    ? $"{SummaryExtras.GoalPercent(r.TotalSeconds, hoursGoal * 3600.0)}%"
+                    : $"{SummaryExtras.GoalPercent(r.ClearCount, clearGoal)}%";
+                return PostValue(main, $"{name}の目標　" + string.Join("　", lines));
+            }
             case PostPanelKind.PrevComparison:
                 return r.PreviousSeconds is double prev && prev >= 1
                     ? PostValue(SummaryCalculator.FormatDelta(r.TotalSeconds, prev), $"前の {r.DayCount} 日間は {SummaryCalculator.FormatDuration(prev)}")
@@ -486,7 +535,7 @@ public partial class MainWindow
             case PostPanelKind.ScoreDistribution:
                 return BuildPostScoreBars(r);
             case PostPanelKind.Calendar:
-                return BuildPostCalendar(r);
+                return BuildPostCalendar(r, panel);
             case PostPanelKind.Memo:
                 return string.IsNullOrWhiteSpace(panel.Text)
                     ? PostText("⚙ から、文章を入力してください", 13, opacity: 0.7)
@@ -510,10 +559,12 @@ public partial class MainWindow
         var p = new StackPanel();
         if (r.Brands.Count == 0) return PostText("ブランドの分かる作品のプレイ記録がありません", 13, opacity: 0.7);
         var i = 0;
+        Panel rows = panel.ViewColumns > 1 ? new System.Windows.Controls.Primitives.UniformGrid { Columns = panel.ViewColumns } : p;
+        if (!ReferenceEquals(rows, p)) p.Children.Add(rows);
         foreach (var b in r.Brands.Take(panel.ItemCount))
         {
             i++;
-            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            var row = new Grid { Margin = new Thickness(0, 2, panel.ViewColumns > 1 ? 14 : 0, 2) };
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var name = PostText($"{i}. {b.Brand}", 14, bold: i == 1);
@@ -524,7 +575,7 @@ public partial class MainWindow
             Grid.SetColumn(detail, 1);
             row.Children.Add(name);
             row.Children.Add(detail);
-            p.Children.Add(row);
+            rows.Children.Add(row);
         }
         if (r.Brands.Count > panel.ItemCount) p.Children.Add(PostText($"ほか {r.Brands.Count - panel.ItemCount} ブランド", 12, opacity: 0.7));
         return p;
@@ -608,7 +659,7 @@ public partial class MainWindow
     /// カレンダー（レポートのタブと同じ仕様）：期間にかかる月ごとに、日〜土を横に並べた一般的なカレンダー。
     /// 遊んだ日を、時間が長いほど濃い色にし、今日は枠を付ける。長い期間は、直近12か月だけ表示する
     /// </summary>
-    private UIElement BuildPostCalendar(PostReport r)
+    private UIElement BuildPostCalendar(PostReport r, PostPanel panel)
     {
         if (r.DayCount < 2) return PostText("期間が2日以上のときに表示します", 13, opacity: 0.7);
 
@@ -627,7 +678,9 @@ public partial class MainWindow
         for (var d = from; d <= r.To; d = d.AddDays(1)) max = Math.Max(max, r.DailySeconds.GetValueOrDefault(d));
 
         const double cellW = 32, cellH = 26;
-        var wrap = new WrapPanel();
+        Panel wrap = panel.ViewColumns > 0
+            ? new System.Windows.Controls.Primitives.UniformGrid { Columns = panel.ViewColumns }
+            : new WrapPanel();
         for (var m = firstMonth; m <= lastMonth; m = m.AddMonths(1))
         {
             var grid = new Grid();
@@ -685,10 +738,14 @@ public partial class MainWindow
     private UIElement BuildPostTiles(List<(string Title, int? EgsId, string? Sub)> items, PostPanel panel)
     {
         var p = new StackPanel();
-        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = Math.Max(1, panel.ItemColumns) };
+        // 列数が「自動」なら、一定の幅の作品を、パネルの幅に入るだけ並べる（余った余白は、表示位置に従って寄せる）
+        Panel grid = panel.ItemColumns > 0
+            ? new System.Windows.Controls.Primitives.UniformGrid { Columns = panel.ItemColumns }
+            : new WrapPanel();
         foreach (var (title, egsId, sub) in items.Take(panel.ItemCount))
         {
             var item = new StackPanel { Margin = new Thickness(4) };
+            if (panel.ItemColumns <= 0) item.Width = 150;
             if (_cfg.ShowImages)
             {
                 // 画像は同じ大きさの枠の中に、縦横比を保って中央に収める（画像の形がそろっていなくても、並びが揃う）
@@ -879,12 +936,14 @@ public partial class MainWindow
         Grid.SetColumn(_postDropMarker, col);
         Grid.SetColumnSpan(_postDropMarker, panel.Span);
         Grid.SetRowSpan(_postDropMarker, panel.RowSpan);
-        var color = !ok ? Color.FromRgb(0xE5, 0x53, 0x4B) : swap != null ? Color.FromRgb(0xE0, 0xA0, 0x30) : PostAccent;
+        var shift = ok && swap == null && Layout.WouldShift(panel, row, col);
+        var color = !ok ? Color.FromRgb(0xE5, 0x53, 0x4B) : swap != null || shift ? Color.FromRgb(0xE0, 0xA0, 0x30) : PostAccent;
         _postDropMarker.BorderBrush = PostBrush((color.R << 16) | (color.G << 8) | color.B);
         _postDropMarker.Background = new SolidColorBrush(Color.FromArgb(0x30, color.R, color.G, color.B));
         _postDropMarker.Visibility = Visibility.Visible;
-        PostStatus.Text = !ok ? "その場所は、ほかのパネルと重なります（横幅が同じパネルとは入れ替えられます）"
-            : swap != null ? $"「{swap.DisplayTitle}」と入れ替えます" : "ここに移動します";
+        PostStatus.Text = !ok ? "その場所には動かせません（タイトルと重なるか、段の上限を超えます）"
+            : swap != null ? $"「{swap.DisplayTitle}」と入れ替えます"
+            : shift ? "ここに置きます（重なるパネルは下にずれます）" : "ここに移動します";
     }
 
     private void PostHost_Drop(object sender, DragEventArgs e)
@@ -944,8 +1003,12 @@ public partial class MainWindow
         PostSetRowSpanBox.ItemsSource = Enumerable.Range(1, PostLayout.MaxRowSpan).Select(i => $"縦 {i} 段").ToList();
         PostSetRowSpanBox.SelectedIndex = Math.Clamp(panel.RowSpan, 1, PostLayout.MaxRowSpan) - 1;
         PostSetCountBox.Text = panel.ItemCount.ToString();
-        PostSetItemColsBox.ItemsSource = new[] { "1", "2", "3", "4" };
-        PostSetItemColsBox.SelectedIndex = Math.Clamp(panel.ItemColumns, 1, 4) - 1;
+        PostSetItemColsBox.ItemsSource = new[] { "自動", "1", "2", "3", "4" };
+        PostSetItemColsBox.SelectedIndex = Math.Clamp(panel.ItemColumns, 0, 4);
+        PostSetViewColsBox.ItemsSource = new[] { "自動", "1", "2", "3", "4" };
+        PostSetViewColsBox.SelectedIndex = Math.Clamp(panel.ViewColumns, 0, 4);
+        PostSetAlignBox.ItemsSource = new[] { "左寄せ", "中央寄せ", "右寄せ" };
+        PostSetAlignBox.SelectedIndex = Math.Clamp(panel.Align, 0, 2);
         PostSetTextBox.Text = panel.Text ?? "";
         PostSetFontBox.ItemsSource = PostFontNames();
         var fontIndex = string.IsNullOrWhiteSpace(panel.FontFamily) ? -1 : PostFontNames().IndexOf(panel.FontFamily);
@@ -988,6 +1051,9 @@ public partial class MainWindow
     {
         var kind = (PostPanelKind)Math.Max(0, PostSetKindBox.SelectedIndex);
         PostSetItemsGroup.Visibility = PostLayout.UsesItems(kind) ? Visibility.Visible : Visibility.Collapsed;
+        PostSetItemColsLabel.Visibility = PostSetItemColsBox.Visibility = PostLayout.UsesItemColumns(kind) ? Visibility.Visible : Visibility.Collapsed;
+        PostSetViewColsGroup.Visibility = PostLayout.UsesViewColumns(kind) ? Visibility.Visible : Visibility.Collapsed;
+        PostSetAlignGroup.Visibility = PostLayout.UsesAlign(kind) ? Visibility.Visible : Visibility.Collapsed;
         PostSetPriorityGroup.Visibility = kind == PostPanelKind.Priority ? Visibility.Visible : Visibility.Collapsed;
         PostSetTextGroup.Visibility = kind == PostPanelKind.Memo ? Visibility.Visible : Visibility.Collapsed;
         PostSetFontGroup.Visibility = PostLayout.UsesFont(kind) ? Visibility.Visible : Visibility.Collapsed;
@@ -1026,14 +1092,16 @@ public partial class MainWindow
             Title = PostSetTitleBox.Text.Trim(),
             Span = PostLayout.IsFullWidth(kind) ? Layout.Columns : Math.Max(1, PostSetSpanBox.SelectedIndex + 1),
             ItemCount = int.TryParse(PostSetCountBox.Text.Trim(), out var c) ? Math.Clamp(c, 1, PostLayout.MaxItems(kind)) : current.ItemCount,
-            ItemColumns = Math.Max(1, PostSetItemColsBox.SelectedIndex + 1),
+            ItemColumns = Math.Max(0, PostSetItemColsBox.SelectedIndex),
             Text = PostSetTextBox.Text,
+            ViewColumns = Math.Max(0, PostSetViewColsBox.SelectedIndex),
+            Align = Math.Max(0, PostSetAlignBox.SelectedIndex),
             FontFamily = PostSetFontBox.SelectedIndex > 0 ? PostSetFontBox.SelectedItem as string : null,
             FontColor = PostSetColorBox.Text.Trim(),
             FontSize = int.TryParse(PostSetFontSizeBox.Text.Trim(), out var fs) ? Math.Clamp(fs, 8, 96) : 0,
             ShowPeriod = PostSetPeriodCheck.IsChecked == true,
         };
-        tmp.GameIds = _postPicks.Where(p => p.Selected).Select(p => p.Id).Take(PostLayout.MaxPriorityGames).ToList();
+        tmp.GameIds = _postChosen.Select(p => p.Id).Take(PostLayout.MaxPriorityGames).ToList();
         return tmp;
     }
 
@@ -1052,34 +1120,213 @@ public partial class MainWindow
         PostSetError.Visibility = message == null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    /// <summary>優先したい作品の選択欄：未プレイの作品（すでに選んでいるものは、状態が変わっていても残す）</summary>
+    /// <summary>
+    /// 「再プレイを追加…」：起点の日より前にクリア済みで、期間内に遊んだ作品を一覧にして、
+    /// 再プレイとして集計に含める作品を選ぶ（選んだ作品は、作品ごとに保存される）
+    /// </summary>
+    private void PostReplay_Click(object sender, RoutedEventArgs e)
+    {
+        var start = (PostStartPicker.SelectedDate ?? DateTime.Today).Date;
+        var end = PostReportCalculator.PeriodEnd(start, PostYearRadio.IsChecked == true);
+        var included = _cfg.PostReplayGameIds.ToHashSet();
+        var candidates = PostReportCalculator.ReplayCandidates(_db.GetAll(), _db.GetSessions(start, end.AddDays(1)), start, end, included);
+
+        var picked = ShowPostPickDialog("再プレイとして含める作品",
+            "起点の日より前にクリアした作品（終了日が空欄のプレイ済を含む）は、ふつう集計に入れません。再プレイした作品だけ、☑で集計に含めます（作品ごとに保存されます）。",
+            candidates.Select(c => (c.GameId, PostPickText(c.Title, c.Seconds), c.Included)).ToList(),
+            "この期間に、起点の日より前にクリアした作品のプレイ記録はありません。");
+        if (picked == null) return;
+        _cfg.PostReplayGameIds = _cfg.PostReplayGameIds.Where(id => !picked.All.Contains(id))
+            .Concat(picked.Checked).Distinct().ToList();
+        _cfg.Save();
+        RefreshPost();
+    }
+
+    private static string PostPickText(string title, double seconds) =>
+        seconds >= 1 ? $"{title}　（この期間 {SummaryCalculator.FormatDuration(seconds)}）" : $"{title}　（この期間のプレイ記録なし）";
+
+    /// <summary>
+    /// 「作品を隠す…」：期間内に遊んだ作品を一覧にして、☑した作品をプレイ記録の集計から外す
+    /// （クリア済みでない作品でも隠せる。作品ごとに保存される）
+    /// </summary>
+    private void PostHide_Click(object sender, RoutedEventArgs e)
+    {
+        var start = (PostStartPicker.SelectedDate ?? DateTime.Today).Date;
+        var end = PostReportCalculator.PeriodEnd(start, PostYearRadio.IsChecked == true);
+        var candidates = PostReportCalculator.HideCandidates(_db.GetAll(), _db.GetSessions(start, end.AddDays(1)), start, end,
+            _cfg.PostHiddenGameIds.ToHashSet(), PostExcludeClearedCheck.IsChecked == true, _cfg.PostReplayGameIds.ToHashSet());
+        var picked = ShowPostPickDialog("集計から隠す作品",
+            "☑した作品は、クリア済みでなくても、プレイ時間・日数・グラフ・作品の欄など、プレイ記録の集計から外します（作品ごとに保存されます。☑を外すと戻ります）。",
+            candidates.Select(c => (c.GameId, PostPickText(c.Title, c.Seconds), c.Hidden)).ToList(),
+            "この期間のプレイ記録はありません。");
+        if (picked == null) return;
+        _cfg.PostHiddenGameIds = _cfg.PostHiddenGameIds.Where(id => !picked.All.Contains(id))
+            .Concat(picked.Checked).Distinct().ToList();
+        _cfg.Save();
+        RefreshPost();
+    }
+
+    private record PostPickResult(HashSet<long> All, List<long> Checked);
+
+    /// <summary>作品のチェック一覧ダイアログ（すべて選択／すべてクリアは左下）。OK なら一覧の全 ID と、☑の ID を返す</summary>
+    private PostPickResult? ShowPostPickDialog(string title, string header, IReadOnlyList<(long Id, string Text, bool Checked)> items, string emptyText)
+    {
+        var list = new StackPanel();
+        var boxes = new List<(CheckBox Box, long Id)>();
+        foreach (var c in items)
+        {
+            var box = new CheckBox
+            {
+                IsChecked = c.Checked, Margin = new Thickness(0, 0, 0, 4),
+                Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = c.Text }, // 長い作品名は折り返す
+            };
+            boxes.Add((box, c.Id));
+            list.Children.Add(box);
+        }
+        if (items.Count == 0)
+            list.Children.Add(new TextBlock { Text = emptyText, Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
+
+        var ok = new Button { Content = "OK", Padding = new Thickness(18, 3, 18, 3), IsDefault = true };
+        var cancel = new Button { Content = "キャンセル", Padding = new Thickness(14, 3, 14, 3), IsCancel = true };
+        var selectAll = new Button { Content = "すべて選択", Padding = new Thickness(12, 3, 12, 3) };
+        var clearAll = new Button { Content = "すべてクリア", Padding = new Thickness(12, 3, 12, 3), Margin = new Thickness(6, 0, 0, 0) };
+        selectAll.Click += (_, _) => boxes.ForEach(b => b.Box.IsChecked = true);
+        clearAll.Click += (_, _) => boxes.ForEach(b => b.Box.IsChecked = false);
+        var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        right.Children.Add(ok);
+        right.Children.Add(cancel);
+        var left = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
+        left.Children.Add(selectAll);
+        left.Children.Add(clearAll);
+        var buttons = new Grid();
+        buttons.Children.Add(left); // 一括選択・一括クリアは左下、OK・キャンセルは右下
+        buttons.Children.Add(right);
+        var head = new TextBlock
+        {
+            Text = header,
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
+        };
+        var panel = new DockPanel { Margin = new Thickness(14) };
+        DockPanel.SetDock(head, Dock.Top);
+        DockPanel.SetDock(buttons, Dock.Bottom);
+        panel.Children.Add(head);
+        panel.Children.Add(buttons);
+        panel.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 0, 0, 10) });
+        var win = new Window
+        {
+            Title = title, Width = 560, Height = 420, Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel, ShowInTaskbar = false,
+        };
+        ok.Click += (_, _) => win.DialogResult = true;
+        if (win.ShowDialog() != true) return null;
+        return new PostPickResult(boxes.Select(b => b.Id).ToHashSet(), boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Id).ToList());
+    }
+
+    /// <summary>優先したい作品の選択欄：未プレイ・プレイ中の作品（すでに選んでいるものは、状態が変わっていても残す）</summary>
     private void FillPostPicks(PostPanel panel)
     {
-        var chosen = panel.GameIds.ToHashSet();
+        var byId = _postGames.ToDictionary(g => g.Id);
+        _postChosen.Clear();
+        foreach (var id in panel.GameIds.Where(byId.ContainsKey).Distinct())
+            _postChosen.Add(new PostPick { Id = id, Title = byId[id].Title });
         _postPicks = _postGames
-            .Where(g => g.Status == GameStatus.Unplayed || chosen.Contains(g.Id))
+            .Where(g => g.Status is GameStatus.Unplayed or GameStatus.Playing)
             .OrderBy(g => g.Title, StringComparer.CurrentCulture)
-            .Select(g => new PostPick { Id = g.Id, Title = g.Title, Selected = chosen.Contains(g.Id) })
+            .Select(g => new PostPick { Id = g.Id, Title = g.Title })
             .ToList();
         PostSetSearchBox.Text = "";
+        PostSetGamesList.ItemsSource = CollectionViewSource.GetDefaultView(_postPicks);
+        PostSetChosenList.ItemsSource = _postChosen;
+        RefreshPostCandidates();
+    }
+
+    /// <summary>候補の一覧：選んだ作品を除き、検索語で絞り込む</summary>
+    private void RefreshPostCandidates()
+    {
+        var text = PostSetSearchBox.Text.Trim();
         var view = CollectionViewSource.GetDefaultView(_postPicks);
-        view.Filter = null;
-        PostSetGamesList.ItemsSource = view;
-        UpdatePostPickLabel();
+        view.Filter = o => o is PostPick p && _postChosen.All(c => c.Id != p.Id)
+            && (text.Length == 0 || p.Title.Contains(text, StringComparison.CurrentCultureIgnoreCase));
+        view.Refresh();
+        PostSetPickLabel.Text = $"優先したい作品（未プレイ・プレイ中から。ダブルクリックか「追加」で下の一覧へ）";
+        PostSetChosenLabel.Text = $"選んだ作品（{_postChosen.Count} / {PostLayout.MaxPriorityGames} 件。ドラッグか ▲▼ で並び替え、× で外す）";
     }
 
     private void PostSetSearch_Changed(object sender, TextChangedEventArgs e)
     {
         if (_postLoading) return;
-        var text = PostSetSearchBox.Text.Trim();
-        var view = CollectionViewSource.GetDefaultView(_postPicks);
-        view.Filter = text.Length == 0 ? null : o => ((PostPick)o).Title.Contains(text, StringComparison.CurrentCultureIgnoreCase);
+        RefreshPostCandidates();
     }
 
-    private void PostPick_Click(object sender, RoutedEventArgs e) => UpdatePostPickLabel();
+    private void PostPickAdd(PostPick pick)
+    {
+        if (_postChosen.Count >= PostLayout.MaxPriorityGames)
+        { ShowPostSettingsError($"優先したい作品は、{PostLayout.MaxPriorityGames} 件までです。"); return; }
+        _postChosen.Add(new PostPick { Id = pick.Id, Title = pick.Title });
+        RefreshPostCandidates();
+    }
 
-    private void UpdatePostPickLabel() =>
-        PostSetPickLabel.Text = $"優先したい作品を選ぶ（未プレイから）　{_postPicks.Count(p => p.Selected)} / {PostLayout.MaxPriorityGames} 件";
+    private void PostPickAdd_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var p in PostSetGamesList.SelectedItems.Cast<PostPick>().ToList()) PostPickAdd(p);
+    }
+
+    private void PostPickCandidate_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (PostSetGamesList.SelectedItem is PostPick p && e.OriginalSource is DependencyObject) PostPickAdd(p);
+    }
+
+    private PostPick? PostPickOf(object sender) => (sender as FrameworkElement)?.DataContext as PostPick;
+
+    private void PostPickRemove_Click(object sender, RoutedEventArgs e)
+    {
+        if (PostPickOf(sender) is { } p) { _postChosen.Remove(p); RefreshPostCandidates(); }
+    }
+
+    private void PostPickUp_Click(object sender, RoutedEventArgs e) => PostPickShift(PostPickOf(sender), -1);
+    private void PostPickDown_Click(object sender, RoutedEventArgs e) => PostPickShift(PostPickOf(sender), 1);
+
+    private void PostPickShift(PostPick? p, int delta)
+    {
+        if (p == null) return;
+        var i = _postChosen.IndexOf(p);
+        var j = i + delta;
+        if (i < 0 || j < 0 || j >= _postChosen.Count) return;
+        _postChosen.Move(i, j);
+    }
+
+    private PostPick? _postPickDrag;
+    private Point _postPickDragStart;
+
+    private void PostChosen_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        _postPickDrag = null;
+        if (IsOnButton(e.OriginalSource, PostSetChosenList)) return;
+        var item = ItemsControl.ContainerFromElement(PostSetChosenList, (DependencyObject)e.OriginalSource) as ListBoxItem;
+        _postPickDrag = item?.DataContext as PostPick;
+        _postPickDragStart = e.GetPosition(null);
+    }
+
+    private void PostChosen_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_postPickDrag == null || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+        var d = e.GetPosition(null) - _postPickDragStart;
+        if (Math.Abs(d.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(d.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        var p = _postPickDrag;
+        _postPickDrag = null;
+        DragDrop.DoDragDrop(PostSetChosenList, new DataObject("NovelKeeper.PostPick", p), DragDropEffects.Move);
+    }
+
+    private void PostChosen_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData("NovelKeeper.PostPick") is not PostPick p) return;
+        var from = _postChosen.IndexOf(p);
+        if (from < 0) return;
+        var target = ItemsControl.ContainerFromElement(PostSetChosenList, (DependencyObject)e.OriginalSource) as ListBoxItem;
+        var to = target?.DataContext is PostPick t ? _postChosen.IndexOf(t) : _postChosen.Count - 1;
+        if (to >= 0 && to != from) _postChosen.Move(from, to);
+        e.Handled = true;
+    }
 
     private void PostSetApply_Click(object sender, RoutedEventArgs e)
     {
@@ -1107,7 +1354,7 @@ public partial class MainWindow
             if (!int.TryParse(PostSetCountBox.Text.Trim(), out count) || count < 1 || count > max)
             { ShowPostSettingsError($"件数は 1〜{max} の数字で入れてください。"); return; }
         }
-        var picks = _postPicks.Where(p => p.Selected).Select(p => p.Id).ToList();
+        var picks = _postChosen.Select(p => p.Id).ToList();
         if (kind == PostPanelKind.Priority && picks.Count > PostLayout.MaxPriorityGames)
         { ShowPostSettingsError($"優先したい作品は、{PostLayout.MaxPriorityGames} 件までです（いま {picks.Count} 件）。"); return; }
 
@@ -1135,16 +1382,15 @@ public partial class MainWindow
         if (usesItems)
         {
             panel.ItemCount = count;
-            panel.ItemColumns = PostSetItemColsBox.SelectedIndex + 1;
+            panel.ItemColumns = Math.Max(0, PostSetItemColsBox.SelectedIndex);
         }
         else if (kindChanged) panel.ItemCount = PostLayout.NewPanel(kind).ItemCount;
         if (kind == PostPanelKind.Memo) panel.Text = PostSetTextBox.Text;
+        panel.ViewColumns = PostLayout.UsesViewColumns(kind) ? Math.Max(0, PostSetViewColsBox.SelectedIndex) : 0;
+        panel.Align = PostLayout.UsesAlign(kind) ? Math.Max(0, PostSetAlignBox.SelectedIndex) : 0;
         if (kind == PostPanelKind.Priority)
         {
-            // 選んだ順を保つ：これまでの順を残し、新しく選んだものを後ろに足す
-            var ordered = panel.GameIds.Where(picks.Contains).ToList();
-            ordered.AddRange(picks.Where(id => !ordered.Contains(id)));
-            panel.GameIds = ordered;
+            panel.GameIds = picks; // 下の「選んだ作品」の並びのまま
         }
         _cfg.Save();
         RebuildPostReport();
@@ -1155,6 +1401,8 @@ public partial class MainWindow
     // ================================================================
     // デザイン設定（背景の色・画像、パネルの色と透過率、フォントと文字色）
     // ================================================================
+
+    private const int PostLabelSizeDefault = 13, PostLabelSizeMin = 8, PostLabelSizeMax = 40;
 
     private string? _postDesImage; // 設定欄で選んだ背景の画像（「適用」で反映）
 
@@ -1171,6 +1419,7 @@ public partial class MainWindow
         PostDesFontBox.ItemsSource = PostFontNames();
         var fontIndex = string.IsNullOrWhiteSpace(_cfg.PostFontFamily) ? -1 : PostFontNames().IndexOf(_cfg.PostFontFamily);
         PostDesFontBox.SelectedIndex = Math.Max(0, fontIndex);
+        PostDesLabelSize.Text = _cfg.PostLabelSize > 0 ? _cfg.PostLabelSize.ToString() : "";
         _postDesImage = _cfg.PostBackImage;
         ShowPostDesignImageName();
         ShowPostDesignError(null);
@@ -1235,13 +1484,23 @@ public partial class MainWindow
         if (!string.IsNullOrWhiteSpace(_postDesImage) && !File.Exists(_postDesImage))
         { ShowPostDesignError("背景の画像のファイルが見つかりません。選び直してください。"); return; }
 
+        var labelSize = 0;
+        if (PostDesLabelSize.Text.Trim().Length > 0 &&
+            (!int.TryParse(PostDesLabelSize.Text.Trim(), out labelSize) || labelSize < PostLabelSizeMin || labelSize > PostLabelSizeMax))
+        { ShowPostDesignError($"項目名の大きさは、{PostLabelSizeMin}〜{PostLabelSizeMax} の数字で入れてください。"); return; }
+
         string? OrNull(TextBox box) => box.Text.Trim().Length == 0 ? null : box.Text.Trim();
+        _cfg.PostLabelSize = labelSize;
         _cfg.PostBackColor = OrNull(PostDesBackColor);
         _cfg.PostCardColor = OrNull(PostDesCardColor);
         _cfg.PostTextColor = OrNull(PostDesTextColor);
         _cfg.PostBackImage = string.IsNullOrWhiteSpace(_postDesImage) ? null : _postDesImage;
         _cfg.PostPanelTransparency = (int)PostDesTransparency.Value;
-        _cfg.PostFontFamily = PostDesFontBox.SelectedIndex > 0 ? PostDesFontBox.SelectedItem as string : null;
+        var newFont = PostDesFontBox.SelectedIndex > 0 ? PostDesFontBox.SelectedItem as string : null;
+        // 全体のフォントを変えたときは、各パネルで個別に決めたフォントより優先して、すべてのパネルを全体のフォントにそろえる
+        if (!string.Equals(newFont, _cfg.PostFontFamily, StringComparison.Ordinal))
+            foreach (var p in Layout.Panels) p.FontFamily = null;
+        _cfg.PostFontFamily = newFont;
 
         ShowPostDesignError(null);
         _cfg.Save();
@@ -1251,8 +1510,10 @@ public partial class MainWindow
 
     private void PostDesReset_Click(object sender, RoutedEventArgs e)
     {
+        if (_cfg.PostFontFamily != null) foreach (var p in Layout.Panels) p.FontFamily = null; // 全体のフォントが変わるので、パネルのフォントもそろえる
         _cfg.PostBackColor = _cfg.PostCardColor = _cfg.PostTextColor = _cfg.PostBackImage = _cfg.PostFontFamily = null;
         _cfg.PostPanelTransparency = 0;
+        _cfg.PostLabelSize = 0;
         _cfg.Save();
         PostDesign_Click(sender, e); // 設定欄を、標準の値で開き直す
         RebuildPostReport();

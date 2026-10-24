@@ -34,7 +34,7 @@ public record PostReport(
     public int DayCount { get; init; }
     /// <summary>遊んだ日の数</summary>
     public int PlayedDays { get; init; }
-    /// <summary>期間内に遊んだ作品の数（「作品」の欄の除外設定には関係しない）</summary>
+    /// <summary>期間内に遊んだ作品の数（再プレイの除外を反映する）</summary>
     public int PlayedGameCount { get; init; }
     public (DateTime Day, double Seconds)? BestDay { get; init; }
     public SessionRow? LongestSession { get; init; }
@@ -69,24 +69,31 @@ public static class PostReportCalculator
         IReadOnlyList<Game> games, IEnumerable<SessionRow> sessions, DateTime from, DateTime to,
         PostBrandMode brandMode = PostBrandMode.MostPlayed, string? specificBrand = null,
         int minBrandGames = DefaultMinBrandGames, bool excludeClearedBefore = false,
-        IEnumerable<SessionRow>? previousSessions = null)
+        IEnumerable<SessionRow>? previousSessions = null, IReadOnlySet<long>? replayGameIds = null,
+        IReadOnlySet<long>? hiddenGameIds = null)
     {
+        // 起点の日より前にクリアした作品（再プレイ）は、時間・日数・作品・ブランドなど、プレイ記録の集計すべてから外す
+        // （手動で「再プレイとして含める」にした作品は残す）。クリア数・点数・積みゲーは、記録ではなく作品の状態から数える。
+        // 「隠す」にした作品（クリア済みでなくても）も、同じプレイ記録の集計から外す
+        var past = excludeClearedBefore ? PastClearedIds(games, from, replayGameIds) : new HashSet<long>();
+        if (hiddenGameIds != null) past.UnionWith(hiddenGameIds);
+        if (past.Count > 0)
+        {
+            sessions = sessions.Where(s => !past.Contains(s.GameId));
+            previousSessions = previousSessions?.Where(s => !past.Contains(s.GameId));
+        }
         var summary = SummaryCalculator.Build(sessions, from, to);
         var byId = games.ToDictionary(g => g.Id);
 
         // クリア数・点数：終了日が期間内の「プレイ済」の作品
         var cleared = games
-            .Where(g => g.Status == GameStatus.Played && g.ClearDate is DateTime d && d.Date >= summary.From && d.Date <= summary.To)
+            .Where(g => g.Status == GameStatus.Played && !g.Review.ExcludeFromClearCount
+                        && g.ClearDate is DateTime d && d.Date >= summary.From && d.Date <= summary.To)
             .ToList();
         var scores = cleared.Where(g => g.MyScore != null).Select(g => (double)g.MyScore!.Value).ToList();
 
         // 作品：期間内に遊んだものを、期間内のプレイ時間が長い順に
-        // 「起点の日より前にクリアした作品を除く」は、この作品の欄だけに効かせる（時間・ブランドの集計には影響しない）
-        var skip = excludeClearedBefore
-            ? games.Where(g => g.ClearDate is DateTime d && d.Date < summary.From).Select(g => g.Id).ToHashSet()
-            : new HashSet<long>();
         var works = summary.Games
-            .Where(s => !skip.Contains(s.GameId))
             .Select(s => new PostWork(s.GameId, s.Title, byId.GetValueOrDefault(s.GameId)?.EgsId, s.Seconds))
             .ToList();
 
@@ -128,6 +135,45 @@ public static class PostReportCalculator
             ScoreBins = bins,
             MedianCompare = compare,
         };
+    }
+
+    /// <summary>プレイ済で、終了日が起点の日より前か、終了日が空欄の作品（過去にクリア済みとみなす）</summary>
+    public static bool IsPastCleared(Game g, DateTime from) =>
+        g.Status == GameStatus.Played && (g.ClearDate is not DateTime d || d.Date < from.Date);
+
+    /// <summary>起点の日より前にクリア済みの作品（終了日が空欄のプレイ済も含む）。「再プレイとして含める」にした作品は入れない</summary>
+    public static HashSet<long> PastClearedIds(IEnumerable<Game> games, DateTime from, IReadOnlySet<long>? replayGameIds = null) => games
+        .Where(g => IsPastCleared(g, from) && (replayGameIds == null || !replayGameIds.Contains(g.Id)))
+        .Select(g => g.Id).ToHashSet();
+
+    /// <summary>「再プレイとして含める」の候補：起点の日より前にクリア済みで、期間内にプレイ記録がある作品（含めると決めた作品は、記録がなくても残す）</summary>
+    public record ReplayCandidate(long GameId, string Title, double Seconds, bool Included);
+
+    public static IReadOnlyList<ReplayCandidate> ReplayCandidates(
+        IEnumerable<Game> games, IEnumerable<SessionRow> sessionsInPeriod, DateTime from, DateTime to, IReadOnlySet<long> replayGameIds)
+    {
+        var seconds = SummaryCalculator.Build(sessionsInPeriod, from, to).Games.ToDictionary(g => g.GameId, g => g.Seconds);
+        return games
+            .Where(g => replayGameIds.Contains(g.Id) || (IsPastCleared(g, from) && seconds.ContainsKey(g.Id)))
+            .Select(g => new ReplayCandidate(g.Id, g.Title, seconds.GetValueOrDefault(g.Id), replayGameIds.Contains(g.Id)))
+            .OrderByDescending(c => c.Seconds).ThenBy(c => c.Title, StringComparer.CurrentCulture)
+            .ToList();
+    }
+
+    /// <summary>「作品を隠す」の候補：期間内にプレイ記録があって、まだ集計に出る作品（隠すと決めた作品は、記録がなくても残す）。再プレイ除外で外れている作品は出さない</summary>
+    public record HideCandidate(long GameId, string Title, double Seconds, bool Hidden);
+
+    public static IReadOnlyList<HideCandidate> HideCandidates(
+        IEnumerable<Game> games, IEnumerable<SessionRow> sessionsInPeriod, DateTime from, DateTime to,
+        IReadOnlySet<long> hiddenGameIds, bool excludeClearedBefore, IReadOnlySet<long>? replayGameIds = null)
+    {
+        var seconds = SummaryCalculator.Build(sessionsInPeriod, from, to).Games.ToDictionary(g => g.GameId, g => g.Seconds);
+        var past = excludeClearedBefore ? PastClearedIds(games, from, replayGameIds) : new HashSet<long>();
+        return games
+            .Where(g => hiddenGameIds.Contains(g.Id) || (seconds.ContainsKey(g.Id) && !past.Contains(g.Id)))
+            .Select(g => new HideCandidate(g.Id, g.Title, seconds.GetValueOrDefault(g.Id), hiddenGameIds.Contains(g.Id)))
+            .OrderByDescending(c => c.Seconds).ThenBy(c => c.Title, StringComparer.CurrentCulture)
+            .ToList();
     }
 
     private static List<PostBrand> BrandStats(IReadOnlyList<GameSummary> played, Dictionary<long, Game> byId) => played

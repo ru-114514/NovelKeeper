@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
+using ErogeLauncher.Services;
 
 namespace ErogeLauncher.Models;
 
@@ -38,6 +39,14 @@ public class Review
     /// <summary>ネタバレ</summary>
     public bool Netabare { get; set; }
 
+    /// <summary>任意評価基準の項目別の採点（項目の ID → 点数）。ツールだけに保存し、批評空間には送らない。なければ null</summary>
+    public Dictionary<string, int>? ItemScores { get; set; }
+    /// <summary>採点したときの項目の名前と最高点（項目の ID → 内容）。基準が変わったかを見分けるために残す</summary>
+    public Dictionary<string, ScoreBasis>? ItemBasis { get; set; }
+
+    /// <summary>クリア数の集計（レポート・目標・投稿設定）から除外する。過去にクリアして記録を忘れた作品など向け。ツールだけに保存し、批評空間には送らない</summary>
+    public bool ExcludeFromClearCount { get; set; }
+
     /// <summary>批評空間から読み込めなかった項目（取り込まない。空欄で上書きしないため）</summary>
     [JsonIgnore] public HashSet<string> Unreadable { get; set; } = new();
 
@@ -45,6 +54,8 @@ public class Review
     {
         var c = (Review)MemberwiseClone();
         c.Unreadable = new HashSet<string>(); // 写した先では「読み込めなかった」は引き継がない
+        c.ItemScores = ItemScores == null ? null : new Dictionary<string, int>(ItemScores);
+        c.ItemBasis = ItemBasis == null ? null : new Dictionary<string, ScoreBasis>(ItemBasis);
         return c;
     }
 

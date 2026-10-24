@@ -71,6 +71,21 @@ public partial class MainWindow
                 mi.Click += (_, _) => button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, button));
                 menu.Items.Add(mi);
             }
+            else if (item is StackPanel { Tag: "preset" } presetPanel)
+            {
+                // 並び替えの設定：設定ボタンと、設定済みのときの「解除」
+                var apply = presetPanel.Children.OfType<Button>().First();
+                var clear = presetPanel.Children.OfType<Button>().Last();
+                var mi = new MenuItem { Header = apply.Content?.ToString() };
+                mi.Click += (_, _) => apply.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, apply));
+                menu.Items.Add(mi);
+                if (clear.Visibility == Visibility.Visible)
+                {
+                    var del = new MenuItem { Header = $"{apply.Content}を解除" };
+                    del.Click += (_, _) => clear.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, clear));
+                    menu.Items.Add(del);
+                }
+            }
             else if (ReferenceEquals(item, FilterPanel))
             {
                 // 「表示:」の絞り込みは、選択肢をそのままメニューに並べる
@@ -141,6 +156,8 @@ public partial class MainWindow
         BuildEgsFields();
         InitLoginTab();
         InitLaunchTab();
+        InitScoreItems();
+        InitAutoBackup();
         InitColumnList();
         UpdateAdminCount();
 
@@ -313,6 +330,8 @@ public partial class MainWindow
         "platform", "動作状況", "詳細状況", "一言感想", "長文感想", "ネタバレ",
     };
 
+    private static bool IsDefaultHidden(string key) => DefaultHiddenColumns.Contains(key) || key.StartsWith(ScoreColumnPrefix);
+
     private readonly ObservableCollection<ColumnItem> _columnItems = new();
 
     /// <summary>設定タブの一覧に並べる列1つ分</summary>
@@ -339,7 +358,17 @@ public partial class MainWindow
         var keys = GameGrid.Columns.Select(ColumnKey).Where(k => k != "").ToList();
         var list = _cfg.Columns.Where(c => keys.Contains(c.Key)).GroupBy(c => c.Key).Select(g => g.First()).ToList();
         foreach (var key in keys.Where(k => list.All(c => c.Key != k)))
-            list.Add(new ColumnSetting { Key = key, Visible = !DefaultHiddenColumns.Contains(key) });
+        {
+            var setting = new ColumnSetting { Key = key, Visible = !IsDefaultHidden(key) };
+            // 任意評価基準の項目の列は、選びやすいよう「得点」の隣（先の項目の後ろ）に置く
+            if (key.StartsWith(ScoreColumnPrefix))
+            {
+                var after = list.FindLastIndex(c => c.Key.StartsWith(ScoreColumnPrefix));
+                if (after < 0) after = list.FindIndex(c => c.Key == "得点");
+                if (after >= 0) { list.Insert(after + 1, setting); continue; }
+            }
+            list.Add(setting);
+        }
 
         // 初期の並び（先頭の列）に整える。保存済みの並びは、新しい初期の並びに1回だけ合わせ直す（そのあとは、ドラッグした並びを保つ）
         var reorder = fresh || _cfg.ColumnOrderVersion < ColumnOrderVersionNow;

@@ -40,7 +40,7 @@ public class PostReportTests
     }
 
     [Fact]
-    public void ExcludeClearedBefore_DropsGamesClearedBeforeStart_OnlyFromWorks()
+    public void ExcludeClearedBefore_DropsGamesClearedBeforeStart_FromAllPlayRecordTotals()
     {
         var games = new List<Game>
         {
@@ -55,10 +55,78 @@ public class PostReportTests
         Assert.Equal("A", all.Brand!.Brand);
 
         var r = PostReportCalculator.Build(games, rows, From, To, excludeClearedBefore: true);
-        Assert.Equal(5500, r.TotalSeconds); // 時間・ブランドは変わらない
+        Assert.Equal(500, r.TotalSeconds); // 再プレイ分は、時間にも入らない
         Assert.Equal(new long[] { 2, 3 }, r.Works.Select(w => w.GameId));
-        Assert.Equal("A", r.Brand!.Brand);
+        Assert.Equal("B", r.Brand!.Brand);
         Assert.Equal(1, r.ClearCount); // 期間内のクリアは、どちらでも同じ
+        Assert.Equal(2, r.PlayedDays);
+        Assert.Equal(2, r.PlayedGameCount);
+    }
+
+    [Fact]
+    public void ExcludeClearedBefore_AlsoDropsPlayedGamesWithoutClearDate()
+    {
+        var noDate = new Game { Id = 1, Title = "G1", Brand = "A", Status = GameStatus.Played, ClearDate = null };
+        var playing = new Game { Id = 2, Title = "G2", Brand = "B", Status = GameStatus.Playing, ClearDate = null };
+        var games = new List<Game> { noDate, playing };
+        var rows = new[] { S(1, "2026-10-05", 5000), S(2, "2026-10-06", 300) };
+        var r = PostReportCalculator.Build(games, rows, From, To, excludeClearedBefore: true);
+        Assert.Equal(300, r.TotalSeconds);
+        Assert.Equal(new long[] { 2 }, r.Works.Select(w => w.GameId));
+        var back = PostReportCalculator.Build(games, rows, From, To, excludeClearedBefore: true, replayGameIds: new HashSet<long> { 1 });
+        Assert.Equal(5300, back.TotalSeconds);
+        Assert.Equal(new long[] { 1 }, PostReportCalculator.ReplayCandidates(games, rows, From, To, new HashSet<long>()).Select(c => c.GameId));
+    }
+
+    [Fact]
+    public void HiddenGameIds_DropAnyGameFromPlayRecordTotals_WithoutTheClearedOption()
+    {
+        var games = new List<Game> { G(1, "A"), G(2, "B") };
+        var rows = new[] { S(1, "2026-10-05", 5000), S(2, "2026-10-06", 300) };
+        var r = PostReportCalculator.Build(games, rows, From, To, hiddenGameIds: new HashSet<long> { 1 });
+        Assert.Equal(300, r.TotalSeconds);
+        Assert.Equal(new long[] { 2 }, r.Works.Select(w => w.GameId));
+        var c = PostReportCalculator.HideCandidates(games, rows, From, To, new HashSet<long> { 1 }, excludeClearedBefore: false);
+        Assert.Equal(new long[] { 1, 2 }, c.Select(x => x.GameId).OrderBy(x => x));
+        Assert.True(c.Single(x => x.GameId == 1).Hidden);
+    }
+
+    [Fact]
+    public void ReplayGameIds_KeepAReplayedGameInTheTotals()
+    {
+        var games = new List<Game> { G(1, "A", 90, new DateTime(2026, 9, 20)), G(2, "B") };
+        var rows = new[] { S(1, "2026-10-05", 5000), S(2, "2026-10-06", 300) };
+        var r = PostReportCalculator.Build(games, rows, From, To, excludeClearedBefore: true, replayGameIds: new HashSet<long> { 1 });
+        Assert.Equal(5300, r.TotalSeconds);
+        Assert.Equal(new long[] { 1, 2 }, r.Works.Select(w => w.GameId));
+    }
+
+    [Fact]
+    public void ExcludeClearedBefore_AlsoAppliesToThePreviousPeriodComparison()
+    {
+        var games = new List<Game> { G(1, "A", 90, new DateTime(2026, 9, 20)), G(2, "B") };
+        var rows = new[] { S(2, "2026-10-06", 300) };
+        var prev = new[] { S(1, "2026-09-25", 4000), S(2, "2026-09-26", 100) }; // 9/1 の起点でなければ、前の期間は 8/31〜9/30
+        var r = PostReportCalculator.Build(games, rows, From, To, excludeClearedBefore: true, previousSessions: prev);
+        Assert.Equal(100, r.PreviousSeconds);
+    }
+
+    [Fact]
+    public void ReplayCandidates_ListPastClearedGamesPlayedInPeriod_AndKeepIncludedOnes()
+    {
+        var games = new List<Game>
+        {
+            G(1, "A", 90, new DateTime(2026, 9, 20)),  // 再プレイ候補
+            G(2, "B", 80, new DateTime(2026, 9, 21)),  // 期間内に記録なし → 候補にしない
+            G(3, "C", 70, new DateTime(2026, 10, 5)),  // 期間内にクリア → 対象外
+            G(4, "D", 60, new DateTime(2026, 8, 1)),   // すでに含めると決めた（記録なしでも残す）
+            G(5, "E"),
+        };
+        var rows = new[] { S(1, "2026-10-05", 600), S(3, "2026-10-06", 300), S(5, "2026-10-07", 100) };
+        var c = PostReportCalculator.ReplayCandidates(games, rows, From, To, new HashSet<long> { 4 });
+        Assert.Equal(new long[] { 1, 4 }, c.Select(x => x.GameId));
+        Assert.False(c[0].Included);
+        Assert.True(c[1].Included);
     }
 
     [Fact]
@@ -146,12 +214,13 @@ public class PostReportTests
     }
 
     [Fact]
-    public void PlayedGameCount_IgnoresTheExcludeClearedOption()
+    public void PlayedGameCount_FollowsTheExcludeClearedOption()
     {
         var games = new List<Game> { G(1, "A", 80, new DateTime(2026, 9, 1)), G(2, "B") };
         var rows = new[] { S(1, "2026-10-05", 600), S(2, "2026-10-06", 600) };
+        Assert.Equal(2, PostReportCalculator.Build(games, rows, From, To).PlayedGameCount);
         var r = PostReportCalculator.Build(games, rows, From, To, excludeClearedBefore: true);
-        Assert.Equal(2, r.PlayedGameCount);
+        Assert.Equal(1, r.PlayedGameCount);
         Assert.Single(r.Works);
     }
 

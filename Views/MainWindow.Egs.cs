@@ -35,9 +35,21 @@ public partial class MainWindow
         var g = Selected;
         if (g == null) return;
 
-        // 得点のチェック（空欄は「未入力」）
+        // 任意評価基準：項目別の採点にエラーがあれば、赤字で知らせて保存しない（批評空間にも送らない）
+        var scoreCheck = CheckScoreItemsForSave();
+        if (scoreCheck == null) return;
+
+        // 得点のチェック（空欄は「未入力」）。項目別の採点があるときは、その合計が得点になる
         int? score = null;
-        var scoreText = ScoreBox.Text.Trim();
+        var scoreText = scoreCheck.AnyEntered ? scoreCheck.Total!.Value.ToString() : ScoreBox.Text.Trim();
+
+        // 得点だけ入れてあった作品に、初めて項目別の点数を入れるときは、得点が合計に置き換わることを確かめる
+        if (scoreCheck.AnyEntered && g.MyScore != null && !ScoreItemRules.HasItemScores(g.Review) && g.MyScore != scoreCheck.Total &&
+            MessageBox.Show($"「{g.Title}」の得点（{g.MyScore}）は、項目の合計（{scoreCheck.Total}）に置き換わります。\n\n" +
+                            "批評空間に反映すると、批評空間側の得点も変わります。\n続けますか？\n（［いいえ］で保存を中止します）",
+                "得点の置き換え", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+
         if (scoreText != "")
         {
             if (!int.TryParse(scoreText, out var sv) || sv < 0 || sv > 100)
@@ -71,6 +83,7 @@ public partial class MainWindow
         // 得点登録フォームのその他の項目
         var review = ReadReviewFromUi(g);
         if (review == null) return;
+        ApplyScoreItemsToReview(review, scoreCheck);
 
         var before = SavedState.Of(g);
         g.Review = review;
@@ -306,6 +319,7 @@ public partial class MainWindow
         // 読み込みが終わってから最新の内容を読む（読み込み中に保存された内容も含める）
         var stats = new SyncStats();
         var resolver = new DialogConflictResolver(this);
+        var scoredBefore = SnapshotScoredGames(); // 任意評価基準：得点が変わって食い違った作品を、あとで知らせる
         foreach (var g in _db.GetAll().Where(x => x.EgsId != null))
         {
             var egsId = g.EgsId!.Value;
@@ -319,6 +333,7 @@ public partial class MainWindow
         _detailDirty = false; // 同期中は詳細欄を編集できないので、読み直してよい
         Reload();
         StatusText.Text = $"同期しました（プレイ済にした作品：{stats.Imported}件、中断にした作品：{stats.Dropped}件、得点を取り込んだ作品：{stats.ScoreImported}件）";
+        ReportScoreMismatches(scoredBefore);
 
         // ---- ツールの内容を批評空間に反映する ----
         var toPush = _db.GetAll().Where(x => x.EgsId != null && x.PendingReview.Count > 0).ToList();
