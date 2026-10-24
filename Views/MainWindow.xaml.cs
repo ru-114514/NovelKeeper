@@ -164,7 +164,10 @@ public partial class MainWindow : Window
     private void Reload()
     {
         var selectedId = Selected?.Id;
+        Game.BacklogExcludedIds = _cfg.BacklogExcludedIds.ToHashSet();
+        Game.PriorityIds = _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
         var every = _db.GetAll();
+        if (BacklogHistory.Record(_cfg.BacklogSnapshots, SummaryExtras.BacklogCount(every, _cfg.BacklogExcludedIds.ToHashSet()), DateTime.Today)) _cfg.Save();
         // 購入前の作品は、設定がオフなら省く（「発売前」「購入前」の絞り込みで選んだときは、設定に関係なく出す）
         // ただし、発売済みで購入確認が必要な作品は、見落とさないよう、設定がオフでも出す
         var all = _cfg.ShowBeforePurchase ? every : every.Where(g => !g.IsBeforePurchase || g.NeedsPurchaseCheck).ToList();

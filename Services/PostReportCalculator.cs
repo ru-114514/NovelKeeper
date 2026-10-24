@@ -70,7 +70,7 @@ public static class PostReportCalculator
         PostBrandMode brandMode = PostBrandMode.MostPlayed, string? specificBrand = null,
         int minBrandGames = DefaultMinBrandGames, bool excludeClearedBefore = false,
         IEnumerable<SessionRow>? previousSessions = null, IReadOnlySet<long>? replayGameIds = null,
-        IReadOnlySet<long>? hiddenGameIds = null)
+        IReadOnlySet<long>? hiddenGameIds = null, IReadOnlySet<long>? backlogExcludedIds = null)
     {
         // 起点の日より前にクリアした作品（再プレイ）は、時間・日数・作品・ブランドなど、プレイ記録の集計すべてから外す
         // （手動で「再プレイとして含める」にした作品は残す）。クリア数・点数・積みゲーは、記録ではなく作品の状態から数える。
@@ -97,7 +97,7 @@ public static class PostReportCalculator
             .Select(s => new PostWork(s.GameId, s.Title, byId.GetValueOrDefault(s.GameId)?.EgsId, s.Seconds))
             .ToList();
 
-        var backlog = games.Count(g => g.Status == GameStatus.Unplayed && g.Category == "");
+        var backlog = SummaryExtras.BacklogCount(games, backlogExcludedIds);
 
         var brands = BrandStats(summary.Games, byId);
 

@@ -203,7 +203,7 @@ public partial class MainWindow
         _post = PostReportCalculator.Build(games, _db.GetSessions(start, end.AddDays(1)), start, end,
             mode, PostBrandBox.SelectedItem as string, excludeClearedBefore: PostExcludeClearedCheck.IsChecked == true,
             previousSessions: previous, replayGameIds: _cfg.PostReplayGameIds.ToHashSet(),
-            hiddenGameIds: _cfg.PostHiddenGameIds.ToHashSet());
+            hiddenGameIds: _cfg.PostHiddenGameIds.ToHashSet(), backlogExcludedIds: _cfg.BacklogExcludedIds.ToHashSet());
         PostHideButton.Content = _cfg.PostHiddenGameIds.Count > 0 ? $"作品を隠す…（{_cfg.PostHiddenGameIds.Count}）" : "作品を隠す…";
         PostReplayButton.IsEnabled = PostExcludeClearedCheck.IsChecked == true;
         RebuildPostReport();
@@ -467,7 +467,8 @@ public partial class MainWindow
                     ? PostValue($"{s:0.#} 点", "クリアした作品の平均")
                     : PostValue("―", "期間内にクリアして得点を付けた作品なし");
             case PostPanelKind.Backlog:
-                return PostValue($"{r.BacklogCount} 本", "未プレイの作品（発売前・購入前を除く）");
+                return PostValue($"{r.BacklogCount} 本",
+                    BacklogHistory.Describe(BacklogHistory.Change(_cfg.BacklogSnapshots, r.From, r.To, r.BacklogCount, DateTime.Today)));
             case PostPanelKind.BestBrand:
                 return BrandValue(r.Brand);
             case PostPanelKind.DaysPlayed:

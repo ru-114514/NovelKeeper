@@ -53,8 +53,8 @@ public static class SummaryExtras
     }
 
     /// <summary>積みゲー（未プレイで、発売前・購入前ではない作品）の本数</summary>
-    public static int BacklogCount(IEnumerable<Game> games) =>
-        games.Count(g => g.Status == GameStatus.Unplayed && g.Category == "");
+    public static int BacklogCount(IEnumerable<Game> games, IReadOnlySet<long>? excluded = null) =>
+        games.Count(g => g.Status == GameStatus.Unplayed && g.Category == "" && (excluded == null || !excluded.Contains(g.Id)));
 
     // ---- 連続プレイ日数 ----
 

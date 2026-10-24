@@ -103,7 +103,23 @@ public class EgsConfig
         while (SortPresets.Count < SortPresetCount) SortPresets.Add(new());
         if (SortPresets.Count > SortPresetCount) SortPresets.RemoveRange(SortPresetCount, SortPresets.Count - SortPresetCount);
         for (var i = 0; i < SortPresets.Count; i++) SortPresets[i] ??= new();
+
+        NextPickFilter ??= new();
+        NextPickPresets ??= new();
+        while (NextPickPresets.Count < SortPresetCount) NextPickPresets.Add(null);
+        if (NextPickPresets.Count > SortPresetCount) NextPickPresets.RemoveRange(SortPresetCount, NextPickPresets.Count - SortPresetCount);
     }
+
+    /// <summary>「積みゲーに数えない」にした未プレイの作品（放置作品の見直しで除外したもの。状態は変えない。作品の ID）</summary>
+    public List<long> BacklogExcludedIds { get; set; } = new();
+
+    /// <summary>積みゲーの本数の記録（日付順。アプリを使った日に1件ずつ残る）</summary>
+    public List<BacklogSnapshot> BacklogSnapshots { get; set; } = new();
+
+    /// <summary>「次の1本」で最後に使った絞り込み条件</summary>
+    public TraitFilter NextPickFilter { get; set; } = new();
+    /// <summary>「次の1本」の保存した条件1〜3（空のものは null）</summary>
+    public List<TraitFilter?> NextPickPresets { get; set; } = new() { null, null, null };
 
     // ---- プレイ時間の計測 ----
     /// <summary>操作がない時間を除外するか</summary>

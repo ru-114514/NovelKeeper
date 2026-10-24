@@ -187,7 +187,10 @@ public partial class MainWindow
         var cleared = SummaryExtras.Cleared(_summaryGames, r.From, r.To);
         var scores = cleared.Where(x => x.Score != null).Select(x => (double)x.Score!.Value).ToList();
         var avg = scores.Count == 0 ? "" : $"（平均点 {scores.Average():0.#}）";
-        title.Text = $"期間内にクリアした作品 {cleared.Count}本{avg}　／　現在の積みゲー {SummaryExtras.BacklogCount(_summaryGames)}本";
+        var backlog = SummaryExtras.BacklogCount(_summaryGames, _cfg.BacklogExcludedIds.ToHashSet());
+        var change = BacklogHistory.Change(_cfg.BacklogSnapshots, r.From, r.To, backlog, DateTime.Today);
+        title.Text = $"期間内にクリアした作品 {cleared.Count}本{avg}　／　現在の積みゲー {backlog}本" +
+                     (change == null ? "" : $"（{BacklogHistory.Describe(change)}）");
 
         if (cleared.Count == 0)
         {

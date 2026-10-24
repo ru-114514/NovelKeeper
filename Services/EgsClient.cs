@@ -144,6 +144,47 @@ public class EgsClient
         return result;
     }
 
+    /// <summary>POV を「特徴」とみなす最小の人数</summary>
+    internal const int TraitMinVotes = 2;
+
+    /// <summary>
+    /// 作品の特徴（ジャンル・総プレイ時間の中央値・POV）をまとめて取得する。
+    /// POV はランクAが一定数以上のものだけを残す
+    /// </summary>
+    public async Task<List<GameTraits>> GetTraitsAsync(IEnumerable<int> ids, Action<int, int>? progress = null)
+    {
+        var all = ids.Distinct().ToList();
+        var result = new List<GameTraits>();
+        var done = 0;
+        foreach (var chunk in all.Chunk(60)) // 批評空間のSQLは10秒で打ち切られるので、小さく分ける
+        {
+            var list = string.Join(",", chunk);
+            var traits = chunk.ToDictionary(id => id, id => new GameTraits { EgsId = id, FetchedAt = DateTime.Now });
+
+            foreach (var r in await QueryAsync($"SELECT id, genre, total_play_time_median FROM gamelist WHERE id IN ({list})"))
+            {
+                if (!int.TryParse(r.GetValueOrDefault("id", ""), out var id) || !traits.TryGetValue(id, out var t)) continue;
+                t.Genre = r.GetValueOrDefault("genre", "").Trim();
+                t.PlayHours = ParseNum(r.GetValueOrDefault("total_play_time_median", ""));
+            }
+            // 「ネガティブ」のPOVは、シナリオに関わる3つ以外は取得しない
+            var kept = string.Join(",", TraitMatcher.KeptNegativePovIds);
+            foreach (var r in await QueryAsync(
+                         $"SELECT t.game AS game, l.title AS title FROM povgroups_toukei t JOIN povlist l ON l.id = t.pov " +
+                         $"WHERE t.game IN ({list}) AND t.rank = 'A' AND t.count >= {TraitMinVotes} " +
+                         $"AND (l.system_group <> 'ネガティブ' OR l.id IN ({kept}))"))
+            {
+                if (int.TryParse(r.GetValueOrDefault("game", ""), out var id) && traits.TryGetValue(id, out var t)
+                    && r.GetValueOrDefault("title", "").Trim() is { Length: > 0 } name && !t.Pov.Contains(name))
+                    t.Pov.Add(name);
+            }
+            result.AddRange(traits.Values);
+            done += chunk.Length;
+            progress?.Invoke(done, all.Count);
+        }
+        return result;
+    }
+
     /// <summary>自分（uid）の userreview から、プレイ済とクリア日を取得する</summary>
     public async Task<List<EgsUserRecord>> GetUserRecordsAsync(string uid)
     {

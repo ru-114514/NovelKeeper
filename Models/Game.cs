@@ -90,12 +90,22 @@ public class Game
 
     public string StatusText => Status switch
     {
-        GameStatus.Unplayed => "未プレイ",
-        GameStatus.Playing => "プレイ中",
+        GameStatus.Unplayed => "未プレイ" + (IsBacklogExcluded ? "・除外" : "") + PriorityMark,
+        GameStatus.Playing => "プレイ中" + PriorityMark,
         GameStatus.Played => "☑ プレイ済",
         GameStatus.Dropped => "中断",
         _ => "",
     };
+
+    /// <summary>「積みゲーに数えない」にした作品の ID（画面側が設定と同じ値にそろえる。一覧の状態に表示する）</summary>
+    public static HashSet<long> BacklogExcludedIds { get; set; } = new();
+
+    /// <summary>投稿設定の「今後優先したい作品」に入れた作品の ID（画面側が設定と同じ値にそろえる）</summary>
+    public static HashSet<long> PriorityIds { get; set; } = new();
+
+    public bool IsBacklogExcluded => BacklogExcludedIds.Contains(Id);
+    public bool IsPriority => PriorityIds.Contains(Id);
+    private string PriorityMark => IsPriority ? " ★優先" : "";
 
     /// <summary>並び替え用の状態の順番：プレイ中 ＞ 未プレイ ＞ 中断（放棄） ＞ プレイ済</summary>
     public int StatusOrder => Status switch
