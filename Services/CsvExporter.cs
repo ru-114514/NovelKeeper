@@ -45,19 +45,33 @@ public static class CsvExporter
         games.Where(g => showBeforePurchase || !g.IsBeforePurchase || g.NeedsPurchaseCheck).ToList();
 
     /// <summary>書き出す列の見出し（画面の「書き出す列」の表示にも使う）</summary>
-    public static IReadOnlyList<string> ColumnNames(bool includeReview = false, IReadOnlyList<ScoreItem>? scoreItems = null) =>
+    public static IReadOnlyList<string> ColumnNames(bool includeReview = false, IReadOnlyList<IReadOnlyList<ScoreItem>>? scoreTemplates = null) =>
         Columns.Where(c => includeReview || !c.Review).Select(c => c.Header)
-            .Concat((scoreItems ?? Array.Empty<ScoreItem>()).Select(ItemHeader)).ToList();
+            .Concat(TemplateColumns(scoreTemplates).Select(c => c.Header)).ToList();
 
-    private static string ItemHeader(ScoreItem i) => $"{i.Name}({i.Max})";
+    /// <summary>
+    /// 任意評価基準の項目別の点数の列。最後に、基準ごとに「評価1_1」「評価1_2」…「評価2_1」…「評価3_1」…の順で、
+    /// 設定した項目の数だけ足す（見出しは「評価1_1(項目名)」。その作品が使っていない基準の欄は空欄）
+    /// </summary>
+    private static List<(string Header, Func<Game, string> Value, bool Review)> TemplateColumns(IReadOnlyList<IReadOnlyList<ScoreItem>>? templates)
+    {
+        var cols = new List<(string, Func<Game, string>, bool)>();
+        if (templates == null) return cols;
+        for (var t = 0; t < templates.Count; t++)
+            for (var k = 0; k < templates[t].Count; k++)
+            {
+                var item = templates[t][k];
+                cols.Add(($"評価{t + 1}_{k + 1}({item.Name})", g => ScoreItemRules.CellText(item, g.Review), false));
+            }
+        return cols;
+    }
 
     /// <summary>作品の並びのまま、CSV の文字列にする</summary>
-    public static string Build(IEnumerable<Game> games, bool includeReview = false, IReadOnlyList<ScoreItem>? scoreItems = null)
+    public static string Build(IEnumerable<Game> games, bool includeReview = false, IReadOnlyList<IReadOnlyList<ScoreItem>>? scoreTemplates = null)
     {
         var cols = Columns.Where(c => includeReview || !c.Review).ToList();
-        // 任意評価基準を使っているときは、購入額の後ろに項目別の点数の列を足す（既存の列の位置は変えない）
-        if (scoreItems != null)
-            cols.AddRange(scoreItems.Select(i => (ItemHeader(i), (Func<Game, string>)(g => ScoreItemRules.CellText(i, g.Review)), false)));
+        // 任意評価基準を使っているときは、最後に項目別の点数の列を足す（既存の列の位置は変えない）
+        cols.AddRange(TemplateColumns(scoreTemplates));
         var sb = new StringBuilder();
         sb.Append(string.Join(",", cols.Select(c => Quote(c.Header)))).Append("\r\n");
         foreach (var g in games)
@@ -80,10 +94,10 @@ public static class CsvExporter
     }
 
     /// <summary>ファイルに書く（BOM 付き UTF-8）。途中で止まっても、書きかけのファイルを残さない</summary>
-    public static void Write(string path, IEnumerable<Game> games, bool includeReview = false, IReadOnlyList<ScoreItem>? scoreItems = null)
+    public static void Write(string path, IEnumerable<Game> games, bool includeReview = false, IReadOnlyList<IReadOnlyList<ScoreItem>>? scoreTemplates = null)
     {
         var tmp = path + ".tmp";
-        File.WriteAllText(tmp, Build(games, includeReview, scoreItems),new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        File.WriteAllText(tmp, Build(games, includeReview, scoreTemplates),new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
         File.Move(tmp, path, overwrite: true);
     }
 

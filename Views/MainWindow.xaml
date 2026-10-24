@@ -292,8 +292,20 @@
                                                 <TextBlock Text="自分の得点（0～100、空欄なら未入力）" Margin="0,8,0,0" />
                                                 <TextBox x:Name="ScoreBox" Margin="0,2,0,0" Width="100" HorizontalAlignment="Left" />
                                                 <!-- 任意評価基準（詳細設定タブでオンにしたときだけ表示。MainWindow.ScoreItems.cs） -->
+                                                <Button x:Name="ScoreItemsOpenButton" Content="任意評価基準…" Click="ScoreCriteria_Click" HorizontalAlignment="Left"
+                                                        Margin="0,4,0,0" Padding="10,2"
+                                                        ToolTip="項目ごとの採点を使うかと、評価基準（最大3つ）を設定します" />
                                                 <StackPanel x:Name="ScoreItemsPanel" Visibility="Collapsed" Margin="0,6,0,0">
-                                                    <TextBlock Text="項目ごとの採点（合計が自分の得点になります）" Opacity="0.8" />
+                                                    <DockPanel>
+                                                        <Button DockPanel.Dock="Right" Content="基準を編集…" Click="ScoreCriteria_Click" Padding="10,2"
+                                                                ToolTip="評価基準（最大3つ）を設定します。項目ごとの採点のオン・オフもここで切り替えられます" />
+                                                        <TextBlock Text="項目ごとの採点（合計が自分の得点になります）" Opacity="0.8" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                    <DockPanel x:Name="ScoreTemplateRow" Margin="0,4,0,0">
+                                                        <TextBlock Text="基準　" VerticalAlignment="Center" />
+                                                        <ComboBox x:Name="ScoreTemplateBox" SelectionChanged="ScoreTemplateBox_SelectionChanged"
+                                                                  ToolTip="この作品に使う評価基準を選びます" />
+                                                    </DockPanel>
                                                     <StackPanel x:Name="ScoreItemRowsDetail" Margin="0,2,0,0" />
                                                     <TextBlock x:Name="ScoreItemsNote" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
                                                     <Button x:Name="ScoreItemsClearButton" Content="項目別の点数を消す" Click="ScoreItemsClear_Click" HorizontalAlignment="Left"
@@ -1121,26 +1133,16 @@
                         <TextBlock Text="任意評価基準" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
                         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,0,0,4"
                                    Text="オンにすると、詳細欄で項目ごとに採点でき、合計が自分の得点に入ります。批評空間に送るのは合計の得点だけです（項目別の点数はツールにだけ残します）。オフにすると、これまでどおり得点欄に直接入力します（項目の設定と点数は消えません）。" />
-                        <CheckBox x:Name="ScoreItemsCheck" Content="項目ごとの採点を使う" Click="ScoreItemsCheck_Click" />
-                        <StackPanel x:Name="ScoreItemsEditor" Margin="0,8,0,0">
-                            <TextBlock Text="項目（名前と最高点。最高点の合計をちょうど 100 にします）" />
-                            <StackPanel x:Name="ScoreItemRows" Margin="0,4,0,0" />
-                            <WrapPanel Margin="0,4,0,0">
-                                <Button Content="＋ 項目を追加" Click="ScoreItemAdd_Click" />
-                                <Button Content="最高点を均等に振り分ける" Click="ScoreItemDistribute_Click" Margin="6,0,0,0" />
-                            </WrapPanel>
-                            <TextBlock x:Name="ScoreItemSum" Margin="0,6,0,0" FontWeight="Bold" />
-                            <TextBlock x:Name="ScoreItemError" Foreground="#E5534B" TextWrapping="Wrap" Margin="0,2,0,0" />
-                            <WrapPanel Margin="0,6,0,0">
-                                <Button x:Name="ScoreItemSaveButton" Content="基準を保存" Click="ScoreItemSave_Click" Padding="14,3" />
-                                <Button Content="元に戻す" Click="ScoreItemRevert_Click" Margin="6,0,0,0" />
-                            </WrapPanel>
-                        </StackPanel>
+                        <WrapPanel>
+                            <CheckBox x:Name="ScoreItemsCheck" Content="項目ごとの採点を使う" Click="ScoreItemsCheck_Click" VerticalAlignment="Center" />
+                            <Button Content="評価基準を設定…" Click="ScoreCriteria_Click" Margin="14,0,0,0" Padding="12,3"
+                                    ToolTip="評価基準を最大3つまで設定します（ジャンルなどで使い分けられます）" />
+                        </WrapPanel>
 
                         <!-- 一覧の列 -->
                         <TextBlock Text="一覧の列" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
                         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,0,0,4"
-                                   Text="☑ を付けた列を表示します。↑↓ で並び順を変えられます（一覧の見出しをドラッグしても変えられます）。タイトル・ブランド・状態・プレイ時間・起動設定は常に表示します。批評空間の項目（平均値・感想など）を追加できます。「任意評価基準」をオンにすると、「採点:項目名」の列（項目ごとの点数）も選べます。一覧を右クリックしても切り替えられます。" />
+                                   Text="☑ を付けた列を表示します。↑↓ で並び順を変えられます（一覧の見出しをドラッグしても変えられます）。タイトル・ブランド・状態・プレイ時間・起動設定は常に表示します。批評空間の項目（平均値・感想など）を追加できます。一覧を右クリックしても切り替えられます。" />
                         <StackPanel Orientation="Horizontal">
                             <ListBox x:Name="ColumnList" Height="260" Width="320">
                                 <ListBox.ItemTemplate>

@@ -29,11 +29,38 @@ public class ScoreCheck
     public bool Ok => Errors.Count == 0;
 }
 
-/// <summary>いま使っている任意評価基準（設定の内容を、一覧などの表示から参照するための置き場）</summary>
+/// <summary>
+/// いま使っている任意評価基準（設定の内容を、一覧などの表示から参照するための置き場）。
+/// 基準は最大 3 つ（ジャンルなどで使い分ける）。作品ごとにどの基準で採点したかを Review.ScoreTemplate に持つ。
+/// 項目が検査に通らない基準は、使えない（空）として扱う
+/// </summary>
 public static class ScoreItemSettings
 {
+    public const int TemplateCount = 3;
+
     public static bool Enabled { get; set; }
-    public static IReadOnlyList<ScoreItem> Items { get; set; } = Array.Empty<ScoreItem>();
+    public static IReadOnlyList<IReadOnlyList<ScoreItem>> Templates { get; set; } = Enumerable.Range(0, TemplateCount).Select(_ => (IReadOnlyList<ScoreItem>)Array.Empty<ScoreItem>()).ToList();
+    public static IReadOnlyList<string> Names { get; set; } = Enumerable.Range(0, TemplateCount).Select(DefaultName).ToList();
+
+    public static string DefaultName(int index) => $"基準{index + 1}";
+
+    public static IReadOnlyList<ScoreItem> ItemsFor(int template) =>
+        template >= 0 && template < Templates.Count ? Templates[template] : Array.Empty<ScoreItem>();
+
+    public static IReadOnlyList<ScoreItem> ItemsFor(Review r) => ItemsFor(r.ScoreTemplate);
+
+    /// <summary>詳細欄で選べる基準（項目がある基準）の番号</summary>
+    public static List<int> UsableTemplates() =>
+        Enumerable.Range(0, Templates.Count).Where(i => Templates[i].Count > 0).ToList();
+
+    /// <summary>全基準の項目（CSV の列など、基準をまたいで使う）</summary>
+    public static List<ScoreItem> AllItems() => Templates.SelectMany(t => t).ToList();
+
+    /// <summary>作品が使う基準の番号。その基準が使えないときは、使える最初の基準にする（なければ 0）</summary>
+    public static int TemplateOf(Review r) =>
+        ItemsFor(r.ScoreTemplate).Count > 0 ? r.ScoreTemplate : UsableTemplates().DefaultIfEmpty(0).First();
+
+    public static string NameOf(int template) => template >= 0 && template < Names.Count ? Names[template] : DefaultName(template);
 }
 
 /// <summary>任意評価基準の規則（画面にも DB にも触れないので、そのままテストできる）</summary>

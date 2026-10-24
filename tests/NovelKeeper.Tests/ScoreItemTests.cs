@@ -243,6 +243,74 @@ public class ScoreItemTests
         Assert.Equal("x", back.Hitokoto);
     }
 
+    // ---- 基準を最大3つ使い分ける ----
+
+    [Fact]
+    public void Review_ScoreTemplate_DefaultsToFirst_AndSurvivesJsonAndClone()
+    {
+        Assert.Equal(0, System.Text.Json.JsonSerializer.Deserialize<Review>("{\"Hitokoto\":\"x\"}")!.ScoreTemplate); // 古い記録は基準1
+        var r = new Review { ScoreTemplate = 2 };
+        Assert.Equal(2, r.Clone().ScoreTemplate);
+        Assert.Equal(2, System.Text.Json.JsonSerializer.Deserialize<Review>(System.Text.Json.JsonSerializer.Serialize(r))!.ScoreTemplate);
+        Assert.Empty(Review.Diff(new Review(), r)); // 基準の番号は、批評空間に送る変更ではない
+    }
+
+    [Fact]
+    public void Config_TemplateItemsAndNames_FallBackToDefaults()
+    {
+        var cfg = new EgsConfig();
+        cfg.SetScoreItems(1, L(I("x", "A", 100)));
+        Assert.Single(cfg.ScoreItemsOf(1));
+        Assert.Empty(cfg.ScoreItemsOf(2));
+        Assert.Equal("基準1", cfg.ScoreTemplateName(0));
+        cfg.ScoreTemplateNames = ["", "ADV用", " "];
+        Assert.Equal(["基準1", "ADV用", "基準3"], Enumerable.Range(0, 3).Select(cfg.ScoreTemplateName));
+    }
+
+    [Fact]
+    public void Settings_UsesTheWorksOwnTemplate_AndFallsBackToTheFirstUsableOne()
+    {
+        var old = (ScoreItemSettings.Templates, ScoreItemSettings.Names);
+        try
+        {
+            ScoreItemSettings.Templates = [Array.Empty<ScoreItem>(), L(I("p", "物語", 100)), L(I("q", "戦闘", 60), I("r", "演出", 40))];
+            Assert.Equal([1, 2], ScoreItemSettings.UsableTemplates());
+            Assert.Equal(2, ScoreItemSettings.TemplateOf(new Review { ScoreTemplate = 2 }));
+            Assert.Equal(1, ScoreItemSettings.TemplateOf(new Review { ScoreTemplate = 0 })); // 基準1は未使用 → 使える最初の基準
+            Assert.Equal(["物語", "戦闘", "演出"], ScoreItemSettings.AllItems().Select(i => i.Name));
+
+            // 作品が使う基準の項目で、採点し直しの要否を判定する
+            var r = new Review { ScoreTemplate = 2, ItemScores = new() { ["q"] = 50, ["r"] = 30 }, ItemBasis = new() { ["q"] = new("戦闘", 60), ["r"] = new("演出", 40) } };
+            var g = new Game { Review = r };
+            ScoreItemSettings.Enabled = true;
+            Assert.False(g.ScoreNeedsRescore);
+            r.ScoreTemplate = 1; // 別の基準の項目には、この点数の項目がない
+            Assert.True(g.ScoreNeedsRescore);
+        }
+        finally
+        {
+            (ScoreItemSettings.Templates, ScoreItemSettings.Names) = old;
+            ScoreItemSettings.Enabled = false;
+        }
+    }
+
+    [Fact]
+    public void Csv_AddsNumberedColumnsPerTemplateAtTheEnd_ByTheNumberOfItems()
+    {
+        var t1 = L(I("a", "シナリオ", 50), I("b", "絵", 50));
+        var t2 = L();
+        var t3 = L(I("c", "戦闘", 60), I("d", "演出", 20), I("e", "音", 20));
+        IReadOnlyList<IReadOnlyList<ScoreItem>> templates = [t1, t2, t3];
+        var g1 = new Game { Id = 1, Title = "A", Review = new Review { ItemScores = new() { ["a"] = 40, ["b"] = 30 } } };
+        var g3 = new Game { Id = 2, Title = "B", Review = new Review { ScoreTemplate = 2, ItemScores = new() { ["c"] = 45, ["d"] = 10, ["e"] = 15 } } };
+        var lines = CsvExporter.Build([g1, g3], false, templates).Split("\r\n");
+        Assert.EndsWith("購入額(円),評価1_1(シナリオ),評価1_2(絵),評価3_1(戦闘),評価3_2(演出),評価3_3(音)", lines[0]); // 項目のない基準2の列は作らない
+        Assert.EndsWith(",40,30,,,", lines[1]);
+        Assert.EndsWith(",,,45,10,15", lines[2]);
+        Assert.Equal(CsvExporter.ColumnNames(false, templates).Count, lines[0].Split(',').Length);
+    }
+
+
     // ---- CSV ----
 
     [Fact]
@@ -252,8 +320,8 @@ public class ScoreItemTests
         var without = CsvExporter.Build([g]).Split("\r\n")[0];
         Assert.EndsWith("購入額(円)", without);
 
-        var with = CsvExporter.Build([g], false, Items).Split("\r\n");
-        Assert.EndsWith("購入額(円),シナリオ(40),絵(30),音楽(30)", with[0]);
+        var with = CsvExporter.Build([g], false, [Items]).Split("\r\n");
+        Assert.EndsWith("購入額(円),評価1_1(シナリオ),評価1_2(絵),評価1_3(音楽)", with[0]);
         Assert.EndsWith(",35,20,25", with[1]);
     }
 
@@ -261,7 +329,7 @@ public class ScoreItemTests
     public void Csv_ItemColumns_AreBlankForScoreOnlyGames()
     {
         var g = new Game { Id = 1, Title = "T", MyScore = 80 };
-        var line = CsvExporter.Build([g], false, Items).Split("\r\n")[1];
+        var line = CsvExporter.Build([g], false, [Items]).Split("\r\n")[1];
         Assert.EndsWith(",,,", line);
     }
 }

@@ -43,6 +43,8 @@ public class Review
     public Dictionary<string, int>? ItemScores { get; set; }
     /// <summary>採点したときの項目の名前と最高点（項目の ID → 内容）。基準が変わったかを見分けるために残す</summary>
     public Dictionary<string, ScoreBasis>? ItemBasis { get; set; }
+    /// <summary>項目別の採点に使う基準の番号（0〜2。既存の作品は 0＝基準1）。ツールだけに保存する</summary>
+    public int ScoreTemplate { get; set; }
 
     /// <summary>クリア数の集計（レポート・目標・投稿設定）から除外する。過去にクリアして記録を忘れた作品など向け。ツールだけに保存し、批評空間には送らない</summary>
     public bool ExcludeFromClearCount { get; set; }

@@ -46,7 +46,7 @@ public class StaleReviewWindow : Window
 
         var head = new TextBlock
         {
-            Text = "長く遊んでいないプレイ中の作品と、発売から時間がたっても未プレイの作品です。作品ごとに選んで「反映する」を押します（選ばなければ「継続」でそのままです）。\n" +
+            Text = "長く遊んでいないプレイ中の作品と、登録から時間がたっても未プレイの作品です。作品ごとに選んで「反映する」を押します（選ばなければ「継続」でそのままです）。\n" +
                    "・優先：投稿設定の「今後優先したい作品」に入れます　・除外（未プレイ）：状態は変えず、積みゲーの本数に数えません　・中断（プレイ中）：状態を「中断」にします（批評空間へは次の同期で反映）",
             TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8),
         };
@@ -56,7 +56,7 @@ public class StaleReviewWindow : Window
         var cond = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         cond.Children.Add(Label("プレイ中：最後に遊んでから"));
         cond.Children.Add(_days);
-        cond.Children.Add(Label("日以上　　未プレイ：発売から"));
+        cond.Children.Add(Label("日以上　　未プレイ：登録から"));
         cond.Children.Add(_years);
         cond.Children.Add(Label("年以上"));
         var show = new Button { Content = "再表示", Margin = new Thickness(12, 0, 0, 0), Padding = new Thickness(10, 3, 10, 3) };

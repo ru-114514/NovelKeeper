@@ -136,7 +136,6 @@ public partial class MainWindow : Window
         GameGrid.CellStyle = RowColorStyle();
 
         // 「得点」列の赤い枠は、列のテンプレート（MainWindow.xaml）で表示する
-        ApplyScoreColumnStyles(RowColorStyle);
 
         // 「購入確認」列：購入確認が必要な作品のセルを赤く塗る（選択中の行でも赤のまま）
         var check = GameGrid.Columns.FirstOrDefault(c => ColumnKey(c) == "購入確認");

@@ -1,7 +1,5 @@
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Media;
 using ErogeLauncher.Models;
 using ErogeLauncher.Services;
@@ -9,12 +7,12 @@ using ErogeLauncher.Services;
 namespace ErogeLauncher.Views;
 
 /// <summary>
-/// 任意評価基準：設定タブの項目の編集、詳細欄の項目別の採点、一覧の項目の列。
+/// 任意評価基準：設定（ScoreCriteriaWindow）の反映、詳細欄の項目別の採点、一覧の項目の列。
+/// 基準は最大 3 つで、作品ごとに使う基準を詳細欄で選ぶ（Review.ScoreTemplate）。
 /// 批評空間に送るのは、これまでどおり「自分の得点」（項目の合計）だけ。項目別の点数はツールにだけ保存する
 /// </summary>
 public partial class MainWindow
 {
-    private const string ScoreColumnPrefix = "採点:";
     private static readonly Brush ErrorBrush = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x4B));
 
     // ================================================================
@@ -24,152 +22,60 @@ public partial class MainWindow
     /// <summary>設定の内容を、表示から参照する置き場（ScoreItemSettings）に写す</summary>
     private void ApplyScoreItemSettings()
     {
-        ScoreItemSettings.Enabled = _cfg.ScoreItemsEnabled && ScoreItemRules.ValidateTemplate(_cfg.ScoreItems) == null;
-        ScoreItemSettings.Items = _cfg.ScoreItems.ToList();
+        // 検査に通らない基準は、使えない（空）として扱う
+        var templates = Enumerable.Range(0, ScoreItemSettings.TemplateCount)
+            .Select(i => (IReadOnlyList<ScoreItem>)(ScoreItemRules.ValidateTemplate(_cfg.ScoreItemsOf(i)) == null
+                ? _cfg.ScoreItemsOf(i).ToList()
+                : new List<ScoreItem>()))
+            .ToList();
+        ScoreItemSettings.Templates = templates;
+        ScoreItemSettings.Names = Enumerable.Range(0, ScoreItemSettings.TemplateCount).Select(_cfg.ScoreTemplateName).ToList();
+        ScoreItemSettings.Enabled = _cfg.ScoreItemsEnabled && templates.Any(t => t.Count > 0);
     }
 
     private void InitScoreItems()
     {
         ApplyScoreItemSettings();
+        SyncScoreItemsCheck();
+    }
+
+    private void SyncScoreItemsCheck()
+    {
         _loadingSettings = true;
         ScoreItemsCheck.IsChecked = ScoreItemSettings.Enabled;
         _loadingSettings = false;
-        LoadScoreItemEditor();
-        RebuildScoreItemColumns();
     }
 
     // ================================================================
-    // 設定タブ：項目の編集
+    // 設定：評価基準のウィンドウと、オン・オフ
     // ================================================================
 
-    private sealed class ScoreItemRow
+    /// <summary>評価基準（最大3つ）の設定ウィンドウを開く（詳細設定タブと、詳細欄のボタンから）</summary>
+    private void ScoreCriteria_Click(object sender, RoutedEventArgs e)
     {
-        public required string Id { get; init; }
-        public required TextBox NameBox { get; init; }
-        public required TextBox MaxBox { get; init; }
-    }
-
-    private readonly List<ScoreItemRow> _scoreItemRows = new();
-    private bool _scoreEditorLoading;
-
-    private void LoadScoreItemEditor()
-    {
-        _scoreEditorLoading = true;
-        ScoreItemRows.Children.Clear();
-        _scoreItemRows.Clear();
-        foreach (var item in _cfg.ScoreItems) AddScoreItemRow(item.Id, item.Name, item.Max.ToString());
-        _scoreEditorLoading = false;
-        UpdateScoreItemSum();
-    }
-
-    private void AddScoreItemRow(string id, string name, string max)
-    {
-        var nameBox = new TextBox { Width = 200, Text = name, MaxLength = 20, VerticalContentAlignment = VerticalAlignment.Center };
-        var maxBox = new TextBox { Width = 50, Text = max, MaxLength = 3, Margin = new Thickness(6, 0, 0, 0), VerticalContentAlignment = VerticalAlignment.Center };
-        var remove = new Button { Content = "✕", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(8, 0, 8, 0), ToolTip = "この項目を削除" };
-        var row = new ScoreItemRow { Id = id, NameBox = nameBox, MaxBox = maxBox };
-        nameBox.TextChanged += (_, _) => UpdateScoreItemSum();
-        maxBox.TextChanged += (_, _) => UpdateScoreItemSum();
-        remove.Click += (_, _) =>
-        {
-            _scoreItemRows.Remove(row);
-            ScoreItemRows.Children.Remove((UIElement)remove.Parent);
-            UpdateScoreItemSum();
-        };
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 3) };
-        panel.Children.Add(nameBox);
-        panel.Children.Add(maxBox);
-        panel.Children.Add(new TextBlock { Text = "点満点", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0), Opacity = 0.7 });
-        panel.Children.Add(remove);
-        ScoreItemRows.Children.Add(panel);
-        _scoreItemRows.Add(row);
-    }
-
-    /// <summary>編集中の項目（最高点が数字でないものは 0 として扱い、検査でエラーにする）</summary>
-    private List<ScoreItem> ReadScoreItemDraft() =>
-        _scoreItemRows.Select(r => new ScoreItem
-        {
-            Id = r.Id,
-            Name = r.NameBox.Text.Trim(),
-            Max = int.TryParse(r.MaxBox.Text.Trim(), out var m) ? m : 0,
-        }).ToList();
-
-    private void UpdateScoreItemSum()
-    {
-        if (_scoreEditorLoading) return;
-        var draft = ReadScoreItemDraft();
-        var sum = ScoreItemRules.Sum(draft);
-        var remain = ScoreItemRules.TotalMax - sum;
-        ScoreItemSum.Text = $"最高点の合計：{sum} / {ScoreItemRules.TotalMax}" + (remain > 0 ? $"（あと {remain}）" : remain < 0 ? $"（{-remain} 超過）" : "");
-        var error = ScoreItemRules.ValidateTemplate(draft);
-        ScoreItemError.Text = error ?? "";
-        ScoreItemSum.Foreground = error == null ? Brushes.ForestGreen : ErrorBrush;
-        ScoreItemSaveButton.IsEnabled = error == null;
-    }
-
-    private void ScoreItemAdd_Click(object sender, RoutedEventArgs e)
-    {
-        if (_scoreItemRows.Count >= ScoreItemRules.MaxItems)
-        {
-            ScoreItemError.Text = $"項目は {ScoreItemRules.MaxItems} 個までです。";
-            return;
-        }
-        AddScoreItemRow(Guid.NewGuid().ToString("N")[..8], "", "");
-        UpdateScoreItemSum();
-        _scoreItemRows[^1].NameBox.Focus();
-    }
-
-    private void ScoreItemDistribute_Click(object sender, RoutedEventArgs e)
-    {
-        var parts = ScoreItemRules.Distribute(_scoreItemRows.Count);
-        _scoreEditorLoading = true;
-        for (var i = 0; i < parts.Length; i++) _scoreItemRows[i].MaxBox.Text = parts[i].ToString();
-        _scoreEditorLoading = false;
-        UpdateScoreItemSum();
-    }
-
-    private void ScoreItemRevert_Click(object sender, RoutedEventArgs e) => LoadScoreItemEditor();
-
-    private void ScoreItemSave_Click(object sender, RoutedEventArgs e)
-    {
-        var draft = ReadScoreItemDraft();
-        if (ScoreItemRules.ValidateTemplate(draft) is { } error)
-        {
-            ScoreItemError.Text = error;
-            return;
-        }
-        if (_detailDirty && ScoreItemSettings.Enabled &&
-            MessageBox.Show(this, "詳細欄に、保存していない変更があります。\n基準を保存すると、その変更は破棄されます。続けますか？",
-                "未保存の変更", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
-            return;
-
-        // 基準を変えると、採点済みの作品のうち何本が「採点し直し」の対象になるかを知らせる（得点は変えない）
-        var affected = _db.GetAll().Where(g => ScoreItemRules.NeedsRescore(draft, g.Review)).ToList();
-        if (affected.Count > 0 &&
-            MessageBox.Show(this, $"この基準では、項目別に採点済みの {affected.Count} 本が「採点し直し」の対象になります。\n\n" +
-                                  "・各作品の得点は変わりません（批評空間にも送りません）\n" +
-                                  "・一覧の項目の列で、変わった項目が赤く表示されます\n" +
-                                  "・作品を開いて採点し直して保存すると、赤い表示が消えます\n\n保存しますか？",
-                "任意評価基準", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-            return;
-
-        _cfg.ScoreItems = draft;
-        _cfg.Save();
+        var win = new ScoreCriteriaWindow(this, _cfg, () => _db.GetAll(), ConfirmDiscardDetailForCriteria);
+        win.ShowDialog();
+        if (!win.Changed) return;
         ApplyScoreItemSettings();
-        LoadScoreItemEditor();
-        RebuildScoreItemColumns();
+        SyncScoreItemsCheck();
         RefreshAfterScoreItemsChanged();
         StatusText.Text = "任意評価基準を保存しました";
     }
+
+    /// <summary>基準を保存すると詳細欄を読み直すので、未保存の変更があれば破棄してよいか聞く</summary>
+    private bool ConfirmDiscardDetailForCriteria() =>
+        !(_detailDirty && ScoreItemSettings.Enabled) ||
+        MessageBox.Show(this, "詳細欄に、保存していない変更があります。\n基準を保存すると、その変更は破棄されます。続けますか？",
+            "未保存の変更", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
 
     private void ScoreItemsCheck_Click(object sender, RoutedEventArgs e)
     {
         if (_loadingSettings) return;
         var on = ScoreItemsCheck.IsChecked == true;
-        if (on && ScoreItemRules.ValidateTemplate(_cfg.ScoreItems) is { } error)
+        if (on && Enumerable.Range(0, ScoreItemSettings.TemplateCount).All(i => ScoreItemRules.ValidateTemplate(_cfg.ScoreItemsOf(i)) != null))
         {
             ScoreItemsCheck.IsChecked = false;
-            MessageBox.Show(this, "先に、下の項目を設定して「基準を保存」を押してください。\n\n" + error, "任意評価基準");
+            MessageBox.Show(this, "先に「評価基準を設定…」で、項目を設定して保存してください。", "任意評価基準");
             return;
         }
         if (_detailDirty &&
@@ -182,7 +88,6 @@ public partial class MainWindow
         _cfg.ScoreItemsEnabled = on;
         _cfg.Save();
         ApplyScoreItemSettings();
-        RebuildScoreItemColumns();
         RefreshAfterScoreItemsChanged();
         StatusText.Text = on ? "項目ごとの採点を使います" : "項目ごとの採点をオフにしました（項目の設定と点数は残してあります）";
     }
@@ -202,64 +107,32 @@ public partial class MainWindow
     private readonly Dictionary<string, TextBlock> _detailScoreErrors = new();
     private readonly HashSet<string> _detailScoreTouched = new();
     private bool _buildingScoreRows;
+    private bool _loadingTemplateBox;
+    /// <summary>詳細欄に出している作品の、採点に使う基準の番号</summary>
+    private int _detailTemplate;
+
+    /// <summary>詳細欄で採点に使っている基準の項目</summary>
+    private IReadOnlyList<ScoreItem> DetailScoreItems => ScoreItemSettings.ItemsFor(_detailTemplate);
 
     /// <summary>作品を表示するときに、項目別の採点の欄を作る（オフのときは出さない）</summary>
     private void ShowScoreItems(Game? g)
     {
-        ScoreItemRowsDetail.Children.Clear();
-        _detailScoreBoxes.Clear();
-        _detailScoreErrors.Clear();
-        _detailScoreTouched.Clear();
+        ClearScoreRows();
         ScoreItemsNote.Visibility = Visibility.Collapsed;
         ScoreItemsClearButton.Visibility = Visibility.Collapsed;
         var on = ScoreItemSettings.Enabled && g != null;
         ScoreItemsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        ScoreItemsOpenButton.Visibility = on ? Visibility.Collapsed : Visibility.Visible; // オフのときも、設定の入口は出す
         ScoreBox.IsReadOnly = false;
         if (!on) return;
 
-        var items = ScoreItemSettings.Items;
         var review = g!.Review;
-        var stale = ScoreItemRules.StaleItems(items, review);
-        _buildingScoreRows = true;
-        foreach (var item in items)
-        {
-            var isStale = stale.Contains(item.Id);
-            var name = new TextBlock
-            {
-                Text = item.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-                ToolTip = isStale ? "採点基準が変わりました。採点し直してください" : item.Name,
-            };
-            if (isStale) { name.Foreground = ErrorBrush; name.FontWeight = FontWeights.Bold; }
-            var box = new TextBox { Width = 100, Text = review.ItemScores != null && review.ItemScores.TryGetValue(item.Id, out var v) ? v.ToString() : "", MaxLength = 3 };
-            if (isStale) box.BorderBrush = ErrorBrush;
-            var max = new TextBlock { Text = $"/ {item.Max}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), Opacity = 0.7 };
-            var grid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(box, 1);
-            Grid.SetColumn(max, 2);
-            grid.Children.Add(name);
-            grid.Children.Add(box);
-            grid.Children.Add(max);
-            var error = new TextBlock { Foreground = ErrorBrush, FontSize = 12, TextAlignment = TextAlignment.Right, Visibility = Visibility.Collapsed };
-
-            var id = item.Id;
-            box.TextChanged += (_, _) =>
-            {
-                if (_buildingScoreRows) return;
-                _detailScoreTouched.Add(id);
-                if (!_loadingDetail) _detailDirty = true;
-                UpdateDetailScoreTotal(showMissing: false);
-            };
-            ScoreItemRowsDetail.Children.Add(grid);
-            ScoreItemRowsDetail.Children.Add(error);
-            _detailScoreBoxes[item.Id] = box;
-            _detailScoreErrors[item.Id] = error;
-        }
-        _buildingScoreRows = false;
+        _detailTemplate = ScoreItemSettings.TemplateOf(review);
+        FillTemplateBox();
+        BuildScoreRows(review, carry: null);
 
         // 項目別の採点がある作品は、得点欄を合計の表示専用にする
+        var items = DetailScoreItems;
         var has = ScoreItemRules.HasItemScores(review);
         ScoreBox.IsReadOnly = has;
         var notes = new List<string>();
@@ -277,8 +150,115 @@ public partial class MainWindow
         ScoreItemsClearButton.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void ClearScoreRows()
+    {
+        ScoreItemRowsDetail.Children.Clear();
+        _detailScoreBoxes.Clear();
+        _detailScoreErrors.Clear();
+        _detailScoreTouched.Clear();
+    }
+
+    /// <summary>基準の選択欄を作る（使える基準が 2 つ以上のときだけ出す）</summary>
+    private void FillTemplateBox()
+    {
+        _loadingTemplateBox = true;
+        ScoreTemplateBox.Items.Clear();
+        var usable = ScoreItemSettings.UsableTemplates();
+        foreach (var i in usable)
+            ScoreTemplateBox.Items.Add(new ComboBoxItem { Content = ScoreItemSettings.NameOf(i), Tag = i });
+        ScoreTemplateBox.SelectedIndex = usable.IndexOf(_detailTemplate);
+        ScoreTemplateRow.Visibility = usable.Count >= 2 ? Visibility.Visible : Visibility.Collapsed;
+        _loadingTemplateBox = false;
+    }
+
+    /// <summary>
+    /// 採点の欄を作る。carry（項目の名前 → 入力した文字）があれば、同じ名前の項目に引き継ぐ（基準を切り替えたとき）。
+    /// なければ、作品に保存してある点数を入れる
+    /// </summary>
+    private void BuildScoreRows(Review review, Dictionary<string, string>? carry)
+    {
+        var items = DetailScoreItems;
+        var ownTemplate = _detailTemplate == ScoreItemSettings.TemplateOf(review);
+        var stale = ownTemplate ? ScoreItemRules.StaleItems(items, review) : new HashSet<string>();
+        _buildingScoreRows = true;
+        foreach (var item in items)
+        {
+            var isStale = stale.Contains(item.Id);
+            var name = new TextBlock
+            {
+                Text = item.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = isStale ? "採点基準が変わりました。採点し直してください" : item.Name,
+            };
+            if (isStale) { name.Foreground = ErrorBrush; name.FontWeight = FontWeights.Bold; }
+            var text = carry != null
+                ? carry.GetValueOrDefault(item.Name) ?? ""
+                : ownTemplate && review.ItemScores != null && review.ItemScores.TryGetValue(item.Id, out var v) ? v.ToString() : "";
+            var box = new TextBox { Width = 100, Text = text, MaxLength = 3 };
+            if (isStale) box.BorderBrush = ErrorBrush;
+            var max = new TextBlock { Text = $"/ {item.Max}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), Opacity = 0.7 };
+            var grid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(box, 1);
+            Grid.SetColumn(max, 2);
+            grid.Children.Add(name);
+            grid.Children.Add(box);
+            grid.Children.Add(max);
+            var error = new TextBlock { Foreground = ErrorBrush, FontSize = 12, TextAlignment = TextAlignment.Right, Visibility = Visibility.Collapsed };
+
+            var id = item.Id;
+            if (carry != null && text != "") _detailScoreTouched.Add(id);
+            box.TextChanged += (_, _) =>
+            {
+                if (_buildingScoreRows) return;
+                _detailScoreTouched.Add(id);
+                if (!_loadingDetail) _detailDirty = true;
+                UpdateDetailScoreTotal(showMissing: false);
+            };
+            ScoreItemRowsDetail.Children.Add(grid);
+            ScoreItemRowsDetail.Children.Add(error);
+            _detailScoreBoxes[item.Id] = box;
+            _detailScoreErrors[item.Id] = error;
+        }
+        _buildingScoreRows = false;
+    }
+
+    /// <summary>この作品に使う基準を切り替える：同じ名前の項目の点数は引き継ぎ、ほかは空欄にする</summary>
+    private void ScoreTemplateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingTemplateBox || Selected is not { } g) return;
+        if (ScoreTemplateBox.SelectedItem is not ComboBoxItem { Tag: int target } || target == _detailTemplate) return;
+
+        var current = DetailScoreItems;
+        var carry = new Dictionary<string, string>();
+        foreach (var item in current)
+            if (_detailScoreBoxes.TryGetValue(item.Id, out var box) && box.Text.Trim() != "") carry[item.Name] = box.Text.Trim();
+        if (carry.Count > 0)
+        {
+            var lost = current.Count(i => carry.ContainsKey(i.Name) && ScoreItemSettings.ItemsFor(target).All(t => t.Name != i.Name));
+            var msg = "基準を切り替えます。同じ名前の項目の点数は引き継ぎ、ほかの項目は空欄になります。" +
+                      (lost > 0 ? $"\n（引き継げない点数が {lost} 件あります）" : "") + "\n\n切り替えますか？";
+            if (MessageBox.Show(this, msg, "評価基準の切り替え", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes) != MessageBoxResult.Yes)
+            {
+                _loadingTemplateBox = true;
+                ScoreTemplateBox.SelectedIndex = ScoreItemSettings.UsableTemplates().IndexOf(_detailTemplate);
+                _loadingTemplateBox = false;
+                return;
+            }
+        }
+
+        _detailTemplate = target;
+        ClearScoreRows();
+        BuildScoreRows(g.Review, carry);
+        ScoreItemsNote.Visibility = Visibility.Collapsed;
+        ScoreItemsClearButton.Visibility = Visibility.Collapsed;
+        if (!_loadingDetail) _detailDirty = true;
+        UpdateDetailScoreTotal(showMissing: false);
+    }
+
     private ScoreCheck ReadScoreCheck() =>
-        ScoreItemRules.Check(ScoreItemSettings.Items, _detailScoreBoxes.ToDictionary(kv => kv.Key, kv => kv.Value.Text));
+        ScoreItemRules.Check(DetailScoreItems, _detailScoreBoxes.ToDictionary(kv => kv.Key, kv => kv.Value.Text));
 
     /// <summary>入力に合わせて、合計を得点欄に入れ、エラーを赤字で出す</summary>
     private void UpdateDetailScoreTotal(bool showMissing)
@@ -335,92 +315,8 @@ public partial class MainWindow
     private void ApplyScoreItemsToReview(Review review, ScoreCheck check)
     {
         if (!ScoreItemSettings.Enabled) return; // オフの間は、項目別の点数をそのまま残す
-        ScoreItemRules.Apply(review, ScoreItemSettings.Items, check, _detailScoreTouched);
-    }
-
-    // ================================================================
-    // 一覧：項目の列と赤い表示
-    // ================================================================
-    // 実行中に列を足したり消したりすると、一覧の表示が壊れて例外になる（DataGrid の制限）。
-    // そのため、項目の列は起動時に最大数ぶんを作っておき、使わない列は隠して、見出しと中身だけを入れ替える。
-
-    private sealed class ScoreCellConverter : IValueConverter
-    {
-        public string ItemId { get; set; } = "";
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-            value is Game g && ScoreItemSettings.Items.FirstOrDefault(i => i.Id == ItemId) is { } item
-                ? ScoreItemRules.CellText(item, g.Review) : "";
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
-    }
-
-    private sealed class ScoreStaleConverter : IValueConverter
-    {
-        public string ItemId { get; set; } = "";
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-            ItemId != "" && value is Game g && ScoreItemSettings.Enabled &&
-            ScoreItemRules.StaleItems(ScoreItemSettings.Items, g.Review).Contains(ItemId);
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
-    }
-
-    private sealed record ScoreSlot(DataGridTextColumn Column, ScoreCellConverter Cell, ScoreStaleConverter Stale);
-
-    private readonly List<ScoreSlot> _scoreSlots = new();
-
-    /// <summary>項目の列（最大数ぶん）を、「得点」の列のすぐ後ろに作っておく（画面が出る前に1回だけ）</summary>
-    private void EnsureScoreSlots()
-    {
-        if (_scoreSlots.Count > 0) return;
-        var at = GameGrid.Columns.ToList().FindIndex(c => ColumnKey(c) == "得点") + 1;
-        for (var i = 0; i < ScoreItemRules.MaxItems; i++)
-        {
-            var cell = new ScoreCellConverter();
-            var stale = new ScoreStaleConverter();
-            var column = new DataGridTextColumn
-            {
-                Header = "", Width = 80, CanUserSort = false, Visibility = Visibility.Collapsed,
-                Binding = new Binding(".") { Converter = cell },
-            };
-            GameGrid.Columns.Insert(Math.Min(at + i, GameGrid.Columns.Count), column);
-            _scoreSlots.Add(new ScoreSlot(column, cell, stale));
-        }
-    }
-
-    /// <summary>オン／項目の変更に合わせて、一覧の「採点:項目名」の列の見出しと中身を入れ替える（初期は非表示。「一覧の列」で表示する）</summary>
-    private void RebuildScoreItemColumns()
-    {
-        EnsureScoreSlots();
-        var items = ScoreItemSettings.Enabled ? ScoreItemSettings.Items : Array.Empty<ScoreItem>();
-        for (var i = 0; i < _scoreSlots.Count; i++)
-        {
-            var slot = _scoreSlots[i];
-            var used = i < items.Count;
-            slot.Cell.ItemId = used ? items[i].Id : "";
-            slot.Stale.ItemId = used ? items[i].Id : "";
-            slot.Column.Header = used ? ScoreColumnPrefix + items[i].Name : "";
-            if (!used) slot.Column.Visibility = Visibility.Collapsed;
-        }
-        ApplyCategoryColors();
-        ApplyColumnLayout();
-        InitColumnList();
-        GameGrid.Items.Refresh();
-    }
-
-    /// <summary>項目の列の赤い表示（基準が変わったのに、採点し直していない項目）</summary>
-    private void ApplyScoreColumnStyles(Func<Style> rowStyle)
-    {
-        foreach (var slot in _scoreSlots)
-        {
-            var style = rowStyle();
-            var red = new DataTrigger { Binding = new Binding(".") { Converter = slot.Stale }, Value = true };
-            // 「得点」「起動設定」の欄と同じ、赤い枠と薄い赤の塗り
-            red.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x33, 0xE5, 0x53, 0x4B))));
-            red.Setters.Add(new Setter(Control.BorderBrushProperty, ErrorBrush));
-            red.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
-            red.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.Bold));
-            red.Setters.Add(new Setter(FrameworkElement.ToolTipProperty, "登録後に基準を変更しています。採点し直してください。"));
-            style.Triggers.Add(red);
-            slot.Column.CellStyle = style;
-        }
+        ScoreItemRules.Apply(review, DetailScoreItems, check, _detailScoreTouched);
+        review.ScoreTemplate = _detailTemplate;
     }
 
     // ================================================================

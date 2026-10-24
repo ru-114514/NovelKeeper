@@ -224,8 +224,25 @@ public class EgsConfig
     /// <summary>任意評価基準を使うか（オフでも、設定した項目と作品ごとの項目別の点数は残す）</summary>
     public bool ScoreItemsEnabled { get; set; }
 
-    /// <summary>任意評価基準の項目（最高点の合計はちょうど 100）</summary>
+    /// <summary>任意評価基準の項目（最高点の合計はちょうど 100）。基準1（これまでの設定はここに入っている）</summary>
     public List<ScoreItem> ScoreItems { get; set; } = new();
+    /// <summary>基準2・基準3の項目（使わなければ空）</summary>
+    public List<ScoreItem> ScoreItems2 { get; set; } = new();
+    public List<ScoreItem> ScoreItems3 { get; set; } = new();
+    /// <summary>基準1〜3の名前（空なら「基準1」などの初期名）</summary>
+    public List<string> ScoreTemplateNames { get; set; } = new();
+
+    /// <summary>基準 index（0〜2）の項目</summary>
+    public List<ScoreItem> ScoreItemsOf(int index) => index switch { 0 => ScoreItems, 1 => ScoreItems2, _ => ScoreItems3 };
+
+    public void SetScoreItems(int index, List<ScoreItem> items)
+    {
+        if (index == 0) ScoreItems = items; else if (index == 1) ScoreItems2 = items; else ScoreItems3 = items;
+    }
+
+    public string ScoreTemplateName(int index) =>
+        index < ScoreTemplateNames.Count && !string.IsNullOrWhiteSpace(ScoreTemplateNames[index])
+            ? ScoreTemplateNames[index].Trim() : ScoreItemSettings.DefaultName(index);
 
     /// <summary>投稿設定：画像の背景を暗くするか（false は明るい）</summary>
     public bool PostDarkBackground { get; set; }

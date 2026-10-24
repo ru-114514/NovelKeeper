@@ -61,7 +61,7 @@ public class Game
     public bool ScoreMismatch => ScoreItemSettings.Enabled && ScoreItemRules.TotalMismatch(Review, MyScore);
 
     /// <summary>任意評価基準の基準が変わって、採点し直しが必要か</summary>
-    public bool ScoreNeedsRescore => ScoreItemSettings.Enabled && ScoreItemRules.NeedsRescore(ScoreItemSettings.Items, Review);
+    public bool ScoreNeedsRescore => ScoreItemSettings.Enabled && ScoreItemRules.NeedsRescore(ScoreItemSettings.ItemsFor(Review), Review);
 
     /// <summary>一覧の「得点」を赤い枠で囲むか（項目の合計と食い違っている、または基準が変わって採点し直しが必要）</summary>
     public bool ScoreNeedsAttention => ScoreMismatch || ScoreNeedsRescore;

@@ -51,7 +51,7 @@ public partial class MainWindow
     }
 
     /// <summary>任意評価基準を使っているときだけ、CSV に項目別の点数の列を足す</summary>
-    private IReadOnlyList<ScoreItem>? CsvScoreItems() => ScoreItemSettings.Enabled ? ScoreItemSettings.Items : null;
+    private IReadOnlyList<IReadOnlyList<ScoreItem>>? CsvScoreItems() => ScoreItemSettings.Enabled ? ScoreItemSettings.Templates : null;
 
     private void ExportReviewCheck_Click(object sender, RoutedEventArgs e) => RefreshExportPanel();
 

@@ -330,7 +330,7 @@ public partial class MainWindow
         "platform", "動作状況", "詳細状況", "一言感想", "長文感想", "ネタバレ",
     };
 
-    private static bool IsDefaultHidden(string key) => DefaultHiddenColumns.Contains(key) || key.StartsWith(ScoreColumnPrefix);
+    private static bool IsDefaultHidden(string key) => DefaultHiddenColumns.Contains(key);
 
     private readonly ObservableCollection<ColumnItem> _columnItems = new();
 
@@ -366,13 +366,6 @@ public partial class MainWindow
             {
                 var at = list.FindIndex(c => c.Key == anchor);
                 if (at >= 0) { list.Insert(at + 1, setting); continue; }
-            }
-            // 任意評価基準の項目の列は、選びやすいよう「得点」の隣（先の項目の後ろ）に置く
-            if (key.StartsWith(ScoreColumnPrefix))
-            {
-                var after = list.FindLastIndex(c => c.Key.StartsWith(ScoreColumnPrefix));
-                if (after < 0) after = list.FindIndex(c => c.Key == "得点");
-                if (after >= 0) { list.Insert(after + 1, setting); continue; }
             }
             list.Add(setting);
         }
