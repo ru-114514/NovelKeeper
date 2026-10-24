@@ -37,7 +37,7 @@ public partial class MainWindow
         int deleted = 0, notConfirmed = 0, notTried = 0;
         try
         {
-            var backup = DbBackup.Snapshot(AppPaths.Database, Path.Combine(AppPaths.Dir, "backups"), "before_cleanup");
+            var backup = DbBackup.Snapshot(AppPaths.Database, AutoBackup.BackupDir, "before_cleanup");
             if (backup == null &&
                 MessageBox.Show(this, "作品の一覧の控えを残せませんでした。控えなしで続けますか？", "購入前の作品の整理",
                     MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;

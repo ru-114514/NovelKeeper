@@ -61,7 +61,46 @@ public static class AutoBackup
 
     private static readonly object Gate = new();
 
-    public static string BackupDir => Path.Combine(AppPaths.Dir, "backups");
+    /// <summary>既定の保存先（アプリのフォルダの backups）</summary>
+    public static string DefaultDir => Path.Combine(AppPaths.Dir, "backups");
+
+    private static string? _customDir;
+
+    /// <summary>利用者が指定した保存先（なければ null = 既定）</summary>
+    public static string? CustomDir => _customDir;
+
+    /// <summary>いまの保存先。指定があればそこ、なければ既定</summary>
+    public static string BackupDir => _customDir ?? DefaultDir;
+
+    /// <summary>設定ファイルの保存先を使い始める（空なら既定）。起動時と、設定を変えたときに呼ぶ</summary>
+    public static void UseFolder(string? path) => _customDir = string.IsNullOrWhiteSpace(path) ? null : path.Trim();
+
+    /// <summary>保存先として使えるかを調べる。使えなければ理由、使えれば null（フォルダがなければ作り、書き込めるかを試す）</summary>
+    public static string? CheckFolder(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "フォルダが指定されていません";
+        try
+        {
+            path = path.Trim();
+            if (!Path.IsPathFullyQualified(path)) return "ドライブ名から始まるフォルダ（例：D:/Backup）か、ネットワークの共有フォルダを指定してください";
+            Directory.CreateDirectory(path);
+            var probe = Path.Combine(path, $".nk_write_test_{Guid.NewGuid():N}");
+            File.WriteAllText(probe, "ok");
+            File.Delete(probe);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return "このフォルダには書き込めません：" + ex.Message;
+        }
+    }
+
+    /// <summary>このアプリが作った名前のファイルか（指定したフォルダに他のファイルがあっても、数えたり消したりしないため）</summary>
+    public static bool IsOwnFile(string path)
+    {
+        var n = Path.GetFileName(path);
+        return GamesName.IsMatch(n) || ConfigName.IsMatch(n) || BeforeName.IsMatch(n) || StageName.IsMatch(n);
+    }
 
     public static AutoBackupSettings SettingsOf(EgsConfig cfg) => new AutoBackupSettings
     {
@@ -156,9 +195,9 @@ public static class AutoBackup
         return list.OrderByDescending(g => g.Date).ToList();
     }
 
-    /// <summary>backups フォルダ全体の大きさ（バイト）</summary>
+    /// <summary>バックアップの保存先にある、このアプリのファイルの合計の大きさ（バイト）。ほかのファイルは数えない</summary>
     public static long TotalSize(string backupDir) =>
-        Directory.Exists(backupDir) ? Directory.GetFiles(backupDir).Sum(f => new FileInfo(f).Length) : 0;
+        Directory.Exists(backupDir) ? Directory.GetFiles(backupDir).Where(IsOwnFile).Sum(f => new FileInfo(f).Length) : 0;
 
     /// <summary>
     /// 古いものを消す（完全削除）。このアプリが作った名前のものだけが対象。最新の1世代は、どの上限でも消さない。

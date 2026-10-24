@@ -34,12 +34,14 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Error("未処理の例外", (Exception)args.ExceptionObject);
         TaskScheduler.UnobservedTaskException += (_, args) => { Log.Error("未処理のタスク例外", args.Exception); args.SetObserved(); };
 
+        AutoBackup.UseFolder(EgsConfig.Load().AutoBackupDir); // 指定した保存先を、最初から使う
         // 手動で取り込んだバックアップがあれば、DB も設定も開く前に反映する
-        var imported = DataBackup.ApplyPending(DataBackup.PendingDir, AppPaths.Database, AppPaths.Config, Path.Combine(AppPaths.Dir, "backups"));
+        var imported = DataBackup.ApplyPending(DataBackup.PendingDir, AppPaths.Database, AppPaths.Config, AutoBackup.BackupDir);
         if (imported != null) MessageBox.Show(imported, "バックアップの取り込み");
         CheckDatabaseAtStartup();
 
         Config = EgsConfig.Load();
+        AutoBackup.UseFolder(Config.AutoBackupDir); // 取り込んだバックアップで設定が変わったときのため
         ApplyTheme(Config.Theme); // メイン画面を開く前にテーマを決める
         HideTextBoxClearButton();
 

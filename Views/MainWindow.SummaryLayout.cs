@@ -13,18 +13,18 @@ namespace ErogeLauncher.Views;
 public partial class MainWindow
 {
     private const string SummaryDragFormat = "NovelKeeper.SummaryPanel";
-    private static readonly string[] SummaryKeys = { "chart", "calendar", "games", "heat", "scatter", "cleared", "recap", "goal" };
+    private static readonly string[] SummaryKeys = { "chart", "calendar", "games", "heat", "scatter", "cleared", "recap", "trend", "goal" };
     private const int SummaryBasicCount = 3; // 「並べ方」で並べ直すのは、最初の3つ（グラフ・カレンダー・作品）だけ
     private static readonly Dictionary<string, string> SummaryNames = new()
     {
         ["chart"] = "プレイ時間のグラフ", ["calendar"] = "カレンダー", ["games"] = "プレイした作品",
         ["heat"] = "時間帯ヒートマップ", ["scatter"] = "点数×プレイ時間", ["cleared"] = "クリアと積みゲー",
-        ["recap"] = "年間・月間のまとめ", ["goal"] = "目標",
+        ["recap"] = "年間・月間のまとめ", ["trend"] = "傾向（年別・ブランド・得点・ジャンル）", ["goal"] = "目標",
     };
     private static readonly Dictionary<string, string> SummaryShortNames = new()
     {
         ["heat"] = "ヒートマップ", ["scatter"] = "点数×時間", ["cleared"] = "クリア",
-        ["recap"] = "まとめ", ["goal"] = "目標",
+        ["recap"] = "まとめ", ["trend"] = "傾向", ["goal"] = "目標",
     };
     private readonly Dictionary<string, ToggleButton> _summaryToggles = new();
 

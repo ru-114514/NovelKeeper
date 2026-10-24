@@ -14,7 +14,7 @@ namespace ErogeLauncher.Views;
 /// </summary>
 public partial class MainWindow
 {
-    private static readonly string[] SummaryExtraKeys = { "heat", "scatter", "cleared", "recap", "goal" };
+    private static readonly string[] SummaryExtraKeys = { "heat", "scatter", "cleared", "recap", "trend", "goal" };
     private static readonly string[] WeekdayNames = { "月", "火", "水", "木", "金", "土", "日" };
 
     private readonly Dictionary<string, (Border Frame, TextBlock Title, Panel Body)> _summaryExtra = new();
@@ -85,6 +85,7 @@ public partial class MainWindow
         DrawSummaryScatter(r);
         DrawSummaryCleared(r);
         DrawSummaryRecap();
+        DrawSummaryTrend();
         DrawSummaryGoal();
     }
 

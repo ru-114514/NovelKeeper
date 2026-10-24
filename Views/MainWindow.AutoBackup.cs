@@ -17,6 +17,7 @@ public partial class MainWindow
             if (AutoBackupKeepBox.Items.Count == 0)
                 for (var n = AutoBackup.MinKeep; n <= AutoBackup.MaxKeep; n++)
                     AutoBackupKeepBox.Items.Add(new ComboBoxItem { Content = $"{n} 世代", Tag = n });
+            AutoBackup.UseFolder(_cfg.AutoBackupDir);
             var s = AutoBackup.SettingsOf(_cfg);
             AutoBackupCheck.IsChecked = s.Enabled;
             AutoBackupIntervalBox.SelectedIndex = s.IntervalDays >= 7 ? 1 : 0;
@@ -47,11 +48,47 @@ public partial class MainWindow
     private void RefreshAutoBackupInfo()
     {
         var dir = AutoBackup.BackupDir;
+        AutoBackupDirText.Text = AutoBackup.CustomDir ?? $"{AutoBackup.DefaultDir}（初期の場所）";
+        AutoBackupDirText.ToolTip = AutoBackupDirText.Text;
         var gens = AutoBackup.List(dir);
         var total = AutoBackup.TotalSize(dir);
         AutoBackupInfo.Text = gens.Count == 0
             ? "まだバックアップはありません。"
-            : $"最後のバックアップ：{gens[0].Date:yyyy/MM/dd}（{gens.Count} 世代・フォルダ全体 {Size(total)}／上限 {Size(AutoBackup.MaxTotalBytes)}）";
+            : $"最後のバックアップ：{gens[0].Date:yyyy/MM/dd}（{gens.Count} 世代・このアプリのファイル合計 {Size(total)}／上限 {Size(AutoBackup.MaxTotalBytes)}）";
+        // 指定した保存先が使えないとき（外付けドライブが外れている など）は、作れないことを知らせる
+        if (AutoBackup.CustomDir != null && !Directory.Exists(AutoBackup.CustomDir))
+            AutoBackupInfo.Text += "\n指定した保存先が見つかりません。ドライブがつながっているかを確認してください（このままだと、バックアップは作られません）。";
+    }
+
+    /// <summary>保存先を別のフォルダにする。いまあるバックアップは移さない（元のフォルダに残る）</summary>
+    private void AutoBackupDirChange_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "自動バックアップの保存先フォルダを選んでください" };
+        if (AutoBackup.CustomDir != null && Directory.Exists(AutoBackup.CustomDir)) dlg.InitialDirectory = AutoBackup.CustomDir;
+        if (dlg.ShowDialog(this) != true) return;
+
+        var problem = AutoBackup.CheckFolder(dlg.FolderName);
+        if (problem != null)
+        {
+            MessageBox.Show(this, problem, "バックアップの保存先", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        SetAutoBackupFolder(dlg.FolderName);
+    }
+
+    private void AutoBackupDirReset_Click(object sender, RoutedEventArgs e)
+    {
+        if (AutoBackup.CustomDir == null) return;
+        SetAutoBackupFolder("");
+    }
+
+    private void SetAutoBackupFolder(string path)
+    {
+        _cfg.AutoBackupDir = path;
+        _cfg.Save();
+        AutoBackup.UseFolder(path);
+        RefreshAutoBackupInfo();
+        AutoBackupResultText.Text = "保存先を変えました。これまでのバックアップは、元のフォルダに残っています（移していません）。次のバックアップから新しい保存先に作ります";
     }
 
     private static string Size(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024.0:0.0} MB" : $"{Math.Max(1, bytes / 1024)} KB";

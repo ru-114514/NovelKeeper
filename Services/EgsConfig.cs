@@ -220,6 +220,8 @@ public class EgsConfig
     public int AutoBackupIntervalDays { get; set; } = 1;
     /// <summary>自動バックアップで残す世代数（3〜14）</summary>
     public int AutoBackupKeep { get; set; } = AutoBackup.DefaultKeep;
+    /// <summary>自動バックアップの保存先フォルダ（空なら、アプリのフォルダの backups）</summary>
+    public string AutoBackupDir { get; set; } = "";
 
     /// <summary>任意評価基準を使うか（オフでも、設定した項目と作品ごとの項目別の点数は残す）</summary>
     public bool ScoreItemsEnabled { get; set; }

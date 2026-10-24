@@ -37,6 +37,7 @@ public partial class MainWindow
         _recapMonth = SummaryExtras.BuildRecap(all, games, m, m.AddMonths(1).AddDays(-1));
         _recapPrevMonth = SummaryExtras.BuildRecap(all, games, m.AddMonths(-1), m.AddDays(-1));
         _recapMonths = SummaryExtras.MonthlyTotals(all, games, today, 12);
+        LoadSummaryTrend(all);
     }
 
     // ---- 年間・月間のまとめ ----

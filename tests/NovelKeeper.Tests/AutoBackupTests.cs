@@ -305,4 +305,72 @@ public sealed class AutoBackupTests : IDisposable
         File.WriteAllText(bad, "x");
         Assert.Null(AutoBackup.CountGames(bad));
     }
+
+    // ---- 保存先の指定 ----
+
+    [Fact]
+    public void UseFolder_SwitchesBackupDir_AndEmptyMeansDefault()
+    {
+        try
+        {
+            AutoBackup.UseFolder(@"D:\Somewhere");
+            Assert.Equal(@"D:\Somewhere", AutoBackup.BackupDir);
+            Assert.Equal(@"D:\Somewhere", AutoBackup.CustomDir);
+            AutoBackup.UseFolder("  ");
+            Assert.Null(AutoBackup.CustomDir);
+            Assert.Equal(AutoBackup.DefaultDir, AutoBackup.BackupDir);
+        }
+        finally { AutoBackup.UseFolder(null); }
+    }
+
+    [Fact]
+    public void CheckFolder_AcceptsWritableFolder_AndCreatesIt_AndLeavesNoProbeFile()
+    {
+        var dir = Path.Combine(_dir, "custom", "sub");
+        Assert.Null(AutoBackup.CheckFolder(dir));
+        Assert.True(Directory.Exists(dir));
+        Assert.Empty(Directory.GetFiles(dir));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("relative\folder")]
+    public void CheckFolder_RejectsEmptyOrRelative(string path) => Assert.NotNull(AutoBackup.CheckFolder(path));
+
+    [Fact]
+    public void CheckFolder_RejectsAFileInPlaceOfAFolder()
+    {
+        var file = Path.Combine(_dir, "afile");
+        File.WriteAllText(file, "x");
+        Assert.NotNull(AutoBackup.CheckFolder(file));
+    }
+
+    [Fact]
+    public void CustomFolder_BackupsGoThere_AndOtherFilesAreNeitherCountedNorDeleted()
+    {
+        var custom = Path.Combine(_dir, "mine");
+        Directory.CreateDirectory(custom);
+        var foreign = Path.Combine(custom, "my_photo.jpg");
+        File.WriteAllBytes(foreign, new byte[5000]);
+
+        Assert.Equal(AutoBackupResult.Created, AutoBackup.Run(DbPath, CfgPath, custom, new AutoBackupSettings(), false, D(1), PlentyOfSpace, 1000000));
+        Assert.True(File.Exists(Path.Combine(custom, "games_20261001.db")));
+        Assert.False(Directory.Exists(BackupDir)); // 既定の場所には作らない
+
+        var own = new FileInfo(Path.Combine(custom, "games_20261001.db")).Length + new FileInfo(Path.Combine(custom, "config_20261001.json")).Length;
+        Assert.Equal(own, AutoBackup.TotalSize(custom)); // 写真は数えない
+
+        AutoBackup.Prune(custom, 3, 5, 1); // 上限を極端に小さくしても、他のファイルは消さない
+        Assert.True(File.Exists(foreign));
+        Assert.Single(AutoBackup.List(custom)); // 最新の1世代は残る
+    }
+
+    [Fact]
+    public void ConfigRoundTrip_KeepsAutoBackupDir()
+    {
+        var cfg = new EgsConfig { AutoBackupDir = @"E:\NK" };
+        Assert.Equal(@"E:\NK", System.Text.Json.JsonSerializer.Deserialize<EgsConfig>(System.Text.Json.JsonSerializer.Serialize(cfg))!.AutoBackupDir);
+        Assert.Equal("", new EgsConfig().AutoBackupDir);
+    }
 }
