@@ -33,7 +33,7 @@ public class ScoreCriteriaWindow : Window
         _cfg = cfg; _getGames = getGames; _confirmDiscard = confirmDiscard;
         Owner = owner;
         Title = "任意評価基準";
-        Width = 560; Height = 640; MinWidth = 460; MinHeight = 440;
+        Width = 620; Height = 640; MinWidth = 560; MinHeight = 440;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Content = BuildUi();
         Refresh();
@@ -44,6 +44,7 @@ public class ScoreCriteriaWindow : Window
         public required string Id { get; init; }
         public required TextBox NameBox { get; init; }
         public required TextBox MaxBox { get; init; }
+        public required TextBox BaseBox { get; init; }
         public required UIElement Panel { get; init; }
     }
 
@@ -115,7 +116,7 @@ public class ScoreCriteriaWindow : Window
                 error.Text = $"項目は {ScoreItemRules.MaxItems} 個までです。";
                 return;
             }
-            AddRow(editor, Guid.NewGuid().ToString("N")[..8], "", "");
+            AddRow(editor, Guid.NewGuid().ToString("N")[..8], "", "", "");
             Update(editor);
             editor.Rows[^1].NameBox.Focus();
         };
@@ -143,19 +144,23 @@ public class ScoreCriteriaWindow : Window
         return editor;
     }
 
-    private void AddRow(Editor editor, string id, string name, string max)
+    private void AddRow(Editor editor, string id, string name, string max, string basePoint)
     {
-        var nameBox = new TextBox { Width = 220, Text = name, MaxLength = 20, VerticalContentAlignment = VerticalAlignment.Center };
+        var nameBox = new TextBox { Width = 170, Text = name, MaxLength = 20, VerticalContentAlignment = VerticalAlignment.Center };
         var maxBox = new TextBox { Width = 50, Text = max, MaxLength = 3, Margin = new Thickness(6, 0, 0, 0), VerticalContentAlignment = VerticalAlignment.Center };
+        var baseBox = new TextBox { Width = 40, Text = basePoint, MaxLength = 3, Margin = new Thickness(4, 0, 0, 0), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "基準点（任意）。詳細欄の「基準点を入力」で、空欄の項目に入る点数です。0〜最高点" };
         var remove = new Button { Content = "✕", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(8, 0, 8, 0), ToolTip = "この項目を削除" };
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 3) };
         panel.Children.Add(nameBox);
         panel.Children.Add(maxBox);
         panel.Children.Add(new TextBlock { Text = "点満点", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0), Opacity = 0.7 });
+        panel.Children.Add(new TextBlock { Text = "基準点", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Opacity = 0.7 });
+        panel.Children.Add(baseBox);
         panel.Children.Add(remove);
-        var row = new Row { Id = id, NameBox = nameBox, MaxBox = maxBox, Panel = panel };
+        var row = new Row { Id = id, NameBox = nameBox, MaxBox = maxBox, BaseBox = baseBox, Panel = panel };
         nameBox.TextChanged += (_, _) => Update(editor);
         maxBox.TextChanged += (_, _) => Update(editor);
+        baseBox.TextChanged += (_, _) => Update(editor);
         remove.Click += (_, _) =>
         {
             editor.Rows.Remove(row);
@@ -173,7 +178,7 @@ public class ScoreCriteriaWindow : Window
         foreach (var e in _editors)
         {
             e.NameBox.Text = e.Index < _cfg.ScoreTemplateNames.Count ? _cfg.ScoreTemplateNames[e.Index] : "";
-            foreach (var item in _cfg.ScoreItemsOf(e.Index)) AddRow(e, item.Id, item.Name, item.Max.ToString());
+            foreach (var item in _cfg.ScoreItemsOf(e.Index)) AddRow(e, item.Id, item.Name, item.Max.ToString(), item.Base?.ToString() ?? "");
             Update(e);
         }
     }
@@ -185,6 +190,7 @@ public class ScoreCriteriaWindow : Window
             Id = r.Id,
             Name = r.NameBox.Text.Trim(),
             Max = int.TryParse(r.MaxBox.Text.Trim(), out var m) ? m : 0,
+            Base = r.BaseBox.Text.Trim() == "" ? null : int.TryParse(r.BaseBox.Text.Trim(), out var b) ? b : -1, // 数でなければ -1 にして、検査でエラーにする
         }).ToList();
 
     /// <summary>項目が 1 つもない基準は「使わない」ので、問題なしとして扱う</summary>
@@ -204,7 +210,8 @@ public class ScoreCriteriaWindow : Window
             var sum = ScoreItemRules.Sum(draft);
             var remain = ScoreItemRules.TotalMax - sum;
             var error = ScoreItemRules.ValidateTemplate(draft);
-            e.Sum.Text = $"最高点の合計：{sum} / {ScoreItemRules.TotalMax}" + (remain > 0 ? $"（あと {remain}）" : remain < 0 ? $"（{-remain} 超過）" : "");
+            e.Sum.Text = $"最高点の合計：{sum} / {ScoreItemRules.TotalMax}" + (remain > 0 ? $"（あと {remain}）" : remain < 0 ? $"（{-remain} 超過）" : "")
+                         + (ScoreItemRules.HasBase(draft) && draft.All(i => i.Base is >= 0) ? $"　／　基準点の合計：{ScoreItemRules.BaseSum(draft)}" : "");
             e.Sum.Foreground = error == null ? Brushes.ForestGreen : ErrorBrush;
             e.Error.Text = error ?? "";
         }

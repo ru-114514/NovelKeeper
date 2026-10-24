@@ -332,4 +332,57 @@ public class ScoreItemTests
         var line = CsvExporter.Build([g], false, [Items]).Split("\r\n")[1];
         Assert.EndsWith(",,,", line);
     }
+
+    // ---- 基準点 ----
+
+    private static List<ScoreItem> WithBase(int? a, int? b, int? c) =>
+        L(new() { Id = "a", Name = "シナリオ", Max = 40, Base = a }, new() { Id = "b", Name = "絵", Max = 30, Base = b }, new() { Id = "c", Name = "音楽", Max = 30, Base = c });
+
+    [Fact]
+    public void Base_IsOptional_AndValidatedWithinZeroToMax()
+    {
+        Assert.Null(ScoreItemRules.ValidateTemplate(WithBase(null, null, null)));
+        Assert.Null(ScoreItemRules.ValidateTemplate(WithBase(28, 0, 30)));
+        Assert.NotNull(ScoreItemRules.ValidateTemplate(WithBase(41, null, null))); // 最高点を超える
+        Assert.NotNull(ScoreItemRules.ValidateTemplate(WithBase(-1, null, null))); // 数でない入力は -1 として渡る
+    }
+
+    [Fact]
+    public void BaseFill_FillsOnlyEmptyItemsThatHaveABase_AndNeverOverwrites()
+    {
+        var items = WithBase(28, null, 21);
+        var fill = ScoreItemRules.BaseFill(items, T(a: "", b: "", c: "5"));
+        Assert.Equal(new Dictionary<string, int> { ["a"] = 28 }, fill); // b は基準点なし、c は入力済み
+        Assert.Empty(ScoreItemRules.BaseFill(WithBase(null, null, null), T()));
+        Assert.Equal(2, ScoreItemRules.BaseFill(items, T()).Count);
+    }
+
+    [Fact]
+    public void BaseFill_TreatsInvalidTextAsEntered()
+    {
+        Assert.Empty(ScoreItemRules.BaseFill(WithBase(28, null, null), T(a: "abc")));
+    }
+
+    [Fact]
+    public void BaseSum_AndHasBase()
+    {
+        Assert.False(ScoreItemRules.HasBase(WithBase(null, null, null)));
+        Assert.True(ScoreItemRules.HasBase(WithBase(null, 3, null)));
+        Assert.Equal(49, ScoreItemRules.BaseSum(WithBase(28, null, 21)));
+    }
+
+    [Fact]
+    public void Base_SurvivesConfigJson_AndDoesNotMakeAnOldScoreStale()
+    {
+        var cfg = new EgsConfig();
+        cfg.SetScoreItems(0, WithBase(28, null, 21));
+        var back = System.Text.Json.JsonSerializer.Deserialize<EgsConfig>(System.Text.Json.JsonSerializer.Serialize(cfg))!;
+        Assert.Equal(new int?[] { 28, null, 21 }, back.ScoreItemsOf(0).Select(i => i.Base).ToArray());
+
+        // 基準点を変えても、採点済みの作品は「採点し直し」にならない
+        var review = new Review();
+        var items = Items;
+        ScoreItemRules.Apply(review, items, ScoreItemRules.Check(items, T("30", "20", "10")));
+        Assert.False(ScoreItemRules.NeedsRescore(WithBase(28, 20, 21), review));
+    }
 }

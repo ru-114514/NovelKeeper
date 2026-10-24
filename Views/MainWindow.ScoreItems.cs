@@ -120,6 +120,7 @@ public partial class MainWindow
         ClearScoreRows();
         ScoreItemsNote.Visibility = Visibility.Collapsed;
         ScoreItemsClearButton.Visibility = Visibility.Collapsed;
+        ScoreItemsBaseButton.Visibility = Visibility.Collapsed;
         var on = ScoreItemSettings.Enabled && g != null;
         ScoreItemsPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         ScoreItemsOpenButton.Visibility = on ? Visibility.Collapsed : Visibility.Visible; // オフのときも、設定の入口は出す
@@ -148,6 +149,7 @@ public partial class MainWindow
             ScoreItemsNote.Visibility = Visibility.Visible;
         }
         ScoreItemsClearButton.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBaseButton();
     }
 
     private void ClearScoreRows()
@@ -253,6 +255,7 @@ public partial class MainWindow
         BuildScoreRows(g.Review, carry);
         ScoreItemsNote.Visibility = Visibility.Collapsed;
         ScoreItemsClearButton.Visibility = Visibility.Collapsed;
+        UpdateBaseButton();
         if (!_loadingDetail) _detailDirty = true;
         UpdateDetailScoreTotal(showMissing: false);
     }
@@ -283,6 +286,28 @@ public partial class MainWindow
         {
             ScoreBox.IsReadOnly = false;
         }
+    }
+
+    /// <summary>基準点がある基準を使っているときだけ、「基準点を入力」を出す</summary>
+    private void UpdateBaseButton() =>
+        ScoreItemsBaseButton.Visibility = ScoreItemSettings.Enabled && ScoreItemRules.HasBase(DetailScoreItems) ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>空欄の項目に基準点を入れる（入力済みの項目は変えない）。保存するまで確定しない</summary>
+    private void ScoreItemsBase_Click(object sender, RoutedEventArgs e)
+    {
+        var fill = ScoreItemRules.BaseFill(DetailScoreItems, _detailScoreBoxes.ToDictionary(kv => kv.Key, kv => kv.Value.Text));
+        if (fill.Count == 0)
+        {
+            StatusText.Text = "空欄の項目がないので、基準点は入れませんでした";
+            return;
+        }
+        _buildingScoreRows = true;
+        foreach (var (id, point) in fill) _detailScoreBoxes[id].Text = point.ToString();
+        _buildingScoreRows = false;
+        foreach (var id in fill.Keys) _detailScoreTouched.Add(id);
+        _detailDirty = true;
+        UpdateDetailScoreTotal(showMissing: false);
+        StatusText.Text = $"{fill.Count} 項目に基準点を入れました。必要なら手動で直して、保存してください";
     }
 
     private void ScoreItemsClear_Click(object sender, RoutedEventArgs e)

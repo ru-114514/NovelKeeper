@@ -10,6 +10,8 @@ public class ScoreItem
     public string Name { get; set; } = "";
     /// <summary>この項目の最高点（全項目の合計がちょうど 100 になる）</summary>
     public int Max { get; set; }
+    /// <summary>基準点（詳細欄の「基準点を入力」で、空欄の項目に入れる点数。0〜最高点。null なら基準点なし）</summary>
+    public int? Base { get; set; }
 }
 
 /// <summary>採点したときの項目の名前と最高点</summary>
@@ -79,6 +81,7 @@ public static class ScoreItemRules
         if (items.Any(i => string.IsNullOrWhiteSpace(i.Name))) return "名前が空の項目があります。";
         if (items.Select(i => i.Name.Trim()).Distinct().Count() != items.Count) return "同じ名前の項目があります。";
         if (items.Any(i => i.Max < 1 || i.Max > TotalMax)) return $"最高点は 1～{TotalMax} の整数にしてください。";
+        if (items.Any(i => i.Base is int b && (b < 0 || b > i.Max))) return "基準点は 0～最高点の整数にしてください。";
         var sum = Sum(items);
         if (sum != TotalMax) return "入力エラー。採点基準は合計が100点になるように入力してください。";
         return null;
@@ -119,6 +122,20 @@ public static class ScoreItemRules
         }
         return r;
     }
+
+    /// <summary>基準点がある項目があるか（詳細欄の「基準点を入力」を出すかの判定）</summary>
+    public static bool HasBase(IReadOnlyList<ScoreItem> items) => items.Any(i => i.Base != null);
+
+    /// <summary>基準点の合計（基準点がある項目だけ）</summary>
+    public static int BaseSum(IReadOnlyList<ScoreItem> items) => items.Sum(i => i.Base ?? 0);
+
+    /// <summary>
+    /// 基準点を入れる対象：入力欄が空で、基準点がある項目の（ID → 基準点）。
+    /// すでに入力した項目（エラーの文字も含む）は対象にしない（上書きしない）
+    /// </summary>
+    public static Dictionary<string, int> BaseFill(IReadOnlyList<ScoreItem> items, IReadOnlyDictionary<string, string> texts) =>
+        items.Where(i => i.Base != null && (texts.GetValueOrDefault(i.Id) ?? "").Trim() == "")
+            .ToDictionary(i => i.Id, i => i.Base!.Value);
 
     /// <summary>採点した内容を作品の記録に書く（入力なしなら項目別の採点を消す）</summary>
     /// <param name="touched">
