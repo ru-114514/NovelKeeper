@@ -12,6 +12,14 @@ public partial class MainWindow
         new NextPickWindow(this, _egs, _cfg, () => _db.GetAll(), AddToPriorityPanel).ShowDialog();
     }
 
+    /// <summary>投稿設定の「今後優先したい作品」が変わっていたら、一覧の状態欄の「★優先」を合わせる</summary>
+    private void SyncPriorityMarks()
+    {
+        var ids = _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
+        if (ids.SetEquals(Game.PriorityIds)) return;
+        Reload();
+    }
+
     private void StaleReview_Click(object sender, RoutedEventArgs e)
     {
         var last = _db.GetSessions(new DateTime(2000, 1, 1), DateTime.Today.AddDays(1))

@@ -212,6 +212,7 @@ public partial class MainWindow
     /// <summary>集計はそのままで、パネルの並びだけ作り直す（レイアウトを変えたとき）</summary>
     private void RebuildPostReport()
     {
+        SyncPriorityMarks();
         if (_post is not { } report) return;
         var hasPlay = report.TotalSeconds >= 1 || report.Works.Count > 0;
         PostExportButton.IsEnabled = hasPlay;

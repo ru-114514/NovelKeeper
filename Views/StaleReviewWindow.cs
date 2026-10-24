@@ -12,7 +12,7 @@ namespace ErogeLauncher.Views;
 /// </summary>
 public class StaleReviewWindow : Window
 {
-    private const string Keep = "継続", Priority = "優先", Exclude = "除外", Suspend = "中断";
+    private const string Keep = "継続", Priority = "優先", Unprioritize = "優先を外す", Exclude = "除外", Suspend = "中断";
 
     private readonly EgsConfig _cfg;
     private readonly List<Game> _games;
@@ -114,7 +114,7 @@ public class StaleReviewWindow : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
 
             var since = item.Since is DateTime s ? $"{sinceLabel} {s:yyyy/MM/dd}（{Elapsed(item.Days!.Value)}）" : $"{sinceLabel}：記録なし";
             if (item.Game.IsPriority) since += " ★優先に追加済み";
@@ -126,6 +126,7 @@ public class StaleReviewWindow : Window
             Grid.SetColumn(median, 2);
             row.Children.Add(median);
 
+            if (item.Game.IsPriority) options = options.Select(o => o == Priority ? Unprioritize : o).ToArray(); // 追加済みなら、外す選択肢にする
             var box = new ComboBox { ItemsSource = options, SelectedItem = _choices.GetValueOrDefault(item.Game.Id, Keep) };
             if (box.SelectedItem == null || !options.Contains((string)box.SelectedItem)) box.SelectedItem = Keep;
             var id = item.Game.Id;
@@ -200,13 +201,17 @@ public class StaleReviewWindow : Window
     {
         var byId = _games.ToDictionary(g => g.Id);
         var priority = new List<Game>();
-        var excluded = 0; var dropped = 0;
+        var excluded = 0; var dropped = 0; var unprioritized = 0;
         foreach (var (id, choice) in _choices.ToList())
         {
             if (choice == Keep || !byId.TryGetValue(id, out var g)) continue;
             switch (choice)
             {
                 case Priority: priority.Add(g); break;
+                case Unprioritize:
+                    foreach (var p in _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority)) p.GameIds.Remove(id);
+                    unprioritized++;
+                    break;
                 case Exclude:
                     if (!_cfg.BacklogExcludedIds.Contains(id)) _cfg.BacklogExcludedIds.Add(id);
                     excluded++;
@@ -221,12 +226,14 @@ public class StaleReviewWindow : Window
         }
         if (priority.Count > 0) _addToPriority(priority);
         foreach (var g in priority) _choices.Remove(g.Id);
-        if (excluded > 0) _cfg.Save();
+        if (excluded + unprioritized > 0) _cfg.Save();
         Game.BacklogExcludedIds = _cfg.BacklogExcludedIds.ToHashSet();
-        Changed = Changed || priority.Count + excluded + dropped > 0;
-        _status.Text = priority.Count + excluded + dropped == 0
+        Game.PriorityIds = _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
+        var total = priority.Count + unprioritized + excluded + dropped;
+        Changed = Changed || total > 0;
+        _status.Text = total == 0
             ? "変更はありません（すべて「継続」です）"
-            : $"反映しました（優先 {priority.Count}本、除外 {excluded}本、中断 {dropped}本）" +
+            : $"反映しました（優先 {priority.Count}本、優先を外す {unprioritized}本、除外 {excluded}本、中断 {dropped}本）" +
               (priority.Count > 0 ? "　優先は、投稿設定の「今後優先したい作品」パネルに入れました（一覧の状態に★が付きます）" : "");
         Refresh();
     }
