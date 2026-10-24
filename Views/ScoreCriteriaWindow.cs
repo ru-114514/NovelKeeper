@@ -148,8 +148,8 @@ public class ScoreCriteriaWindow : Window
     {
         var nameBox = new TextBox { Width = 170, Text = name, MaxLength = 20, VerticalContentAlignment = VerticalAlignment.Center };
         var maxBox = new TextBox { Width = 50, Text = max, MaxLength = 3, Margin = new Thickness(6, 0, 0, 0), VerticalContentAlignment = VerticalAlignment.Center };
-        var baseBox = new TextBox { Width = 40, Text = basePoint, MaxLength = 3, Margin = new Thickness(4, 0, 0, 0), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "基準点（任意）。詳細欄の「基準点を入力」で、空欄の項目に入る点数です。0〜最高点" };
-        var remove = new Button { Content = "✕", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(8, 0, 8, 0), ToolTip = "この項目を削除" };
+        var baseBox = new TextBox { Width = 56, Text = basePoint, MaxLength = 3, Margin = new Thickness(4, 0, 0, 0), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "基準点（任意）。詳細欄の「基準点を入力」で、空欄の項目に入る点数です。0〜最高点" };
+        var remove = new Button { Content = "✕", Margin = new Thickness(22, 0, 0, 0), Padding = new Thickness(8, 0, 8, 0), ToolTip = "この項目を削除" };
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 3) };
         panel.Children.Add(nameBox);
         panel.Children.Add(maxBox);

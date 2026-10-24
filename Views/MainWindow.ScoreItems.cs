@@ -201,7 +201,7 @@ public partial class MainWindow
             var grid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
             Grid.SetColumn(box, 1);
             Grid.SetColumn(max, 2);
             grid.Children.Add(name);
