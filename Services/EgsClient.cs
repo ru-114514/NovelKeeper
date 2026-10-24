@@ -20,10 +20,10 @@ public record EgsGame(int Id, string Title, string Brand, string SellDay, int? M
 public record EgsGameInfo(int Id, string SellDay, int? Median, int? Average, int? Count);
 
 /// <summary>批評空間に登録されている自分の記録</summary>
-public record EgsUserRecord(int GameId, bool Played, DateTime? ClearDate, bool GiveUp, int? Score, bool Possession);
+public record EgsUserRecord(int GameId, bool Played, DateTime? ClearDate, bool GiveUp, int? Score, bool Possession, DateTime? Registered = null);
 
 /// <summary>一括取り込み用：作品情報と自分の記録をまとめたもの</summary>
-public record EgsMyGame(EgsGame Game, bool Played, DateTime? ClearDate, bool Possession, bool GiveUp, int? Score);
+public record EgsMyGame(EgsGame Game, bool Played, DateTime? ClearDate, bool Possession, bool GiveUp, int? Score, DateTime? Registered = null);
 
 /// <summary>一括取り込みの範囲</summary>
 public enum ImportScope
@@ -190,7 +190,7 @@ public class EgsClient
     {
         var clearExpr = ClearDateExpr("");
         var sql = $"""
-            SELECT game, {_cfg.PlayedColumn} AS played, {clearExpr} AS cleardate, giveup AS giveup, {ScoreExpr("")} AS score, possession AS possession
+            SELECT game, {_cfg.PlayedColumn} AS played, {clearExpr} AS cleardate, giveup AS giveup, {ScoreExpr("")} AS score, possession AS possession, userreview.timestamp AS registered
             FROM userreview
             WHERE uid = '{Esc(uid)}'
             """;
@@ -201,7 +201,8 @@ public class EgsClient
                 ParseDate(r.GetValueOrDefault("cleardate", "")),
                 IsTrue(r.GetValueOrDefault("giveup", "")),
                 ParseInt(r.GetValueOrDefault("score", "")),
-                IsTrue(r.GetValueOrDefault("possession", ""))))
+                IsTrue(r.GetValueOrDefault("possession", "")),
+                ParseDate(r.GetValueOrDefault("registered", ""))))
             .Where(r => r.GameId > 0)
             .ToList();
     }
@@ -220,7 +221,7 @@ public class EgsClient
         };
         var sql = $"""
             SELECT g.id, g.gamename, b.brandname, g.sellday, g.median, g.average2, g.count2,
-                   u.{_cfg.PlayedColumn} AS played, {clearExpr} AS cleardate, u.possession AS possession, u.giveup AS giveup, {ScoreExpr("u.")} AS score
+                   u.{_cfg.PlayedColumn} AS played, {clearExpr} AS cleardate, u.possession AS possession, u.giveup AS giveup, {ScoreExpr("u.")} AS score, u.timestamp AS registered
             FROM userreview u
             JOIN gamelist g ON u.game = g.id
             JOIN brandlist b ON g.brandname = b.id
@@ -234,7 +235,8 @@ public class EgsClient
                 ParseDate(r.GetValueOrDefault("cleardate", "")),
                 IsTrue(r.GetValueOrDefault("possession", "")),
                 IsTrue(r.GetValueOrDefault("giveup", "")),
-                ParseInt(r.GetValueOrDefault("score", ""))))
+                ParseInt(r.GetValueOrDefault("score", "")),
+                ParseDate(r.GetValueOrDefault("registered", ""))))
             .Where(x => x.Game.Id > 0)
             .ToList();
     }

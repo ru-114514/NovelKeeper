@@ -73,7 +73,7 @@ public partial class MainWindow
             check.Click += (_, _) => Mark();
         foreach (var combo in new[] { StatusBox, OkazuBox, PurchaseWillBox, PlatformBox, OperationBox })
             combo.SelectionChanged += (_, _) => Mark();
-        foreach (var date in new[] { StartDatePicker, ClearDatePicker })
+        foreach (var date in new[] { StartDatePicker, ClearDatePicker, RegisteredPicker })
             date.SelectedDateChanged += (_, _) => Mark();
     }
 
@@ -152,6 +152,7 @@ public partial class MainWindow
         SelectByTag(PurchaseWillBox, r.PurchaseWill ?? "");
         BeforeScoreBox.Text = r.BeforeScore?.ToString() ?? "";
         PriceBox.Text = g?.PriceText ?? "";
+        RegisteredPicker.SelectedDate = g?.EgsRegistered;
         SelectByTag(PlatformBox, r.Platform);
         SelectByTag(OperationBox, r.Operation);
         PlatformMemoBox.Text = r.PlatformMemo;

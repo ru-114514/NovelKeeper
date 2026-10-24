@@ -90,6 +90,7 @@
                                         <DataGridTextColumn Header="タイトル" Binding="{Binding Title}" Width="460" MinWidth="120" />
                                         <DataGridTextColumn Header="ブランド" Binding="{Binding Brand}" Width="180" MinWidth="60" />
                                         <DataGridTextColumn Header="発売日" Binding="{Binding SellDay}" Width="90" />
+                                        <DataGridTextColumn Header="登録日" Binding="{Binding RegisteredText}" Width="90" SortMemberPath="EgsRegistered" />
                                         <DataGridTextColumn Header="中央値" Binding="{Binding Median}" Width="55" />
                                         <!-- 得点：任意評価基準で、項目の合計と食い違う作品・基準が変わった作品は、起動設定欄と同じ角丸の赤い枠で囲む -->
                                         <DataGridTemplateColumn Header="得点" Width="60" SortMemberPath="MyScore">
@@ -334,6 +335,10 @@
                                                         <TextBox x:Name="PriceBox" Width="100" HorizontalAlignment="Left" Margin="0,2,0,0"
                                                                  TextChanged="PriceBox_TextChanged" InputMethod.IsInputMethodEnabled="False"
                                                                  ToolTip="このツールだけに保存します（批評空間には送りません）。空欄なら未入力です" />
+                                                        <TextBlock Text="登録日（任意）" Margin="0,8,0,0"
+                                                                   ToolTip="積みゲーの見直しの基準になる日です。このツールだけに保存します（批評空間には送りません）。批評空間に記録のある作品は、同期で批評空間の登録日に合わせます" />
+                                                        <DatePicker x:Name="RegisteredPicker" Margin="0,2,0,0"
+                                                                    ToolTip="積みゲーの見直しの基準になる日です。批評空間に記録のある作品は、同期で批評空間の登録日に合わせます" />
                                                     </StackPanel>
                                                 </Expander>
 

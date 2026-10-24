@@ -33,6 +33,7 @@ public static class SyncEngine
         g.EgsGiveUp = rec?.GiveUp ?? false;
         g.EgsPossession = rec?.Possession; // 批評空間に登録がなければ「不明」
         g.EgsScore = rec?.Score;
+        g.EgsRegistered = rec?.Registered ?? g.EgsRegistered; // 批評空間に登録日がなければ、追加したときの日付を残す
         g.EgsClearDate = rec?.ClearDate;
         g.EgsSyncedAt = DateTime.Now;
     }
@@ -82,6 +83,7 @@ public static class SyncEngine
     public static bool ApplyImportToExisting(Game old, EgsMyGame item, Review? remote)
     {
         old.EgsScore = item.Score;
+        old.EgsRegistered = item.Registered;
         if (remote != null) ApplyRemoteReview(old, remote, null);
         if (old.MyScore != null || item.Score == null) return false;
         old.MyScore = item.Score;
@@ -108,6 +110,7 @@ public static class SyncEngine
         EgsGiveUp = item.GiveUp,
         EgsPossession = item.Possession,
         EgsScore = item.Score,
+        EgsRegistered = item.Registered,
         EgsClearDate = item.ClearDate,
         EgsSyncedAt = DateTime.Now,
     };

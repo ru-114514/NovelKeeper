@@ -101,7 +101,7 @@ public class StaleReviewWindow : Window
             return;
         }
         AddHeader("プレイ中", items.Where(i => i.Game.Status == GameStatus.Playing).ToList(), "最後に遊んだ日", [Keep, Priority, Suspend]);
-        AddHeader("未プレイ", items.Where(i => i.Game.Status == GameStatus.Unplayed).ToList(), "発売日", [Keep, Priority, Exclude]);
+        AddHeader("未プレイ", items.Where(i => i.Game.Status == GameStatus.Unplayed).ToList(), "登録日（なければ発売日）", [Keep, Priority, Exclude]);
     }
 
     private void AddHeader(string name, List<StaleItem> items, string sinceLabel, string[] options)

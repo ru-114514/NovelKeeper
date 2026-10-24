@@ -82,6 +82,9 @@ public class Game
     public int? EgsScore { get; set; }
     /// <summary>批評空間で「所持」に☑があるか（null は不明：未同期・未登録）</summary>
     public bool? EgsPossession { get; set; }
+    /// <summary>批評空間に記録を登録した日（userreview.timestamp。null は不明）</summary>
+    public DateTime? EgsRegistered { get; set; }
+    public string RegisteredText => EgsRegistered?.ToString("yyyy/MM/dd") ?? "";
     public DateTime? EgsClearDate { get; set; }
     public DateTime? EgsSyncedAt { get; set; }
 

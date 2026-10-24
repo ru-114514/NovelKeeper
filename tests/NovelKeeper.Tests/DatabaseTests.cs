@@ -41,6 +41,21 @@ public sealed class DatabaseTests : IDisposable
     }
 
     [Fact]
+    public void RegisteredDate_IsSavedOnInsert_AndKeptWhenEgsHasNoRecord()
+    {
+        var db = NewDb(out _);
+        var g = new Game { Title = "A", EgsId = 1, EgsRegistered = new DateTime(2026, 10, 25) };
+        db.Insert(g);
+        var read = db.Get(g.Id)!;
+        Assert.Equal(new DateTime(2026, 10, 25), read.EgsRegistered);
+
+        SyncEngine.ApplyEgsState(read, null); // 批評空間に記録がない → 追加した日を残す
+        Assert.Equal(new DateTime(2026, 10, 25), read.EgsRegistered);
+        SyncEngine.ApplyEgsState(read, new EgsUserRecord(1, false, null, false, null, true, new DateTime(2024, 3, 1))); // あれば、そちらに合わせる
+        Assert.Equal(new DateTime(2024, 3, 1), read.EgsRegistered);
+    }
+
+    [Fact]
     public void SessionsAreSummedIntoTotalSeconds()
     {
         var db = NewDb(out _);

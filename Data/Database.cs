@@ -62,6 +62,7 @@ public class Database : ISessionStore
         AddColumnIfMissing(conn, "games", "egs_score", "INTEGER");
         AddColumnIfMissing(conn, "games", "install_dir", "TEXT");
         AddColumnIfMissing(conn, "games", "egs_possession", "INTEGER");
+        AddColumnIfMissing(conn, "games", "egs_registered", "TEXT");
         AddColumnIfMissing(conn, "games", "egs_average", "INTEGER");
         AddColumnIfMissing(conn, "games", "egs_count", "INTEGER");
         AddColumnIfMissing(conn, "games", "review_json", "TEXT");    // 得点登録フォームのその他の項目
@@ -144,6 +145,7 @@ public class Database : ISessionStore
                 MyScore = r["my_score"] is DBNull ? null : Convert.ToInt32(r["my_score"]),
                 Price = r["price"] is DBNull ? null : Convert.ToInt32(r["price"]),
                 EgsScore = r["egs_score"] is DBNull ? null : Convert.ToInt32(r["egs_score"]),
+                EgsRegistered = ParseDate(Str(r["egs_registered"]), DateFormat),
                 EgsClearDate = ParseDate(Str(r["egs_clear_date"]), DateFormat),
                 EgsSyncedAt = ParseDate(Str(r["egs_synced_at"]), DateTimeFormat),
                 TotalSeconds = Convert.ToInt64(r["total_seconds"]),
@@ -266,9 +268,10 @@ public class Database : ISessionStore
         cmd.CommandText = """
             UPDATE games SET
                 egs_played = $egsPlayed, egs_giveup = $egsGiveUp, egs_possession = $egsPossession, egs_score = $egsScore,
-                egs_clear_date = $egsClear, egs_synced_at = $egsSynced, review_pending = $reviewPending
+                egs_clear_date = $egsClear, egs_synced_at = $egsSynced, review_pending = $reviewPending, egs_registered = $egsRegistered
             WHERE id = $id
             """;
+        cmd.Parameters.AddWithValue("$egsRegistered", Db(g.EgsRegistered?.ToString(DateFormat, CultureInfo.InvariantCulture)));
         cmd.Parameters.AddWithValue("$egsPlayed", g.EgsPlayed ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsGiveUp", g.EgsGiveUp ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsPossession", g.EgsPossession is bool pos ? (pos ? 1 : 0) : DBNull.Value);
@@ -320,11 +323,12 @@ public class Database : ISessionStore
         using var conn = Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO games (egs_id, title, brand, sellday, median, egs_average, egs_count, exe_path, monitor_process, status, clear_date, my_score, install_dir, review_json, review_pending)
-            VALUES ($egs, $title, $brand, $sellday, $median, $egsAverage, $egsCount, $exe, $proc, $status, $clear, $myScore, $installDir, $review, $reviewPending);
+            INSERT INTO games (egs_id, title, brand, sellday, median, egs_average, egs_count, exe_path, monitor_process, status, clear_date, my_score, install_dir, review_json, review_pending, egs_registered)
+            VALUES ($egs, $title, $brand, $sellday, $median, $egsAverage, $egsCount, $exe, $proc, $status, $clear, $myScore, $installDir, $review, $reviewPending, $egsRegistered);
             SELECT last_insert_rowid();
             """;
         AddCommonParams(cmd, g);
+        cmd.Parameters.AddWithValue("$egsRegistered", Db(g.EgsRegistered?.ToString(DateFormat, CultureInfo.InvariantCulture)));
         g.Id = Convert.ToInt64(cmd.ExecuteScalar());
     }
 
@@ -338,10 +342,11 @@ public class Database : ISessionStore
                 egs_average = $egsAverage, egs_count = $egsCount,
                 exe_path = $exe, monitor_process = $proc, install_dir = $installDir, status = $status, clear_date = $clear, my_score = $myScore,
                 review_json = $review, review_pending = $reviewPending, price = $price, run_as_admin = $runAsAdmin,
-                egs_played = $egsPlayed, egs_giveup = $egsGiveUp, egs_possession = $egsPossession, egs_score = $egsScore, egs_clear_date = $egsClear, egs_synced_at = $egsSynced
+                egs_played = $egsPlayed, egs_giveup = $egsGiveUp, egs_possession = $egsPossession, egs_score = $egsScore, egs_clear_date = $egsClear, egs_synced_at = $egsSynced, egs_registered = $egsRegistered
             WHERE id = $id
             """;
         AddCommonParams(cmd, g);
+        cmd.Parameters.AddWithValue("$egsRegistered", Db(g.EgsRegistered?.ToString(DateFormat, CultureInfo.InvariantCulture)));
         cmd.Parameters.AddWithValue("$price", Db(g.Price));
         cmd.Parameters.AddWithValue("$runAsAdmin", g.RunAsAdmin ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsPlayed", g.EgsPlayed ? 1 : 0);

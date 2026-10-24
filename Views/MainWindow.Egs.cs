@@ -89,6 +89,7 @@ public partial class MainWindow
         g.Review = review;
         g.MyScore = score;
         g.Price = price; // ツールだけに保存（批評空間には送らない）
+        g.EgsRegistered = RegisteredPicker.SelectedDate?.Date;
 
         // 起動するもの（TargetGrid）は、変更したその場で保存しているので、ここでは扱わない
         g.ClearDate = ClearDatePicker.SelectedDate?.Date;

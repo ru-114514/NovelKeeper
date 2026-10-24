@@ -17,6 +17,7 @@ public partial class SortWindow : Window
         ("プレイ時間", "TotalSeconds"),
         ("クリア日", "ClearDate"),
         ("発売日", "SellDay"),
+        ("登録日", "EgsRegistered"),
         ("所持", "PossessionText"),
         ("購入予定", "PurchaseWillText"),
         ("購入確認（降順で要確認が先）", "NeedsPurchaseCheck"),

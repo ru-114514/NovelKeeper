@@ -26,6 +26,16 @@ public class StaleReviewTests
     }
 
     [Fact]
+    public void Unplayed_UsesTheEgsRegisteredDate_AndFallsBackToTheReleaseDate()
+    {
+        var recentlyAdded = G(1, GameStatus.Unplayed, "2015-01-01"); recentlyAdded.EgsRegistered = Today.AddDays(-10); // 最近登録した古い作品：出ない
+        var longPiled = G(2, GameStatus.Unplayed, "2026-09-01"); longPiled.EgsRegistered = Today.AddYears(-2);          // 新作でも長く積んだ：出る
+        var noRegistered = G(3, GameStatus.Unplayed, "2015-01-01");                                                     // 登録日がなければ発売日
+        var r = StaleReview.Candidates([recentlyAdded, longPiled, noRegistered], new Dictionary<long, DateTime>(), Today);
+        Assert.Equal(new long[] { 3, 2 }, r.Select(i => i.Game.Id));
+    }
+
+    [Fact]
     public void Unplayed_NeedsReleaseOlderThanYears_AndCountsAsBacklog()
     {
         var games = new[]

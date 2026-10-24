@@ -58,6 +58,7 @@ public partial class SearchWindow : Window
                 Median = item.Median,
                 EgsAverage = item.Average,
                 EgsCount = item.Count,
+                EgsRegistered = DateTime.Today, // 批評空間の登録日と同じく「手元に置いた日」。同期で批評空間の登録日があれば、そちらに合わせる
             });
             added++;
         }
