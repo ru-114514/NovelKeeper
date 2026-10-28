@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
@@ -310,13 +311,6 @@ public partial class MainWindow
     private void ResetZoom_Click(object sender, RoutedEventArgs e) => SetListZoom(1.0);
 
     private void OpenDataFolder_Click(object sender, RoutedEventArgs e) => OpenInExplorer(AppPaths.Dir);
-
-    /// <summary>フォルダをエクスプローラーで開く（explorer.exe は Windows フォルダのものを指定する。同じ名前の偽物を使わないため）</summary>
-    private static void OpenInExplorer(string folder)
-    {
-        var explorer = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
-        Process.Start(new ProcessStartInfo(explorer, $"\"{folder}\"") { UseShellExecute = true });
-    }
 
     // ================================================================
     // 一覧の列（表示・非表示と並び順）

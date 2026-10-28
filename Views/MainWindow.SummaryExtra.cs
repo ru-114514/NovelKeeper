@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 

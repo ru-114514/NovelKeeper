@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using NovelKeeper.Services;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
@@ -396,7 +397,7 @@ public partial class MainWindow
         // 置き場所以外で離した → 別ウィンドウにして、その位置に置く（Esc で取り消したときは何もしない）
         if (result == DragDropEffects.None && !_summaryDragCanceled)
         {
-            var cursor = CursorPositionInDip();
+            var cursor = CursorPositionInDip(this);
             var s = SummaryPanel(key);
             s.Position = "Float";
             s.Visible = true;

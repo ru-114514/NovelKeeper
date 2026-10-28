@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
@@ -12,14 +13,10 @@ public partial class MainWindow
 {
     private sealed record SummaryRow(long GameId, string Title, string Text, double Percent, double Width);
 
-    private static readonly Brush BarBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x4C, 0x8D, 0xFF)));
-
     private const double MaxChartHeight = 340; // グラフの高さの上限
 
     private SummaryResult? _summary;
     private bool _summaryLoading; // 日付欄を書き換えている間は、変更イベントで読み直さない
-
-    private static Brush Freeze(SolidColorBrush b) { b.Freeze(); return b; }
 
     /// <summary>起動時：期間を「直近1週間」にしておく（画面を開いたときに集計される）</summary>
     private void InitSummaryTab()
@@ -209,15 +206,6 @@ public partial class MainWindow
     // ================================================================
     // カレンダー（遊んだ日を濃淡で表す。1日だけのときは出さない）
     // ================================================================
-
-    private static readonly Brush[] CalendarBrushes =
-    {
-        Freeze(new SolidColorBrush(Color.FromArgb(0x40, 0x80, 0x80, 0x80))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0x66, 0x4C, 0x8D, 0xFF))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0x99, 0x4C, 0x8D, 0xFF))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0xCC, 0x4C, 0x8D, 0xFF))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0xFF, 0x4C, 0x8D, 0xFF))),
-    };
 
     private void DrawSummaryCalendar(SummaryResult r)
     {
