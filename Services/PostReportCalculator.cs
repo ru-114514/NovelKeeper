@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>「マイベストブランド」の選び方</summary>
 public enum PostBrandMode

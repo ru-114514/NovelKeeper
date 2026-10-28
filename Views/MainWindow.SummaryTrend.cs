@@ -1,10 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>
 /// レポートの「傾向」欄：年ごとの推移・ブランド別・得点の分布・ジャンル別。

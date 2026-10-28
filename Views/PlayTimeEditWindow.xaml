@@ -1,4 +1,4 @@
-<Window x:Class="ErogeLauncher.Views.PlayTimeEditWindow"
+<Window x:Class="NovelKeeper.Views.PlayTimeEditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="プレイ時間の補正" Width="560" Height="460" MinWidth="460" MinHeight="320"

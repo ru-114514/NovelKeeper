@@ -1,4 +1,4 @@
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>ある日の積みゲーの本数</summary>
 public class BacklogSnapshot

@@ -1,9 +1,9 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>
 /// 「放置作品の見直し」：長く遊んでいないプレイ中の作品と、発売からたっても手つかずの未プレイの作品を並べ、

@@ -1,8 +1,8 @@
 using System.IO;
 using System.Text.Json;
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>批評空間から取得した、作品の特徴（POV・ジャンル・総プレイ時間の中央値）</summary>
 public class GameTraits

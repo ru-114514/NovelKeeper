@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.IO;
 using System.Text;
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 作品の一覧を CSV にする。Excel でそのまま開けるよう、BOM 付き UTF-8・改行は CRLF で書く。

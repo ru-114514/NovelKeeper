@@ -1,7 +1,7 @@
 using System.IO;
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 起動中のプロセスが、どの作品のプレイ中かを判定する（画面にもプロセス一覧にも触れないので、そのままテストできる）。

@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>ツールと批評空間で内容が食い違ったときの種類</summary>
 public enum Conflict { ClearDate, Score, Memo }

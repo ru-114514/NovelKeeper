@@ -3,11 +3,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 using Microsoft.Win32;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>投稿設定タブ：レポートエリア（画像になる部分）の組み立て</summary>
 public partial class MainWindow

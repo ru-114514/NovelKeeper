@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>保存する前の作品の状態（何が変わったかを調べるための控え）</summary>
 public record SavedState(bool IsPlayed, DateTime? ClearDate, int? Score, bool Dropped, Review Review)

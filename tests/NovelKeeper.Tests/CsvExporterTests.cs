@@ -1,6 +1,6 @@
 using System.Text;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
 namespace NovelKeeper.Tests;
 
@@ -16,7 +16,7 @@ public class CsvExporterTests
     {
         var owned = new Game { Title = "所持", EgsPossession = true };
         var before = new Game { Title = "購入前", EgsPossession = false }; // 未プレイ・所持なし・起動設定なし・計測なし
-        var playedNotOwned = new Game { Title = "プレイ済", Status = ErogeLauncher.Models.GameStatus.Played, EgsPlayed = true, EgsPossession = false };
+        var playedNotOwned = new Game { Title = "プレイ済", Status = NovelKeeper.Models.GameStatus.Played, EgsPlayed = true, EgsPossession = false };
         Assert.True(before.IsBeforePurchase);
         Assert.False(playedNotOwned.IsBeforePurchase);
 

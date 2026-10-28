@@ -1,4 +1,4 @@
-﻿<Window x:Class="ErogeLauncher.Views.MainWindow"
+﻿<Window x:Class="NovelKeeper.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="NovelKeeper ― ノベルゲーム ランチャー" Height="640" Width="1180"

@@ -7,10 +7,10 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 using HtmlAgilityPack;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 public class EgsException(string message) : Exception(message);
 

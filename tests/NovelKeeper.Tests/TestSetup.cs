@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
 namespace NovelKeeper.Tests;
 

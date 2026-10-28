@@ -1,4 +1,4 @@
-<Window x:Class="ErogeLauncher.Views.SearchWindow"
+<Window x:Class="NovelKeeper.Views.SearchWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="批評空間から作品を追加" Height="520" Width="820"

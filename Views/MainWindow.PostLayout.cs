@@ -4,11 +4,11 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 using Microsoft.Win32;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>投稿設定タブ：レイアウトの編集とドラッグ＆ドロップ</summary>
 public partial class MainWindow

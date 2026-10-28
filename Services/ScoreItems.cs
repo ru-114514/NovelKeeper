@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>任意評価基準の項目1つ分（設定タブで決める。全作品で共通）</summary>
 public class ScoreItem

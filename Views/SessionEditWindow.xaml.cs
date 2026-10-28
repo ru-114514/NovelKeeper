@@ -1,7 +1,7 @@
 using System.Windows;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>プレイ時間の記録を1件、追加または編集する</summary>
 public partial class SessionEditWindow : Window

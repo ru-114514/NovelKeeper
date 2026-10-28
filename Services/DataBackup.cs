@@ -2,7 +2,7 @@ using System.IO;
 using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 手動のバックアップ（書き出し・取り込み）。作品の一覧とプレイ時間（games.db）と、設定（egs_config.json）を1つの zip にまとめる。

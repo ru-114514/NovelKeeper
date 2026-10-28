@@ -1,9 +1,9 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>詳細設定タブの「自動バックアップ」：設定・今すぐ・一覧から戻す・データの検査</summary>
 public partial class MainWindow

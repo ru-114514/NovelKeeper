@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>
 /// 「次の1本」：批評空間の中央値・データ数・POV（第一・第二）・ジャンル・総プレイ時間で、未プレイ・プレイ中の作品を絞り込み、

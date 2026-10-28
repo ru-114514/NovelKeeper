@@ -10,7 +10,7 @@
     <UseWPF>true</UseWPF>
     <!-- 通知領域のアイコン（NotifyIcon）だけ Windows Forms の部品を使う -->
     <UseWindowsForms>true</UseWindowsForms>
-    <RootNamespace>ErogeLauncher</RootNamespace>
+    <RootNamespace>NovelKeeper</RootNamespace>
 
     <!-- アプリの名前・アイコン・バージョン（exe のプロパティに表示される） -->
     <AssemblyName>NovelKeeper</AssemblyName>

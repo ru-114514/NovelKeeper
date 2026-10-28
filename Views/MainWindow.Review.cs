@@ -1,10 +1,10 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>
 /// メイン画面のうち、詳細欄の「得点登録フォームの項目」・作品の画像・

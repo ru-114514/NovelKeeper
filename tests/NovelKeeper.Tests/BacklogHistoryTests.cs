@@ -1,4 +1,4 @@
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 using Xunit;
 
 namespace NovelKeeper.Tests;

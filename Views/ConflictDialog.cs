@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>
 /// 同期でツールと批評空間の内容が食い違ったときに、どちらを使うか聞く。

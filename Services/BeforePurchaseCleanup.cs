@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 購入前の作品の整理：批評空間では購入予定を「ー」（と購入前得点を空）にして登録すると、空になった記録が消える。

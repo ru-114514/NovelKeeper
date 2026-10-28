@@ -1,7 +1,7 @@
 using System.IO;
 using Microsoft.Data.Sqlite;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 作品の一覧・プレイ時間（games.db）のコピーに使う部品。

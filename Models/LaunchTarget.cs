@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace ErogeLauncher.Models;
+namespace NovelKeeper.Models;
 
 /// <summary>
 /// 作品の「起動するもの」1つ分。

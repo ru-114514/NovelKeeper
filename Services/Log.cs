@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 動作の記録（%AppData%\NovelKeeper\log.txt）。不具合の原因を調べるためのもの。

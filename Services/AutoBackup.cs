@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>自動バックアップの設定（設定ファイルの値を、使える範囲に整えたもの）</summary>
 public class AutoBackupSettings

@@ -1,4 +1,4 @@
-<Window x:Class="ErogeLauncher.Views.ImportWindow"
+<Window x:Class="NovelKeeper.Views.ImportWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="批評空間から一括取り込み" SizeToContent="Height" Width="440"

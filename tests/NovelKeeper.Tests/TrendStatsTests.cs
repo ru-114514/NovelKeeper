@@ -1,5 +1,5 @@
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
 namespace NovelKeeper.Tests;
 

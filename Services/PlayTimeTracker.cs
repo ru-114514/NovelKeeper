@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.IO;
-using ErogeLauncher.Data;
-using ErogeLauncher.Models;
+using NovelKeeper.Data;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// プレイ時間の計測（Windows のプロセスを見張る係）。

@@ -1,4 +1,4 @@
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>投稿設定のパネルの種類</summary>
 public enum PostPanelKind

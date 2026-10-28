@@ -1,8 +1,8 @@
 using System.IO;
 using System.Windows;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>
 /// メイン画面のうち、「購入前の作品の整理」（批評空間では購入予定を「ー」にして記録を消し、ツールの一覧からも削除する）を担当する部分

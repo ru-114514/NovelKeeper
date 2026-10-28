@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>計測中の作品1つ分の状態（画面表示用）</summary>
 public record ActiveSessionInfo(long GameId, string Title, double Seconds, bool Counting);

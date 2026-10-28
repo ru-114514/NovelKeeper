@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>点数×プレイ時間の散布図の点1つ分</summary>
 public record ScorePoint(long GameId, string Title, double Seconds, int Score);

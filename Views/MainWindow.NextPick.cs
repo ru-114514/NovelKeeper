@@ -1,8 +1,8 @@
 using System.Windows;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>一覧の「🎲 次の1本…」：批評空間の中央値・POV・タグ・ジャンルで絞り込んで、次に遊ぶ作品を選ぶ</summary>
 public partial class MainWindow

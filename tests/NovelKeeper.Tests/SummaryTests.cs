@@ -1,6 +1,6 @@
-﻿using ErogeLauncher.Data;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+﻿using NovelKeeper.Data;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 using Microsoft.Data.Sqlite;
 
 namespace NovelKeeper.Tests;

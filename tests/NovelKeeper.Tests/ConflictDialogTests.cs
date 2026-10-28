@@ -1,4 +1,4 @@
-using ErogeLauncher.Views;
+using NovelKeeper.Views;
 
 namespace NovelKeeper.Tests;
 

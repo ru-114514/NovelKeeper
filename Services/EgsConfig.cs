@@ -2,7 +2,7 @@ using System.IO;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 批評空間との連携設定。%AppData%\NovelKeeper\egs_config.json に保存される。

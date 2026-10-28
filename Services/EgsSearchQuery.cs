@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 作品を追加するときの検索の SQL を作る。批評空間のタイトルは、入力と表記がずれやすい

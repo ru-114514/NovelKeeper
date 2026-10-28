@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
-using ErogeLauncher.Data;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Data;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>検出結果の1行</summary>
 public class DetectRow : INotifyPropertyChanged

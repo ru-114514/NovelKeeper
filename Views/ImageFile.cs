@@ -1,6 +1,6 @@
 using System.Windows.Media.Imaging;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>画像ファイルを読む（読んだらファイルを閉じる。読めなければ例外）</summary>
 internal static class ImageFile

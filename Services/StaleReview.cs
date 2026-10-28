@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>放置作品の見直しの1件。基準の日（Playing は最後に遊んだ日、Unplayed は批評空間の登録日。なければ発売日）から Days 日たっている</summary>
 public record StaleItem(Game Game, DateTime? Since, int? Days);

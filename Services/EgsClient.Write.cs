@@ -6,10 +6,10 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 using HtmlAgilityPack;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 /// <summary>批評空間への書き込み側（ログイン、得点登録フォームの読み込みと送信）</summary>
 public partial class EgsClient
 {

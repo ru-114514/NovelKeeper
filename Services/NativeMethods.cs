@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>Windows の機能を直接呼び出す部分（プロセスの場所、操作がない時間、前面のウィンドウ）</summary>
 internal static partial class NativeMethods

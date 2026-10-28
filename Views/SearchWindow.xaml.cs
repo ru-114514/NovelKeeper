@@ -1,9 +1,9 @@
 using System.Windows;
-using ErogeLauncher.Data;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Data;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 public partial class SearchWindow : Window
 {

@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>Windows の起動時に自動で起動する設定（現在のユーザーの「スタートアップ」に登録）</summary>
 public static class AutoStart

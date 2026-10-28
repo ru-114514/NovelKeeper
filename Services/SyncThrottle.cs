@@ -1,4 +1,4 @@
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 「批評空間と同期」を続けて押せない時間の決め方。

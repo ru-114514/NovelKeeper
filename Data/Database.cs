@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using System.Text.Json;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 using Microsoft.Data.Sqlite;
 
-namespace ErogeLauncher.Data;
+namespace NovelKeeper.Data;
 
 /// <summary>ローカルDB（SQLite）。%AppData%\NovelKeeper\games.db に保存される</summary>
 public class Database : ISessionStore

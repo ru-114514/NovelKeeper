@@ -2,10 +2,10 @@
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>レポートタブ：期間を選んで、プレイ時間のグラフ・カレンダー・プレイした作品を見る</summary>
 public partial class MainWindow

@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Models;
+namespace NovelKeeper.Models;
 
 /// <summary>
 /// 批評空間の得点登録フォームの項目のうち、プレイ済・得点・クリア日（終了日）以外のもの。

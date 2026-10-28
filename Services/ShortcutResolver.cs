@@ -1,7 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>ショートカット（.lnk / .url）から、実際の起動先を取り出す</summary>
 public static class ShortcutResolver

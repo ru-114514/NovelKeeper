@@ -1,5 +1,5 @@
 using System.IO;
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>設定・DB の保存場所（%AppData%\NovelKeeper）</summary>
 public static class AppPaths

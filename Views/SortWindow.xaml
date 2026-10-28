@@ -1,4 +1,4 @@
-<Window x:Class="ErogeLauncher.Views.SortWindow"
+<Window x:Class="NovelKeeper.Views.SortWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="並び替え" SizeToContent="Height" Width="460"

@@ -1,6 +1,6 @@
-using ErogeLauncher.Models;
+using NovelKeeper.Models;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>年別の集計1行分。AvgScore は、その年にクリアした作品のうち得点がある作品の平均（なければ null）</summary>
 public record YearTrend(int Year, double Seconds, int Games, int Clears, double? AvgScore, int Scored);

@@ -7,12 +7,12 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using ErogeLauncher.Data;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Data;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 using Microsoft.Win32;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>メイン画面のうち、詳細の編集・保存と、批評空間との連動（反映・同期・一括取り込み）を担当する部分</summary>
 public partial class MainWindow

@@ -1,8 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>一覧の「設定1〜3」ボタン：並び替えの条件を保存しておいて、ワンクリックで切り替える</summary>
 public partial class MainWindow

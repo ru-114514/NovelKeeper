@@ -2,7 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>
 /// 作品の画像（パッケージ画像など）を取得して、PCに保存しておく。

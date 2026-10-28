@@ -1,4 +1,4 @@
-﻿namespace ErogeLauncher.Services;
+﻿namespace NovelKeeper.Services;
 
 /// <summary>プレイ記録1件（レポートの集計元）</summary>
 public record SessionRow(long GameId, string Title, DateTime Start, DateTime End, long Seconds);

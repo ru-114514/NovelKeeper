@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace ErogeLauncher.Services;
+namespace NovelKeeper.Services;
 
 /// <summary>1作品のプレイ時間の記録1件（補正画面用）。Manual は、ここで追加・編集したもの</summary>
 public record SessionEntry(long Id, DateTime Start, DateTime End, long Seconds, bool Manual);

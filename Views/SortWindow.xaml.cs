@@ -1,8 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 public partial class SortWindow : Window
 {

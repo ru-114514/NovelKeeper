@@ -1,7 +1,7 @@
 using System.Windows;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 public partial class ImportWindow : Window
 {

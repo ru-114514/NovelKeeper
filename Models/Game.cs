@@ -1,6 +1,6 @@
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Models;
+namespace NovelKeeper.Models;
 
 public enum GameStatus
 {
@@ -200,7 +200,7 @@ public class Game
 
     /// <summary>いま管理者権限で起動される作品か（一覧で紫にする。URL 形式の起動は管理者にできないので対象外）</summary>
     public bool RunsAsAdmin =>
-        IsLaunchSet && (RunAsAdmin || AlwaysRunAsAdmin) && !ErogeLauncher.Services.ShortcutResolver.IsUrl(ExePath!);
+        IsLaunchSet && (RunAsAdmin || AlwaysRunAsAdmin) && !NovelKeeper.Services.ShortcutResolver.IsUrl(ExePath!);
 
     public string LaunchText =>
         IsLaunchUnset ? "⬇ ここにドロップ"

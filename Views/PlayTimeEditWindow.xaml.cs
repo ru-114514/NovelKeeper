@@ -1,10 +1,10 @@
 using System.Windows;
 using System.Windows.Input;
-using ErogeLauncher.Data;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Data;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>補正画面の一覧の1行</summary>
 public sealed class SessionListItem(SessionEntry entry)

@@ -7,12 +7,12 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using ErogeLauncher.Data;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Data;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 using Microsoft.Win32;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 public partial class MainWindow : Window
 {

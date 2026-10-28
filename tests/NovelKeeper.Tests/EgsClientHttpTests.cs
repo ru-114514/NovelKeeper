@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Web;
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 
 namespace NovelKeeper.Tests;
 

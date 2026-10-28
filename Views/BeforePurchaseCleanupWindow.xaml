@@ -1,4 +1,4 @@
-<Window x:Class="ErogeLauncher.Views.BeforePurchaseCleanupWindow"
+<Window x:Class="NovelKeeper.Views.BeforePurchaseCleanupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="購入前の作品の整理" Width="760" Height="560" MinWidth="560" MinHeight="380"

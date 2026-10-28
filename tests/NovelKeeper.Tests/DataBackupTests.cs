@@ -1,4 +1,4 @@
-using ErogeLauncher.Services;
+using NovelKeeper.Services;
 using Microsoft.Data.Sqlite;
 
 namespace NovelKeeper.Tests;
@@ -216,17 +216,17 @@ public class ClearMissingLaunchPathsTests : IDisposable
     public void MissingFiles_AreCleared_ExistingAndUrlsAreKept_AndCurrentSwitchesToWhatRemains()
     {
         var dbPath = Path.Combine(_dir, "games.db");
-        var db = new ErogeLauncher.Data.Database(dbPath);
+        var db = new NovelKeeper.Data.Database(dbPath);
         const string here = @"D:\games\here.exe";
         const string gone = @"Z:\old-pc\gone.exe";
 
-        var a = new ErogeLauncher.Models.Game { Title = "A", ExePath = gone, InstallDir = @"Z:\old-pc" };
+        var a = new NovelKeeper.Models.Game { Title = "A", ExePath = gone, InstallDir = @"Z:\old-pc" };
         db.Insert(a); db.Update(a);                                   // 見つからない1つだけ → 未設定になる
-        var b = new ErogeLauncher.Models.Game { Title = "B", ExePath = "steam://rungameid/1" };
+        var b = new NovelKeeper.Models.Game { Title = "B", ExePath = "steam://rungameid/1" };
         db.Insert(b); db.Update(b);                                   // URL → そのまま
-        var c = new ErogeLauncher.Models.Game { Title = "C", ExePath = here };
+        var c = new NovelKeeper.Models.Game { Title = "C", ExePath = here };
         db.Insert(c); db.Update(c);                                   // ある → そのまま
-        var d = new ErogeLauncher.Models.Game { Title = "D", ExePath = gone };
+        var d = new NovelKeeper.Models.Game { Title = "D", ExePath = gone };
         db.Insert(d); db.Update(d);
         db.AddTarget(d.Id, "", here, null);                           // 今使うものはないが、別の1つはある
 

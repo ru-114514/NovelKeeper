@@ -1,8 +1,8 @@
 using System.Windows;
-using ErogeLauncher.Models;
-using ErogeLauncher.Services;
+using NovelKeeper.Models;
+using NovelKeeper.Services;
 
-namespace ErogeLauncher.Views;
+namespace NovelKeeper.Views;
 
 /// <summary>整理画面の一覧の1行</summary>
 public sealed class CleanupItem(Game game)
