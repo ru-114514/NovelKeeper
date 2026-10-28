@@ -12,7 +12,7 @@ namespace NovelKeeper.Views;
 /// レポートの「年間・月間のまとめ」欄と「目標」欄。
 /// どちらも、上で選んだ期間には関係なく、今年・今月（と、その前の年・月）を見る。
 /// </summary>
-public partial class MainWindow
+public partial class SummaryTabView
 {
     private SummaryExtras.Recap? _recapYear, _recapMonth, _recapPrevYear, _recapPrevMonth;
     private SummaryExtras.Streak _streakBest = new(0, null, null);

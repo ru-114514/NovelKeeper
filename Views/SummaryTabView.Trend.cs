@@ -12,7 +12,7 @@ namespace NovelKeeper.Views;
 /// 上で選んだ期間には関係なく、登録している全作品・全期間を見る。
 /// ジャンルは批評空間から取得する必要があるので、「ジャンルを取得」ボタンで取得する（取得済みの作品だけ集計する）。
 /// </summary>
-public partial class MainWindow
+public partial class SummaryTabView
 {
     private IReadOnlyList<YearTrend> _trendYears = Array.Empty<YearTrend>();
     private IReadOnlyList<GroupTrend> _trendBrands = Array.Empty<GroupTrend>();

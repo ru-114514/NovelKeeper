@@ -2,15 +2,38 @@
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using NovelKeeper.Data;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
 using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
-/// <summary>レポートタブ：期間を選んで、プレイ時間のグラフ・カレンダー・プレイした作品を見る</summary>
-public partial class MainWindow
+/// <summary>
+/// レポートタブ：期間を選んで、プレイ時間のグラフ・カレンダー・プレイした作品を見る。
+/// メイン画面とは IMainHost を通してやりとりする（欄の配置は .Layout.cs、追加欄は .Extra.cs・.Recap.cs・.Trend.cs）
+/// </summary>
+public partial class SummaryTabView : UserControl
 {
+    private IMainHost _host = null!;
+    private Database _db = null!;
+    private EgsConfig _cfg = null!;
+    private EgsClient _egs = null!;
+
+    public SummaryTabView()
+    {
+        InitializeComponent();
+    }
+
+    /// <summary>メイン画面とつなぐ（InitSummaryTab より先に、1回だけ呼ぶ）</summary>
+    internal void Init(IMainHost host)
+    {
+        _host = host;
+        _db = host.Db;
+        _cfg = host.Config;
+        _egs = host.Egs;
+    }
+
     private sealed record SummaryRow(long GameId, string Title, string Text, double Percent, double Width);
 
     private const double MaxChartHeight = 340; // グラフの高さの上限
@@ -18,8 +41,11 @@ public partial class MainWindow
     private SummaryResult? _summary;
     private bool _summaryLoading; // 日付欄を書き換えている間は、変更イベントで読み直さない
 
-    /// <summary>起動時：期間を「直近1週間」にしておく（画面を開いたときに集計される）</summary>
-    private void InitSummaryTab()
+    /// <summary>
+    /// 起動時：期間を「直近1週間」にしておく（画面を開いたときに集計される）。
+    /// タブの切り替えで並べ直す・集計するのは、メイン画面から ApplySummaryLayout・RefreshSummary を呼ぶ
+    /// </summary>
+    internal void InitSummaryTab()
     {
         SetSummaryRange(DateTime.Today.AddDays(-6), DateTime.Today);
         // 置き場所の大きさが変わったら、グラフを描き直す（高さを置き場所に合わせるため）
@@ -27,13 +53,6 @@ public partial class MainWindow
             sv.SizeChanged += (_, _) => DrawSummaryChart();
         InitSummaryExtras();
         ApplySummaryLayout();
-        MainTabs.SelectionChanged += (s, e) =>
-        {
-            // タブの中の一覧などの選択変更でも届くので、タブ自身の切り替えだけ見る
-            if (e.OriginalSource != MainTabs) return;
-            ApplySummaryLayout(); // 別ウィンドウの欄は、レポートのタブを開いている間だけ出す
-            if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) RefreshSummary();
-        };
     }
 
     private void SetSummaryRange(DateTime from, DateTime to)
@@ -67,7 +86,7 @@ public partial class MainWindow
         if (!_summaryLoading && _db != null) RefreshSummary();
     }
 
-    private void RefreshSummary()
+    internal void RefreshSummary()
     {
         var from = (SummaryFromPicker.SelectedDate ?? DateTime.Today).Date;
         var to = (SummaryToPicker.SelectedDate ?? DateTime.Today).Date;
@@ -293,7 +312,7 @@ public partial class MainWindow
     private void SummaryGameItem_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: SummaryRow row }) return;
-        ShowGameInList(row.GameId);
+        _host.ShowGameInList(row.GameId);
         e.Handled = true;
     }
 
