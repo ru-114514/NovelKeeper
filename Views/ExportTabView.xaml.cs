@@ -123,7 +123,8 @@ public partial class ExportTabView : UserControl
         }
         var current = _db.GetAll().Count;
         var ask = MessageBox.Show(OwnerWindow,
-            $"いまの作品 {current} 件を、バックアップの作品 {info.Games} 件に置き換えます{(withConfig ? "（設定も戻します）" : "")}。\n\n" +
+            $"いまの作品 {current} 件を、バックアップの作品 {info.Games} 件に置き換えます{(withConfig ? "（設定も戻します）" : "")}。\n" +
+            (withConfig ? DataBackup.KeptSettingsNote + "\n" : "") + "\n" +
             "置き換える前に、いまの内容を backups フォルダに控えとして残します。\n反映のため、アプリを再起動します。よろしいですか？",
             "バックアップから戻す", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
         if (ask != MessageBoxResult.OK) return;

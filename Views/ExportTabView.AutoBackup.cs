@@ -151,7 +151,11 @@ public partial class ExportTabView
         }
         list.SelectedIndex = list.Items.OfType<ListBoxItem>().ToList().FindIndex(i => i.IsEnabled);
 
-        var withConfig = new CheckBox { Content = "設定も戻す（設定のないバックアップでは、作品の一覧とプレイ時間だけ戻します）", Margin = new Thickness(0, 0, 0, 8) };
+        var withConfig = new CheckBox
+        {
+            Content = "設定も戻す（設定のないバックアップでは、作品の一覧とプレイ時間だけ戻します）",
+            ToolTip = DataBackup.KeptSettingsNote, Margin = new Thickness(0, 0, 0, 8),
+        };
         var ok = new Button { Content = "戻す", Padding = new Thickness(18, 3, 18, 3) };
         var close = new Button { Content = "閉じる", Padding = new Thickness(14, 3, 14, 3) };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -177,7 +181,8 @@ public partial class ExportTabView
             if (list.SelectedItem is not ListBoxItem { Tag: BackupGeneration g }) return;
             var cfg = withConfig.IsChecked == true && g.ConfigPath != null;
             var ask = MessageBox.Show(win,
-                $"いまの作品 {_db.GetAll().Count} 件を、{g.Date:yyyy/MM/dd} のバックアップ（作品 {AutoBackup.CountGames(g.DbPath)} 件）に置き換えます{(cfg ? "（設定も戻します）" : "")}。\n\n" +
+                $"いまの作品 {_db.GetAll().Count} 件を、{g.Date:yyyy/MM/dd} のバックアップ（作品 {AutoBackup.CountGames(g.DbPath)} 件）に置き換えます{(cfg ? "（設定も戻します）" : "")}。\n" +
+                (cfg ? DataBackup.KeptSettingsNote + "\n" : "") + "\n" +
                 "置き換える前に、いまの内容を backups フォルダに控えとして残します。\n反映のため、アプリを再起動します。よろしいですか？",
                 "バックアップから戻す", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
             if (ask != MessageBoxResult.OK) return;

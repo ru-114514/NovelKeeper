@@ -17,6 +17,11 @@ public static class DataBackup
 
     public static string PendingDir => Path.Combine(AppPaths.Dir, "import_pending");
 
+    /// <summary>設定を戻すときに、戻さない項目の説明（EgsConfig.KeptOnImport）</summary>
+    public const string KeptSettingsNote =
+        "設定のうち、批評空間との連携の設定、フォルダの指定（ゲームのフォルダ・ショートカットのフォルダ・自動バックアップの保存先・背景の画像）、" +
+        "管理者権限・自動起動の設定は戻さず、いまのままにします。";
+
     /// <summary>zip に書き出す。DB は SQLite のバックアップ機能でコピーするので、計測中でも壊れない。途中で止まっても書きかけを残さない</summary>
     public static void Export(string zipPath, string dbPath, string configPath)
     {
@@ -301,8 +306,7 @@ public static class DataBackup
 
             Log.Info($"バックアップを取り込みました（起動設定を外した作品: {cleared} 件）");
             return "バックアップを取り込みました。\n\nログイン情報（ID・パスワード）はバックアップに含まれません。\n別のパソコンに戻した場合は、「ログイン設定」タブでログインし直してください。" +
-                   (hasConfig ? "\n\n設定のうち、批評空間との連携の設定、フォルダの指定（ゲームのフォルダ・自動バックアップの保存先・背景の画像）、" +
-                                "管理者権限・自動起動の設定は、取り込まずにいまのままにしています。" : "") +
+                   (hasConfig ? "\n\n" + KeptSettingsNote : "") +
                    (cleared == 0 ? "" : $"\n\nこのパソコンで使えず（ファイルがない、Steam や DMM Game Player にゲームがない、ネットワーク上の場所、対応していない URL）、" +
                                         $"起動設定を外した作品が {cleared} 件あります。\n「ゲーム起動設定」タブで、「実行ファイルを自動検出」か、手動の設定をしてください。");
         }
