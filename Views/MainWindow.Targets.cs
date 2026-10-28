@@ -11,6 +11,7 @@ using NovelKeeper.Data;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
 using Microsoft.Win32;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
@@ -59,10 +60,6 @@ public partial class MainWindow
         while (d != null && d is not T) d = ParentOf(d);
         return d as T;
     }
-
-    /// <summary>親の部品（文字の一部などの場合は、見た目の部品ではないので別の方法でたどる）</summary>
-    private static DependencyObject? ParentOf(DependencyObject d) =>
-        d is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
 
     /// <summary>一覧の「起動設定」欄の ▼：起動するもの（収録作など）を選び替える</summary>
     private void RowTargetMenu_Click(object sender, RoutedEventArgs e)

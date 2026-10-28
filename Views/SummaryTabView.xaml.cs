@@ -2,27 +2,50 @@
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using NovelKeeper.Data;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
-/// <summary>レポートタブ：期間を選んで、プレイ時間のグラフ・カレンダー・プレイした作品を見る</summary>
-public partial class MainWindow
+/// <summary>
+/// レポートタブ：期間を選んで、プレイ時間のグラフ・カレンダー・プレイした作品を見る。
+/// メイン画面とは IMainHost を通してやりとりする（欄の配置は .Layout.cs、追加欄は .Extra.cs・.Recap.cs・.Trend.cs）
+/// </summary>
+public partial class SummaryTabView : UserControl
 {
-    private sealed record SummaryRow(long GameId, string Title, string Text, double Percent, double Width);
+    private IMainHost _host = null!;
+    private Database _db = null!;
+    private EgsConfig _cfg = null!;
+    private EgsClient _egs = null!;
 
-    private static readonly Brush BarBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x4C, 0x8D, 0xFF)));
+    public SummaryTabView()
+    {
+        InitializeComponent();
+    }
+
+    /// <summary>メイン画面とつなぐ（InitSummaryTab より先に、1回だけ呼ぶ）</summary>
+    internal void Init(IMainHost host)
+    {
+        _host = host;
+        _db = host.Db;
+        _cfg = host.Config;
+        _egs = host.Egs;
+    }
+
+    private sealed record SummaryRow(long GameId, string Title, string Text, double Percent, double Width);
 
     private const double MaxChartHeight = 340; // グラフの高さの上限
 
     private SummaryResult? _summary;
     private bool _summaryLoading; // 日付欄を書き換えている間は、変更イベントで読み直さない
 
-    private static Brush Freeze(SolidColorBrush b) { b.Freeze(); return b; }
-
-    /// <summary>起動時：期間を「直近1週間」にしておく（画面を開いたときに集計される）</summary>
-    private void InitSummaryTab()
+    /// <summary>
+    /// 起動時：期間を「直近1週間」にしておく（画面を開いたときに集計される）。
+    /// タブの切り替えで並べ直す・集計するのは、メイン画面から ApplySummaryLayout・RefreshSummary を呼ぶ
+    /// </summary>
+    internal void InitSummaryTab()
     {
         SetSummaryRange(DateTime.Today.AddDays(-6), DateTime.Today);
         // 置き場所の大きさが変わったら、グラフを描き直す（高さを置き場所に合わせるため）
@@ -30,13 +53,6 @@ public partial class MainWindow
             sv.SizeChanged += (_, _) => DrawSummaryChart();
         InitSummaryExtras();
         ApplySummaryLayout();
-        MainTabs.SelectionChanged += (s, e) =>
-        {
-            // タブの中の一覧などの選択変更でも届くので、タブ自身の切り替えだけ見る
-            if (e.OriginalSource != MainTabs) return;
-            ApplySummaryLayout(); // 別ウィンドウの欄は、レポートのタブを開いている間だけ出す
-            if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) RefreshSummary();
-        };
     }
 
     private void SetSummaryRange(DateTime from, DateTime to)
@@ -70,7 +86,7 @@ public partial class MainWindow
         if (!_summaryLoading && _db != null) RefreshSummary();
     }
 
-    private void RefreshSummary()
+    internal void RefreshSummary()
     {
         var from = (SummaryFromPicker.SelectedDate ?? DateTime.Today).Date;
         var to = (SummaryToPicker.SelectedDate ?? DateTime.Today).Date;
@@ -210,15 +226,6 @@ public partial class MainWindow
     // カレンダー（遊んだ日を濃淡で表す。1日だけのときは出さない）
     // ================================================================
 
-    private static readonly Brush[] CalendarBrushes =
-    {
-        Freeze(new SolidColorBrush(Color.FromArgb(0x40, 0x80, 0x80, 0x80))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0x66, 0x4C, 0x8D, 0xFF))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0x99, 0x4C, 0x8D, 0xFF))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0xCC, 0x4C, 0x8D, 0xFF))),
-        Freeze(new SolidColorBrush(Color.FromArgb(0xFF, 0x4C, 0x8D, 0xFF))),
-    };
-
     private void DrawSummaryCalendar(SummaryResult r)
     {
         var panel = SummaryCalendar;
@@ -305,20 +312,7 @@ public partial class MainWindow
     private void SummaryGameItem_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: SummaryRow row }) return;
-
-        Game? Find() => (GameGrid.ItemsSource as IEnumerable<Game>)?.FirstOrDefault(g => g.Id == row.GameId);
-
-        MainTabs.SelectedIndex = 0; // 一覧タブ
-        if (Find() == null)
-        {
-            // 絞り込みで隠れているときは、「すべて」に戻す
-            if (FilterBox.SelectedIndex != 0) FilterBox.SelectedIndex = 0; else Reload();
-        }
-        if (Find() is { } game)
-        {
-            GameGrid.SelectedItem = game;
-            GameGrid.ScrollIntoView(game);
-        }
+        _host.ShowGameInList(row.GameId);
         e.Handled = true;
     }
 

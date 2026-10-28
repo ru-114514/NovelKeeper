@@ -232,7 +232,7 @@ public partial class MainWindow
 
         _detailDirty = false;
         Reload(); // 合計時間や「初回起動日」が変わる
-        if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) RefreshSummary();
+        if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) SummaryView.RefreshSummary();
         StatusText.Text = $"プレイ時間の記録を補正しました：{g.Title}";
 
         // 総プレイ時間（批評空間に送る値）が、補正した計測時間とずれたら、入れ直すか聞く

@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
@@ -12,7 +13,7 @@ namespace NovelKeeper.Views;
 /// レポートの追加欄：時間帯ヒートマップ・点数×プレイ時間・クリアと積みゲー。
 /// グラフ・カレンダー・作品と同じ「欄」として、移動・非表示・別ウィンドウにできる（枠は起動時にコードで作る）。
 /// </summary>
-public partial class MainWindow
+public partial class SummaryTabView
 {
     private static readonly string[] SummaryExtraKeys = { "heat", "scatter", "cleared", "recap", "trend", "goal" };
     private static readonly string[] WeekdayNames = { "月", "火", "水", "木", "金", "土", "日" };

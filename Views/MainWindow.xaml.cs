@@ -60,7 +60,7 @@ public partial class MainWindow : Window
             _tracker.Dispose();
             _tray.Dispose();
             _floatWindow?.Close(); // 別ウィンドウの詳細欄が残っていると、アプリが終わらないため
-            CloseSummaryFloats();
+            SummaryView.CloseSummaryFloats();
         };
 
         // 設定ファイルが壊れていて初期状態に戻したときは、そのことを知らせる
@@ -96,10 +96,25 @@ public partial class MainWindow : Window
         FilterBox.SelectedIndex = 0; // ここで一覧が読み込まれる
 
         ShowBeforePurchaseCheck.IsChecked = _cfg.ShowBeforePurchase;
+        // タブの画面（UserControl）とつなぐ。各タブの読み込みより先に
+        ExportView.Init(this);
+        SummaryView.Init(this);
         InitSettingsTab();
-        InitSummaryTab();
+        SummaryView.InitSummaryTab();
+        MainTabs.SelectionChanged += (s, e) =>
+        {
+            // タブの中の一覧などの選択変更でも届くので、タブ自身の切り替えだけ見る
+            if (e.OriginalSource != MainTabs) return;
+            SummaryView.ApplySummaryLayout(); // 別ウィンドウの欄は、レポートのタブを開いている間だけ出す
+            if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) SummaryView.RefreshSummary();
+        };
         InitPostTab();
-        InitExportTab();
+        ExportView.InitExportTab();
+        MainTabs.SelectionChanged += (_, e) =>
+        {
+            // タブの中の選択変更でも届くので、タブ自身の切り替えだけ見る。開くたびに、対象の件数を数え直す
+            if (e.OriginalSource == MainTabs && ReferenceEquals(MainTabs.SelectedItem, ExportTab)) ExportView.RefreshExportPanel();
+        };
 
         // 保存されているテーマを選択欄に表示（App で適用済み）
         _loadingTheme = true;
@@ -337,7 +352,7 @@ public partial class MainWindow : Window
             _tray.Notify("プレイ時間を記録しました", $"{title}（{minutes}分）");
         _tray.SetText("NovelKeeper");
         Reload();
-        if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) RefreshSummary();
+        if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) SummaryView.RefreshSummary();
     }
 
     /// <summary>いま計測中の作品（補正画面で、計測中の記録を書き換えないために使う）</summary>
@@ -368,7 +383,7 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
         _floatWindow?.Hide();
-        HideSummaryFloats();
+        SummaryView.HideSummaryFloats();
         Hide();
         if (!_trayNotified)
         {
@@ -384,7 +399,7 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
         ApplyDetailLayout(); // 別ウィンドウの詳細欄も出し直す
-        ApplySummaryLayout();
+        SummaryView.ApplySummaryLayout();
     }
 
     private void ExitApp()

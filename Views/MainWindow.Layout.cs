@@ -11,6 +11,7 @@ using NovelKeeper.Data;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
 using Microsoft.Win32;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
@@ -240,7 +241,7 @@ public partial class MainWindow
         // 「右」「下」の置き場所以外で離した → 別ウィンドウにして、その位置に置く（Esc で取り消したときは何もしない）
         if (result == DragDropEffects.None && !_detailDragCanceled)
         {
-            var cursor = CursorPositionInDip();
+            var cursor = CursorPositionInDip(this);
             _cfg.DetailPosition = "Float";
             _cfg.DetailVisible = true;
             _cfg.FloatLeft = cursor.X - 60;
@@ -252,15 +253,6 @@ public partial class MainWindow
     private void DetailHeader_QueryContinueDrag(object sender, QueryContinueDragEventArgs e)
     {
         if (e.EscapePressed) _detailDragCanceled = true;
-    }
-
-    /// <summary>マウスカーソルの位置（画面の拡大率を考慮した WPF の座標）</summary>
-    private Point CursorPositionInDip()
-    {
-        var p = System.Windows.Forms.Cursor.Position; // 実ピクセル
-        var source = PresentationSource.FromVisual(this);
-        var m = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
-        return m.Transform(new Point(p.X, p.Y));
     }
 
     private void DropZone_DragEnter(object sender, DragEventArgs e)
@@ -287,11 +279,6 @@ public partial class MainWindow
         e.Effects = DragDropEffects.Move; // 置き場所に置いた（別ウィンドウにはしない）
         e.Handled = true;
         Dispatcher.InvokeAsync(SaveLayout); // ドラッグが終わってから並べ直す
-    }
-
-    private static void SetZoneHighlight(Border zone, bool on)
-    {
-        zone.Background = new SolidColorBrush(on ? Color.FromArgb(0x70, 0x4A, 0x90, 0xE2) : Color.FromArgb(0x26, 0x4A, 0x90, 0xE2));
     }
 
     /// <summary>詳細設定タブを開く（通知領域のメニューからも使う）</summary>

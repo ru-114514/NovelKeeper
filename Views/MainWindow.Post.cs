@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
 using Microsoft.Win32;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 

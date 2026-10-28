@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using NovelKeeper.Services;
+using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
@@ -10,7 +11,7 @@ namespace NovelKeeper.Views;
 /// レポート画面の配置。グラフ・カレンダー・作品の3つの欄を、それぞれ
 /// メイン（左・中央）／右／下／別ウィンドウ に置け、隠すこともできる（詳細欄と同じ操作）。
 /// </summary>
-public partial class MainWindow
+public partial class SummaryTabView
 {
     private const string SummaryDragFormat = "NovelKeeper.SummaryPanel";
     private static readonly string[] SummaryKeys = { "chart", "calendar", "games", "heat", "scatter", "cleared", "recap", "trend", "goal" };
@@ -73,9 +74,9 @@ public partial class MainWindow
     }
 
     /// <summary>設定に合わせて、3つの欄を並べ直す</summary>
-    private void ApplySummaryLayout()
+    internal void ApplySummaryLayout()
     {
-        var onTab = IsVisible && ReferenceEquals(MainTabs.SelectedItem, SummaryTab);
+        var onTab = _host.IsSummaryActive;
 
         foreach (var key in SummaryKeys) Detach(SummaryFrame(key));
         SummaryLeftStack.Children.Clear();
@@ -226,7 +227,7 @@ public partial class MainWindow
         // ×で閉じたら「隠す」にする（ウィンドウ自体は使い回す）
         w.Closing += (_, e) =>
         {
-            if (_exiting) return;
+            if (_host.IsExiting) return;
             e.Cancel = true;
             s.Visible = false;
             SaveSummaryLayout();
@@ -250,24 +251,25 @@ public partial class MainWindow
                        top > SystemParameters.VirtualScreenTop - 50 &&
                        left < SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 100 &&
                        top < SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 100;
+        var owner = _host.Window;
         if (!onScreen)
         {
             var i = Array.IndexOf(SummaryKeys, key);
-            left = Left + Math.Max(0, ActualWidth - w.Width - 40) - i * 30;
-            top = Top + 120 + i * 30;
+            left = owner.Left + Math.Max(0, owner.ActualWidth - w.Width - 40) - i * 30;
+            top = owner.Top + 120 + i * 30;
         }
         w.Left = left;
         w.Top = top;
-        if (w.Owner == null) w.Owner = this;
+        if (w.Owner == null) w.Owner = owner;
         if (!w.IsVisible) w.Show();
     }
 
-    private void HideSummaryFloats()
+    internal void HideSummaryFloats()
     {
         foreach (var w in _summaryFloats.Values) w.Hide();
     }
 
-    private void CloseSummaryFloats()
+    internal void CloseSummaryFloats()
     {
         foreach (var w in _summaryFloats.Values) w.Close();
     }
@@ -396,7 +398,7 @@ public partial class MainWindow
         // 置き場所以外で離した → 別ウィンドウにして、その位置に置く（Esc で取り消したときは何もしない）
         if (result == DragDropEffects.None && !_summaryDragCanceled)
         {
-            var cursor = CursorPositionInDip();
+            var cursor = CursorPositionInDip(this);
             var s = SummaryPanel(key);
             s.Position = "Float";
             s.Visible = true;
