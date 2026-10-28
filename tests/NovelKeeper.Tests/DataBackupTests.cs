@@ -81,17 +81,17 @@ public class DataBackupTests : IDisposable
     {
         var db = MakeDb("games.db", 1);
         var cfg = Path.Combine(_dir, "egs_config.json");
-        File.WriteAllText(cfg, "NEW");
+        File.WriteAllText(cfg, "{\"Theme\":\"Light\"}");
         var zip = Path.Combine(_dir, "b.zip");
         DataBackup.Export(zip, db, cfg);
 
         var target = MakeDb("target.db", 2);
         var targetCfg = Path.Combine(_dir, "target_cfg.json");
-        File.WriteAllText(targetCfg, "OLD");
+        File.WriteAllText(targetCfg, "{\"Theme\":\"Dark\"}");
         var pending = Path.Combine(_dir, "pending");
         DataBackup.Stage(zip, pending, withConfig: true);
         DataBackup.ApplyPending(pending, target, targetCfg, Path.Combine(_dir, "backups"));
-        Assert.Equal("NEW", File.ReadAllText(targetCfg));
+        Assert.Equal("Light", EgsConfig.Load(targetCfg).Theme);
     }
 
     [Fact]
@@ -174,8 +174,80 @@ public class DataBackupTests : IDisposable
         Directory.Delete(targetCfg);
         DataBackup.ApplyPending(pending, target, targetCfg, backups);
         Assert.Equal(3, Count(target));
-        Assert.Equal("{\"Theme\":\"Light\"}", File.ReadAllText(targetCfg));
+        Assert.Equal("Light", EgsConfig.Load(targetCfg).Theme);
         Assert.False(Directory.Exists(pending));
+    }
+
+    [Fact]
+    public void ApplyPending_RemovesDangerousLaunchPaths_BeforeReplacing_AndKeepsConnectionSettings()
+    {
+        // 他人から受け取ったバックアップ：ネットワーク上の exe・http の URL、送り先とバックアップ先を書き換えた設定
+        var srcPath = Path.Combine(_dir, "src.db");
+        var src = new NovelKeeper.Data.Database(srcPath);
+        var a = new NovelKeeper.Models.Game { Title = "A", ExePath = @"\\host\share\a.exe" };
+        src.Insert(a); src.Update(a);
+        src.AddTarget(a.Id, "", "https://example.com/a.exe", null);
+        var srcCfg = Path.Combine(_dir, "src_cfg.json");
+        File.WriteAllText(srcCfg, "{\"Theme\":\"Light\",\"BaseUrl\":\"https://evil.example/\",\"AutoBackupDir\":\"\\\\\\\\host\\\\share\"," +
+                                  "\"AlwaysRunAsAdmin\":true,\"PostFontFamily\":\"file:///host/share/#Font\"}");
+        SqliteConnection.ClearAllPools();
+        var zip = Path.Combine(_dir, "b.zip");
+        DataBackup.Export(zip, srcPath, srcCfg);
+
+        var target = MakeDb("target.db", 1);
+        var targetCfg = Path.Combine(_dir, "target_cfg.json");
+        File.WriteAllText(targetCfg, "{\"AutoBackupDir\":\"D:\\\\mybackup\"}");
+        var pending = Path.Combine(_dir, "pending");
+        DataBackup.Stage(zip, pending, withConfig: true);
+
+        var message = DataBackup.ApplyPending(pending, target, targetCfg, Path.Combine(_dir, "backups"));
+
+        Assert.Contains("起動設定を外した作品が 1 件", message);
+        var game = new NovelKeeper.Data.Database(target).GetAll().Single();
+        Assert.Null(game.ExePath);
+        Assert.Empty(game.Targets);
+
+        var cfg = EgsConfig.Load(targetCfg);
+        Assert.Equal("Light", cfg.Theme);                          // ふつうの設定は取り込む
+        Assert.Equal(new EgsConfig().BaseUrl, cfg.BaseUrl);        // 送り先は変えさせない
+        Assert.Equal(@"D:\mybackup", cfg.AutoBackupDir);           // いまの値のまま
+        Assert.False(cfg.AlwaysRunAsAdmin);
+        Assert.Null(cfg.PostFontFamily);                           // 場所の書かれたフォントは外す
+    }
+
+    [Fact]
+    public void ImportConfig_Broken_KeepsCurrentSettings()
+    {
+        var imported = Path.Combine(_dir, "imported.json");
+        File.WriteAllText(imported, "{ broken");
+        var current = Path.Combine(_dir, "current.json");
+        File.WriteAllText(current, "{\"Theme\":\"Light\"}");
+
+        EgsConfig.Import(imported, current);
+
+        Assert.Equal("{\"Theme\":\"Light\"}", File.ReadAllText(current));
+    }
+
+    /// <summary>
+    /// 設定に文字や一覧の項目を増やしたら、取り込んでよいか（KeptOnImport に入れるか）を決めて、ここか KeptOnImport に書く。
+    /// URL・パス・欄の名前が、知らないうちにバックアップから取り込めるようにならないように
+    /// </summary>
+    [Fact]
+    public void EveryTextOrListSetting_IsClassifiedForImport()
+    {
+        var safe = new[]
+        {
+            "SortKeys", "SortPresets", "BacklogExcludedIds", "BacklogSnapshots", "NextPickFilter", "NextPickPresets", "DetailPosition",
+            "SummaryPanels", "ColumnWidths", "Columns", "PostLayout", "PostBackColor", "PostCardColor", "PostFontFamily", "PostTextColor",
+            "ScoreItems", "ScoreItems2", "ScoreItems3", "ScoreTemplateNames", "PostTitle", "PostReplayGameIds", "PostHiddenGameIds",
+            "PostBrandName", "ExpandedSections", "Theme",
+        };
+        var unclassified = typeof(EgsConfig).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Where(p => p.CanWrite && p.SetMethod!.IsPublic && (p.PropertyType == typeof(string) || !p.PropertyType.IsValueType))
+            .Select(p => p.Name)
+            .Except(EgsConfig.KeptOnImport).Except(safe)
+            .ToList();
+        Assert.Empty(unclassified);
     }
 
     [Fact]
@@ -250,9 +322,35 @@ public class ClearMissingLaunchPathsTests : IDisposable
     [InlineData("steam://rungameid/123", true, false, true, false)]             // Steam にそのゲームがない
     [InlineData("dmmgameplayer://play/GMAIN/x/main/win", false, false, true, true)]   // DMM Game Player がある
     [InlineData("dmmgameplayer://play/GMAIN/x/main/win", true, true, false, false)]   // DMM Game Player がない
-    [InlineData("unknown-app://x", false, false, false, true)]                  // 確かめられない URL は残す
+    [InlineData("steam://rungameid/123/", false, true, false, true)]
+    [InlineData("steam://run/123", true, true, true, false)]                    // rungameid 以外の Steam の URL は使わない
+    [InlineData("unknown-app://x", true, true, true, false)]                    // 知らない URL は使わない
+    [InlineData("https://example.com/a.exe", true, true, true, false)]
+    [InlineData("file://host/share/a.exe", true, true, true, false)]
     public void IsLaunchAvailable_JudgesFilesSteamAndDmm(string path, bool fileExists, bool steam, bool dmm, bool expected) =>
         Assert.Equal(expected, DataBackup.IsLaunchAvailable(path, _ => fileExists, _ => steam, _ => dmm));
+
+    [Theory]
+    [InlineData(@"\\host\share\a.exe")]
+    [InlineData("//host/share/a.exe")]
+    [InlineData(@"\\?\UNC\host\share\a.exe")]
+    [InlineData(@" \/host\share\a.exe")]
+    public void IsLaunchAvailable_NetworkPath_IsRefusedWithoutTouchingIt(string path) =>
+        // 存在を確かめるだけで認証情報が送られるので、ファイルには触らない
+        Assert.False(DataBackup.IsLaunchAvailable(path, _ => throw new InvalidOperationException("触った"), _ => true, _ => true));
+
+    [Fact]
+    public void NetworkInstallDir_IsCleared()
+    {
+        var dbPath = Path.Combine(_dir, "games.db");
+        var db = new NovelKeeper.Data.Database(dbPath);
+        var g = new NovelKeeper.Models.Game { Title = "A", ExePath = "steam://rungameid/1", InstallDir = @"\\host\share\game" };
+        db.Insert(g); db.Update(g);
+
+        DataBackup.ClearMissingLaunchPaths(dbPath, _ => true);
+
+        Assert.Null(db.GetAll().Single().InstallDir);
+    }
 
     [Fact]
     public void OldFormatDatabase_WithoutLaunchColumns_IsLeftAlone()

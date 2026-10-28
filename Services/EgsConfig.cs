@@ -381,6 +381,61 @@ public class EgsConfig
     }
 
     /// <summary>
+    /// バックアップから取り込むとき、取り込まずに、いまの値（なければ初期値）を残す項目。
+    /// 通信先、ページ・欄・列の名前（フォームや SQL に使う）、フォルダ、起動のしかた。
+    /// 他人から受け取ったバックアップで、パスワードや問い合わせの送り先、バックアップの保存先、
+    /// 読みに行く場所（ネットワーク上のフォルダなど）、管理者での起動を変えられないようにする
+    /// </summary>
+    internal static readonly string[] KeptOnImport =
+    {
+        nameof(BaseUrl), nameof(CharSet), nameof(SqlPage), nameof(SqlFieldName), nameof(PlayedColumn), nameof(ClearDateColumn),
+        nameof(LoginPage), nameof(LoggedInMarker), nameof(ReviewFormUrl), nameof(PlayedField), nameof(PlayedValue),
+        nameof(ClearDateField), nameof(ClearDateFormat), nameof(ClearDateYearField), nameof(ClearDateMonthField), nameof(ClearDateDayField),
+        nameof(ScoreColumn), nameof(ScoreField), nameof(ReviewFields), nameof(GamePageUrl),
+        nameof(AutoBackupDir), nameof(PostBackImage), nameof(GameFolders), nameof(ShortcutFolders),
+        nameof(AlwaysRunAsAdmin), nameof(AutoStart),
+    };
+
+    /// <summary>
+    /// バックアップの設定を取り込む。KeptOnImport の項目は、いまの設定（なければ初期値）のまま。
+    /// フォントの指定に場所（ファイルやネットワークのパス）が書かれていたら外す。
+    /// 取り込む設定が読めなければ、いまの設定のままにする
+    /// </summary>
+    public static void Import(string importedPath, string configPath)
+    {
+        var imported = Read(importedPath);
+        if (imported == null)
+        {
+            Log.Warn("取り込むバックアップの設定を読めなかったため、いまの設定のままにします");
+            return;
+        }
+        var current = (File.Exists(configPath) ? Read(configPath) : null) ?? new EgsConfig();
+        foreach (var name in KeptOnImport)
+        {
+            var p = typeof(EgsConfig).GetProperty(name)!;
+            p.SetValue(imported, p.GetValue(current));
+        }
+        if (!IsPlainFontName(imported.PostFontFamily)) imported.PostFontFamily = null;
+        foreach (var panel in imported.PostLayout?.Panels ?? new())
+            if (!IsPlainFontName(panel.FontFamily)) panel.FontFamily = null;
+
+        imported.FilePath = configPath;
+        imported.NormalizeSortPresets();
+        imported.Save();
+    }
+
+    /// <summary>フォントの名前だけか（WPF はフォントの指定に「場所#名前」も使えて、ネットワーク上のファイルも読みに行く）</summary>
+    internal static bool IsPlainFontName(string? name) =>
+        string.IsNullOrWhiteSpace(name) || name.IndexOfAny(new[] { '/', '\\', '#', ':' }) < 0;
+
+    /// <summary>設定ファイルを読む（保存はしない）。読めなければ null</summary>
+    private static EgsConfig? Read(string path)
+    {
+        try { return JsonSerializer.Deserialize<EgsConfig>(File.ReadAllText(path), JsonOptions); }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or IOException) { return null; }
+    }
+
+    /// <summary>
     /// 設定を保存する。いったん別のファイルに書いてから置き換えるので、
     /// 保存中にPCが止まっても、設定ファイルが壊れない
     /// </summary>

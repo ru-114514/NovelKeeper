@@ -102,23 +102,32 @@ public static class DataBackup
     }
 
     /// <summary>
-    /// このパソコンで、その起動先が使えそうか。ファイルは存在で、steam:// は Steam にそのゲームが入っているか、
-    /// dmmgameplayer:// は DMM Game Player が入っているか（URL の種類が登録されているか）で判断する。それ以外の URL は確かめられないので使えるとみなす
+    /// 取り込んだデータの起動先として、このパソコンで使えそうか。ファイルは存在で、steam://rungameid/数字 は Steam にそのゲームが入っているか、
+    /// dmmgameplayer:// は DMM Game Player が入っているか（URL の種類が登録されているか）で判断する。
+    /// ネットワーク上のパス（\\相手のPC\共有）と、それ以外の URL（http・file など）は使わない（他人のバックアップで、相手の PC の exe などを起動させられないように）。
+    /// ネットワーク上のパスは、存在を確かめるだけで Windows の認証情報（NTLM）が相手に送られるので、ファイルに触る前に文字だけで断る
     /// </summary>
     internal static bool IsLaunchAvailable(string path, Func<string, bool>? fileExists = null,
         Func<string, bool>? steamAppInstalled = null, Func<string, bool>? schemeRegistered = null)
     {
+        if (IsNetworkPath(path)) return false;
         if (!path.Contains("://")) return (fileExists ?? File.Exists)(path);
 
-        if (path.StartsWith("steam://", StringComparison.OrdinalIgnoreCase))
-        {
-            var m = System.Text.RegularExpressions.Regex.Match(path, @"rungameid/(\d+)");
-            if (!m.Success) return true;
-            return (steamAppInstalled ?? (id => GameScanner.ScanSteam(id).Count > 0))(m.Groups[1].Value);
-        }
+        var m = SteamRunGame.Match(path.Trim());
+        if (m.Success) return (steamAppInstalled ?? (id => GameScanner.ScanSteam(id).Count > 0))(m.Groups[1].Value);
         if (path.StartsWith("dmmgameplayer://", StringComparison.OrdinalIgnoreCase))
             return (schemeRegistered ?? SchemeRegistered)("dmmgameplayer");
-        return true;
+        return false;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex SteamRunGame =
+        new(@"^steam://rungameid/(\d+)/?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>ネットワーク上の場所か（\\ や // で始まる。\\?\UNC\ も含む）</summary>
+    internal static bool IsNetworkPath(string? path)
+    {
+        var p = path?.Trim() ?? "";
+        return p.Length >= 2 && p[0] is '\\' or '/' && p[1] is '\\' or '/';
     }
 
     private static bool SchemeRegistered(string scheme)
@@ -128,16 +137,18 @@ public static class DataBackup
     }
 
     /// <summary>
-    /// 作品の起動設定のうち、このパソコンで使えないものを外す（ファイルがない、Steam にそのゲームがない、DMM Game Player がない）。
+    /// 作品の起動設定のうち、このパソコンで使えないものを外す（ファイルがない、Steam にそのゲームがない、DMM Game Player がない、
+    /// ネットワーク上のパス、Steam・DMM Game Player 以外の URL）。
     /// 起動する一覧から外した結果、「今使うもの」が無効になった作品は、残った先頭のものに切り替え、なければ未設定
-    /// （監視するプロセス名・ゲームのフォルダも外す）にする。外れたものがあった作品の数を返す
+    /// （監視するプロセス名・ゲームのフォルダも外す）にする。ネットワーク上のゲームのフォルダも外す。外れたものがあった作品の数を返す
     /// </summary>
     public static int ClearMissingLaunchPaths(string dbPath, Func<string, bool>? exists = null)
     {
         exists ??= p => IsLaunchAvailable(p);
         bool Ok(string? p) => string.IsNullOrWhiteSpace(p) || exists(p);
 
-        using var conn = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbPath }.ToString());
+        // 取り込む前の保留の DB に使い、このあとファイルを移すので、接続を使い回さない（閉じたらファイルも閉じる）
+        using var conn = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbPath, Pooling = false }.ToString());
         conn.Open();
         using var tx = conn.BeginTransaction();
 
@@ -208,6 +219,22 @@ public static class DataBackup
             up.ExecuteNonQuery();
         }
 
+        if (hasInstall)
+        {
+            // ゲームのフォルダは、プレイ中かどうかの判定で存在を確かめるので、ネットワーク上の場所は使わない
+            var remote = new List<long>();
+            using (var c = Cmd("SELECT id, install_dir FROM games WHERE install_dir IS NOT NULL"))
+            using (var r = c.ExecuteReader())
+                while (r.Read())
+                    if (IsNetworkPath(r.GetString(1))) remote.Add(r.GetInt64(0));
+            foreach (var id in remote)
+            {
+                using var up = Cmd("UPDATE games SET install_dir = NULL WHERE id = $id");
+                up.Parameters.AddWithValue("$id", id);
+                up.ExecuteNonQuery();
+            }
+        }
+
         tx.Commit();
         SqliteConnection.ClearAllPools();
         return affected.Count;
@@ -237,10 +264,21 @@ public static class DataBackup
                        "取り込む内容は残してあるので、次の起動でもう一度反映します。\n" +
                        $"取り込みをやめるときは、次のフォルダを削除してください：\n{pendingDir}";
             }
+            // 置き換える前に、取り込む DB から、このパソコンで使えない起動設定を外す（別のパソコンのパスが残って起動に失敗しないように。
+            // ネットワーク上のパスや知らない URL で、相手の PC の exe を起動させられたり、認証情報を送らされたりしないように）。
+            // 外せなければ反映しない（危ない起動設定が残るかもしれないので。保留のまま残し、次の起動でもう一度試す）
+            var cleared = ClearMissingLaunchPaths(newDb);
+
             // 設定を先に、DB を最後に移す。保留の DB が残っていることが「まだ反映していない」の目印なので、
-            // 途中で失敗しても、次の起動で残りを反映し直せる（DB だけが新しくなって、設定が取り残されることがない）
+            // 途中で失敗しても、次の起動で残りを反映し直せる（DB だけが新しくなって、設定が取り残されることがない）。
+            // 設定は、通信先・フォルダなどの項目を取り込まず、いまの値を残す（EgsConfig.KeptOnImport）
             var newCfg = Path.Combine(pendingDir, ConfigEntry);
-            if (File.Exists(newCfg)) File.Move(newCfg, configPath, overwrite: true);
+            var hasConfig = File.Exists(newCfg);
+            if (hasConfig)
+            {
+                EgsConfig.Import(newCfg, configPath);
+                File.Delete(newCfg);
+            }
 
             foreach (var suffix in new[] { "-wal", "-shm", "-journal" })
                 if (File.Exists(dbPath + suffix)) File.Delete(dbPath + suffix);
@@ -250,14 +288,12 @@ public static class DataBackup
             try { Directory.Delete(pendingDir, true); }
             catch (Exception ex) { Log.Warn("取り込みに使ったフォルダを削除できませんでした", ex); }
 
-            // このパソコンにないファイルの起動設定は外す（別のパソコンのパスが残って、起動に失敗しないように）
-            var cleared = 0;
-            try { cleared = ClearMissingLaunchPaths(dbPath); }
-            catch (Exception ex) { Log.Warn("起動設定の確認に失敗", ex); }
-
             Log.Info($"バックアップを取り込みました（起動設定を外した作品: {cleared} 件）");
             return "バックアップを取り込みました。\n\nログイン情報（ID・パスワード）はバックアップに含まれません。\n別のパソコンに戻した場合は、「ログイン設定」タブでログインし直してください。" +
-                   (cleared == 0 ? "" : $"\n\nこのパソコンで使えず（ファイルがない、Steam や DMM Game Player にゲームがない）、起動設定を外した作品が {cleared} 件あります。\n「ゲーム起動設定」タブで、「実行ファイルを自動検出」か、手動の設定をしてください。");
+                   (hasConfig ? "\n\n設定のうち、批評空間との連携の設定、フォルダの指定（ゲームのフォルダ・自動バックアップの保存先・背景の画像）、" +
+                                "管理者権限・自動起動の設定は、取り込まずにいまのままにしています。" : "") +
+                   (cleared == 0 ? "" : $"\n\nこのパソコンで使えず（ファイルがない、Steam や DMM Game Player にゲームがない、ネットワーク上の場所、対応していない URL）、" +
+                                        $"起動設定を外した作品が {cleared} 件あります。\n「ゲーム起動設定」タブで、「実行ファイルを自動検出」か、手動の設定をしてください。");
         }
         catch (Exception ex)
         {
