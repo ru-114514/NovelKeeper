@@ -1,0 +1,17 @@
+# 改行コードを、PC の Git の設定（core.autocrlf）によらずそろえる。
+# C# の複数行の文字列（SQL など）には改行がそのまま入るので、改行がずれると、同じソースから別の exe ができてしまう。
+
+# ふだんは LF
+* text=auto eol=lf
+
+# Windows のスクリプトは CRLF（cmd は LF だと goto やラベルが正しく動かないことがある）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 配布物に入れる利用者向けの説明は、Windows のどのエディタでも読めるよう CRLF
+docs/*.txt text eol=crlf
+
+# 画像
+*.ico binary
+*.png binary
