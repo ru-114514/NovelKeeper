@@ -425,12 +425,6 @@ public partial class MainWindow : Window
         UpdateLoginState();
     }
 
-    private void OpenConfig_Click(object sender, RoutedEventArgs e)
-    {
-        Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "notepad.exe"), $"\"{AppPaths.Config}\"") { UseShellExecute = true });
-        MessageBox.Show("設定を書き換えて保存したら、このアプリを再起動してください。", "連携設定");
-    }
-
     // ================================================================
 
     private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

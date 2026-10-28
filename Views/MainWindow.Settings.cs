@@ -113,7 +113,6 @@ public partial class MainWindow
     {
         ("批評空間のURL", nameof(EgsConfig.BaseUrl)),
         ("ページの文字コード", nameof(EgsConfig.CharSet)),
-        ("問い合わせの間隔（ミリ秒）", nameof(EgsConfig.RequestIntervalMs)),
         ("SQLページ", nameof(EgsConfig.SqlPage)),
         ("SQLの入力欄の名前", nameof(EgsConfig.SqlFieldName)),
         ("プレイ済の列名", nameof(EgsConfig.PlayedColumn)),
@@ -154,6 +153,7 @@ public partial class MainWindow
         }
 
         BuildEgsFields();
+        UpdateSyncTooltip();
         InitLoginTab();
         InitLaunchTab();
         InitScoreItems();

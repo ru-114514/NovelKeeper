@@ -243,6 +243,59 @@ public partial class MainWindow
         _ => Review.Keys.FirstOrDefault(k => k.Key == key).Label ?? key,
     };
 
+    /// <summary>この時間より前に同期していたら、続けて同期するときに確認する</summary>
+    private static readonly TimeSpan SyncRepeatWarning = TimeSpan.FromMinutes(5);
+
+    private System.Windows.Threading.DispatcherTimer? _syncCooldownTimer;
+
+    /// <summary>続けて同期できるようになるまでの残り時間（押してよければ null）</summary>
+    private TimeSpan? SyncCooldownLeft() =>
+        SyncThrottle.Remaining(_cfg.LastSyncAttemptAt, _cfg.SyncFailureCount, DateTime.Now);
+
+    /// <summary>同期ボタンに、前回の同期の日時と、制限中なら残り時間を出す</summary>
+    private void UpdateSyncTooltip()
+    {
+        var tip = _cfg.LastSyncAt is DateTime t ? $"前回の同期：{t:M/d HH:mm}" : "まだ同期していません";
+        if (SyncCooldownLeft() is TimeSpan left)
+        {
+            tip += $"\n続けての同期は、あと {Math.Ceiling(left.TotalSeconds):0} 秒たってから押せます";
+            _syncCooldownTimer ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _syncCooldownTimer.Tick -= SyncCooldownTick;
+            _syncCooldownTimer.Tick += SyncCooldownTick;
+            _syncCooldownTimer.Start();
+        }
+        else
+        {
+            _syncCooldownTimer?.Stop();
+        }
+        SyncButtonTop.ToolTip = tip;
+        SyncButtonTab.ToolTip = tip;
+    }
+
+    private void SyncCooldownTick(object? sender, EventArgs e) => UpdateSyncTooltip();
+
+    /// <summary>同期を始めた記録を残す（結果によらず、続けて押せない時間の起点になる）</summary>
+    private void RecordSyncAttempt()
+    {
+        _cfg.LastSyncAttemptAt = DateTime.Now;
+        SaveSyncState();
+        UpdateSyncTooltip();
+    }
+
+    /// <summary>同期の結果を記録する。失敗が続くと、次に押せるまでの時間が延びる</summary>
+    private void RecordSyncResult(bool success)
+    {
+        _cfg.SyncFailureCount = success ? 0 : Math.Min(_cfg.SyncFailureCount + 1, 10);
+        SaveSyncState();
+        UpdateSyncTooltip();
+    }
+
+    private void SaveSyncState()
+    {
+        try { _cfg.Save(); }
+        catch (Exception ex) { Log.Warn("同期の記録を保存できませんでした", ex); } // 保存できなくても同期は続ける
+    }
+
     /// <summary>批評空間 → ツール：自分の記録を読み込んで突き合わせる</summary>
     private async void Sync_Click(object sender, RoutedEventArgs e)
     {
@@ -252,9 +305,23 @@ public partial class MainWindow
             MessageBox.Show("先に「ログイン設定」タブで、批評空間のIDとパスワードを登録してください。");
             return;
         }
+        if (SyncCooldownLeft() is TimeSpan left)
+        {
+            StatusText.Text = $"続けての同期は、あと {Math.Ceiling(left.TotalSeconds):0} 秒たってから押せます（批評空間への負荷を避けるため）";
+            UpdateSyncTooltip();
+            return;
+        }
+        if (_cfg.LastSyncAt is DateTime last && DateTime.Now - last is { } ago && ago >= TimeSpan.Zero && ago < SyncRepeatWarning)
+        {
+            var minutes = Math.Max(1, (int)ago.TotalMinutes);
+            var ans = MessageBox.Show($"前回の同期から {minutes} 分しかたっていません。\n批評空間に負荷がかかるため、続けて何度も押さないでください。\n\nもう一度同期しますか？",
+                "同期の確認", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+            if (ans != MessageBoxResult.Yes) return;
+        }
         if (!BeginEgsWork(lockDetail: true)) return;
         try
         {
+            RecordSyncAttempt();
             await SyncAsync(cred.Value.User);
         }
         finally
@@ -275,9 +342,13 @@ public partial class MainWindow
         {
             Log.Warn("批評空間からの読み込みに失敗（同期）", ex);
             StatusText.Text = "読み込みに失敗しました";
+            RecordSyncResult(success: false);
             MessageBox.Show(ex.Message, "同期エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+
+        _cfg.LastSyncAt = DateTime.Now;
+        RecordSyncResult(success: true);
 
         if (SyncEngine.LooksLikeLostRecords(_db.GetAll(), records.Count) &&
             MessageBox.Show("批評空間の記録が0件でした。取得に失敗している可能性があります。\n\n" +
@@ -362,12 +433,21 @@ public partial class MainWindow
             return;
         }
 
+        // 同期と共通の制限（重い問い合わせを続けて送らない）
+        if (SyncCooldownLeft() is TimeSpan left)
+        {
+            StatusText.Text = $"続けての取り込みは、あと {Math.Ceiling(left.TotalSeconds):0} 秒たってから行えます（批評空間への負荷を避けるため）";
+            UpdateSyncTooltip();
+            return;
+        }
+
         var dlg = new ImportWindow { Owner = this };
         if (dlg.ShowDialog() != true) return;
         var scope = dlg.Scope;
         if (!BeginEgsWork(lockDetail: true)) return;
         try
         {
+            RecordSyncAttempt();
 
             List<EgsMyGame> myGames;
             try
@@ -379,9 +459,11 @@ public partial class MainWindow
             {
                 Log.Warn("批評空間からの読み込みに失敗（一括取り込み）", ex);
                 StatusText.Text = "読み込みに失敗しました";
+                RecordSyncResult(success: false);
                 MessageBox.Show(ex.Message, "取り込みエラー", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+            RecordSyncResult(success: true);
 
             // 所持・感想など（読めなくても取り込みは続ける）
             var reviews = new Dictionary<int, Review>();

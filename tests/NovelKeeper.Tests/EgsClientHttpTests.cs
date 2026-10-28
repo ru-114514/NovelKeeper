@@ -28,7 +28,7 @@ public class EgsClientHttpTests
     private static (EgsClient Client, FakeSite Site) Create(Func<HttpRequestMessage, string, string> respond)
     {
         var site = new FakeSite(respond);
-        var cfg = new EgsConfig { RequestIntervalMs = 0 };
+        var cfg = new EgsConfig { EffectiveIntervalMs = 0 };
         return (new EgsClient(cfg, () => site), site);
     }
 

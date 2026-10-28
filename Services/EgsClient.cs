@@ -270,6 +270,10 @@ public class EgsClient
             rows = await QueryAsync(Sql(true));
             if (rows.Count == 0 || !rows[0].ContainsKey("memo_b64")) throw new EgsException("base64 が使えません");
         }
+        catch (Exception ex) when (IsTimeout(ex))
+        {
+            throw; // 時間切れのときは、重い問い合わせを重ねて送らない
+        }
         catch (Exception ex)
         {
             Log.Warn("感想の base64 取得に失敗したため、そのまま取得します", ex);
@@ -321,6 +325,17 @@ public class EgsClient
         }
         return dict;
     }
+
+    /// <summary>問い合わせが時間切れになったか（通信の時間切れ、またはサイト側のSQLの打ち切り）</summary>
+    internal static bool IsTimeout(Exception ex) => ex switch
+    {
+        TimeoutException => true,
+        TaskCanceledException => true,
+        HttpRequestException { StatusCode: System.Net.HttpStatusCode.RequestTimeout or System.Net.HttpStatusCode.GatewayTimeout } => true,
+        EgsException e => e.Message.Contains("statement timeout", StringComparison.OrdinalIgnoreCase) ||
+                          e.Message.Contains("canceling statement", StringComparison.OrdinalIgnoreCase),
+        _ => false,
+    };
 
     /// <summary>作品の画像の候補（DMM・駿河屋・バナー）を、批評空間の作品情報から作る</summary>
     public async Task<List<string>> GetImageCandidatesAsync(int egsId)
@@ -716,7 +731,7 @@ public class EgsClient
         await _lock.WaitAsync();
         try
         {
-            var wait = _cfg.RequestIntervalMs - (int)(DateTime.Now - _lastRequest).TotalMilliseconds;
+            var wait = _cfg.EffectiveIntervalMs - (int)(DateTime.Now - _lastRequest).TotalMilliseconds;
             if (wait > 0) await Task.Delay(wait);
 
             using var res = await _http.SendAsync(request);

@@ -44,11 +44,48 @@ public class GameImageService
     private static string ImagePath(int egsId) => Path.Combine(Dir, $"{egsId}.jpg");
     private static string NonePath(int egsId) => Path.Combine(Dir, $"{egsId}.none");
 
-    /// <summary>保存済みの画像があればそのパス（通信しない）</summary>
+    /// <summary>自分で差し替えた画像の保存先（取り直しや「すべて削除」では消えない）</summary>
+    private static string CustomPath(int egsId) => Path.Combine(Dir, $"{egsId}.custom");
+
+    /// <summary>自分で差し替えた画像があればそのパス</summary>
+    public static string? Custom(int egsId)
+    {
+        var path = CustomPath(egsId);
+        return File.Exists(path) ? path : null;
+    }
+
+    /// <summary>保存済みの画像があればそのパス（通信しない）。自分で差し替えた画像を優先する</summary>
     public static string? Cached(int egsId)
     {
+        if (Custom(egsId) is string custom) return custom;
         var path = ImagePath(egsId);
         return File.Exists(path) ? path : null;
+    }
+
+    /// <summary>選んだ画像ファイルを、この作品の画像として保存する。画像として読めなければ false</summary>
+    public static bool SetCustom(int egsId, string sourcePath)
+    {
+        try
+        {
+            var info = new FileInfo(sourcePath);
+            if (!info.Exists || info.Length == 0 || info.Length > MaxBytes) return false;
+            var bytes = File.ReadAllBytes(sourcePath);
+            if (!LooksLikeImage(bytes)) return false;
+            File.WriteAllBytes(CustomPath(egsId), bytes);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("差し替える画像を保存できませんでした: " + sourcePath, ex);
+            return false;
+        }
+    }
+
+    /// <summary>差し替えた画像をやめて、取得した画像に戻す</summary>
+    public static void ClearCustom(int egsId)
+    {
+        try { if (File.Exists(CustomPath(egsId))) File.Delete(CustomPath(egsId)); }
+        catch { /* 使用中などで消せなくても問題ない */ }
     }
 
     /// <summary>画像のパスを返す。保存していなければ取得する。見つからなければ null</summary>

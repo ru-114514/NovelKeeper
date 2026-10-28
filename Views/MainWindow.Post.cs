@@ -20,8 +20,7 @@ internal sealed class PostPick
 /// <summary>投稿設定タブ：起点の日から1か月（または1年）のプレイ記録を、パネルを並べた1枚の画像にまとめる</summary>
 public partial class MainWindow
 {
-    private const double PostMinWidth = 900;    // レポートエリアの幅の下限（画像が小さくなりすぎないように）
-    private const int PostMaxImageWidth = 1920; // 出力する画像の幅の上限（ピクセル）
+    private const int PostMaxImageWidth = 1920; // レポートエリアの幅と、出力する画像の幅（ピクセル）
 
     // 画像の配色（アプリのテーマとは別。不透明な色だけを使う：jpg にしたときに色が変わらないように）
     private static SolidColorBrush PostBrush(int rgb) => (SolidColorBrush)Freeze(new SolidColorBrush(
@@ -155,12 +154,43 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>レポートエリアの幅は、表示欄いっぱい（ただし 900 より狭くはしない。狭いときは横にスクロール）</summary>
-    private void PostScroll_Changed(object sender, ScrollChangedEventArgs e)
+    // レポートエリアの本体は、いつも 1920 の幅で作る。画面には、拡大・縮小して表示する（出力は本体から作る）
+    private const double PostZoomMin = 0.25, PostZoomMax = 2.0;
+    private bool _postFit = true; // true の間は、表示欄の幅に合わせる（起動のたびに、ここから始まる）
+    private double _postZoom = 1;
+
+    /// <summary>表示欄の幅に、レポートエリアが収まる倍率</summary>
+    private double PostFitZoom()
     {
-        if (e.ViewportWidthChange == 0) return;
-        var width = Math.Max(PostMinWidth, PostScroll.ViewportWidth);
-        if (Math.Abs(PostReportHost.Width - width) >= 0.5) PostReportHost.Width = width;
+        var avail = PostScroll.ActualWidth - SystemParameters.VerticalScrollBarWidth - 1;
+        return avail > 0 ? Math.Clamp(avail / PostMaxImageWidth, PostZoomMin, PostZoomMax) : 1;
+    }
+
+    private void SetPostZoom(double zoom)
+    {
+        _postZoom = Math.Clamp(zoom, PostZoomMin, PostZoomMax);
+        PostZoomTransform.ScaleX = PostZoomTransform.ScaleY = _postZoom;
+        PostZoomText.Text = $"{_postZoom * 100:0}%" + (_postFit ? "（幅に合わせる）" : "");
+    }
+
+    private void PostScroll_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_postFit) SetPostZoom(PostFitZoom());
+    }
+
+    private void PostFit_Click(object sender, RoutedEventArgs e)
+    {
+        _postFit = true;
+        SetPostZoom(PostFitZoom());
+    }
+
+    /// <summary>Ctrl＋ホイールで、表示を拡大・縮小する（出力する画像の大きさは変わらない）</summary>
+    private void PostScroll_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0) return;
+        _postFit = false;
+        SetPostZoom(_postZoom * (e.Delta > 0 ? 1.1 : 1 / 1.1));
+        e.Handled = true;
     }
 
     private void PostSetting_Changed(object sender, RoutedEventArgs e)
@@ -415,7 +445,7 @@ public partial class MainWindow
     private int MeasurePostRowSpan(PostPanel panel)
     {
         if (_post is not { } report) return PostLayout.EstimateRowSpan(panel.Kind, panel.ItemCount, panel.ItemColumns);
-        var width = Math.Max(PostMinWidth, PostReportHost.Width is double w && !double.IsNaN(w) ? w : PostMinWidth);
+        double width = PostMaxImageWidth;
         var cell = (width - 40 + 8) / Layout.Columns * panel.Span; // 余白 20px ずつ、外側の余白の相殺 4px ずつ
         var buttons = _postEditButtons.Count;
         var tasks = _postImageTasks.Count;
@@ -748,7 +778,7 @@ public partial class MainWindow
         {
             var item = new StackPanel { Margin = new Thickness(4) };
             if (panel.ItemColumns <= 0) item.Width = 150;
-            if (_cfg.ShowImages)
+            if (_cfg.ShowImages || (egsId is int customId && GameImageService.Custom(customId) != null))
             {
                 // 画像は同じ大きさの枠の中に、縦横比を保って中央に収める（画像の形がそろっていなくても、並びが揃う）
                 var img = new Image { Stretch = Stretch.Uniform, Margin = new Thickness(2) };
@@ -774,6 +804,7 @@ public partial class MainWindow
     {
         var path = GameImageService.Cached(egsId);
         if (path != null) { SetPostImage(img, path, egsId); return; }
+        if (!_cfg.ShowImages) return; // オフのときは、通信せず、差し替えた画像だけを使う
         var version = _postVersion;
         _postImageTasks.Add(Task.Run(async () =>
         {
@@ -1523,7 +1554,7 @@ public partial class MainWindow
     }
 
     // ================================================================
-    // 画像出力（NovelKeeper_年月日.jpg。幅は画面の表示に合わせ、最大 1920）
+    // 画像出力（NovelKeeper_年月日.jpg。幅は 1920 固定）
     // ================================================================
 
     private async void PostExport_Click(object sender, RoutedEventArgs e)
@@ -1559,14 +1590,14 @@ public partial class MainWindow
         finally { PostExportButton.IsEnabled = _post != null && (_post.TotalSeconds >= 1 || _post.Works.Count > 0); }
     }
 
-    /// <summary>レポートエリアを jpg にして保存する。画面の表示幅に合わせ、1920 ピクセルを超えるときは縮める（⚙ × は入れない）</summary>
+    /// <summary>レポートエリアを、幅 1920 ピクセルの jpg にして保存する（画面の拡大・縮小には影響されない。⚙ × は入れない）</summary>
     private (int Width, int Height) SavePostImage(string path)
     {
         var host = PostReportHost;
         double w = host.ActualWidth, h = host.ActualHeight;
         if (w < 1 || h < 1) throw new InvalidOperationException("レポートエリアが表示されていません。");
 
-        var scale = Math.Min(VisualTreeHelper.GetDpi(host).DpiScaleX, PostMaxImageWidth / w); // 画面の実際の画素数に合わせる
+        var scale = PostMaxImageWidth / w; // 出力の幅は、いつも 1920 ピクセル
         int pw = Math.Max(1, (int)Math.Round(w * scale)), ph = Math.Max(1, (int)Math.Round(h * scale));
 
         HidePostDropMarker();

@@ -16,8 +16,20 @@ public class EgsConfig
     /// <summary>ページの文字コード（utf-8 / euc-jp など）</summary>
     public string CharSet { get; set; } = "utf-8";
 
-    /// <summary>リクエストの最小間隔（ミリ秒）。サイトに負荷をかけないため</summary>
-    public int RequestIntervalMs { get; set; } = 2000;
+    /// <summary>批評空間への通信の最小間隔（ミリ秒）。サイトに負荷をかけないため固定で、設定では変えられない</summary>
+    public const int RequestIntervalMs = 1000;
+
+    /// <summary>実際に使う間隔（テストでだけ 0 にする。設定ファイルには出さない）</summary>
+    [System.Text.Json.Serialization.JsonIgnore] internal int EffectiveIntervalMs { get; set; } = RequestIntervalMs;
+
+    /// <summary>「批評空間と同期」が成功した最後の日時（続けて押したときに確認するため）</summary>
+    public DateTime? LastSyncAt { get; set; }
+
+    /// <summary>「批評空間と同期」「一括取り込み」を最後に始めた日時（成功・失敗を問わない。続けて行えない時間の起点）</summary>
+    public DateTime? LastSyncAttemptAt { get; set; }
+
+    /// <summary>「批評空間と同期」「一括取り込み」が続けて失敗した回数（失敗が続くほど、次に押せるまでの時間を延ばす）</summary>
+    public int SyncFailureCount { get; set; }
 
     // ---- 読み込み（SQLページ） ----
     public string SqlPage { get; set; } = "sql_for_erogamer_form.php";
@@ -187,7 +199,7 @@ public class EgsConfig
     /// <summary>列の並び順を、現在の初期の並びに整え直したか（2 未満なら、起動時に1回だけ整え直す）</summary>
     public int ColumnOrderVersion { get; set; }
 
-    /// <summary>詳細欄に作品の画像を表示するか</summary>
+    /// <summary>詳細欄に作品の画像を表示するか（オンだと、作品を選んだときに画像を取得する。初期はオン。オフでも、自分で差し替えた画像は表示する）</summary>
     public bool ShowImages { get; set; } = true;
 
     /// <summary>投稿設定：期間を1年にするか（false は1か月）</summary>

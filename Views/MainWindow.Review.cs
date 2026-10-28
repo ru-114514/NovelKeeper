@@ -280,15 +280,21 @@ public partial class MainWindow
         DetailImage.Source = null;
         DetailImage.Visibility = Visibility.Collapsed;
         DetailImageInfo.Visibility = Visibility.Collapsed;
-        if (g?.EgsId is not int egsId || !_cfg.ShowImages) return;
+        DetailImageBox.Visibility = g?.EgsId != null ? Visibility.Visible : Visibility.Collapsed;
+        if (g?.EgsId is not int egsId) return;
+        if (!_cfg.ShowImages && GameImageService.Custom(egsId) == null)
+        {
+            // オフのときは、通信せず、差し替えた画像だけを表示する
+            ShowImageInfo("画像の表示はオフです");
+            return;
+        }
 
         // 保存済みならすぐ表示。なければ、少し待ってから取得する（一覧を素早く移動しているときに取りに行かない）
         var path = GameImageService.Cached(egsId);
         if (path == null)
         {
             var cts = _imageCts = new CancellationTokenSource();
-            DetailImageInfo.Text = "画像を取得中…";
-            DetailImageInfo.Visibility = Visibility.Visible;
+            ShowImageInfo("画像を取得中…");
             try
             {
                 await Task.Delay(600, cts.Token);
@@ -301,8 +307,7 @@ public partial class MainWindow
 
         if (path == null)
         {
-            DetailImageInfo.Text = "画像が見つかりませんでした";
-            DetailImageInfo.Visibility = Visibility.Visible;
+            ShowImageInfo("画像が見つかりませんでした");
             return;
         }
         try
@@ -323,9 +328,41 @@ public partial class MainWindow
         {
             Log.Warn("画像を表示できませんでした", ex);
             GameImageService.Forget(egsId); // 壊れた画像は消して、次回取り直す
-            DetailImageInfo.Text = "画像を表示できませんでした";
-            DetailImageInfo.Visibility = Visibility.Visible;
+            ShowImageInfo("画像を表示できませんでした");
         }
+    }
+
+    /// <summary>画像がないときの枠の文。画像ファイルをドロップして差し替えられることも添える</summary>
+    private void ShowImageInfo(string message)
+    {
+        DetailImageInfo.Text = message + "\n画像ファイルをここにドラッグ＆ドロップして差し替えできます";
+        DetailImageInfo.Visibility = Visibility.Visible;
+    }
+
+    private static readonly System.Windows.Media.Brush DropHighlight =
+        new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(48, 80, 140, 255));
+
+    private static string? DroppedImageFile(DragEventArgs e) =>
+        e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files
+            ? files[0]
+            : null;
+
+    private void DetailImage_DragOver(object sender, DragEventArgs e)
+    {
+        var ok = Selected?.EgsId != null && DroppedImageFile(e) != null;
+        e.Effects = ok ? DragDropEffects.Copy : DragDropEffects.None;
+        DetailImageBox.Background = ok ? DropHighlight : System.Windows.Media.Brushes.Transparent;
+        e.Handled = true;
+    }
+
+    private void DetailImage_DragLeave(object sender, DragEventArgs e) =>
+        DetailImageBox.Background = System.Windows.Media.Brushes.Transparent;
+
+    private void DetailImage_Drop(object sender, DragEventArgs e)
+    {
+        DetailImageBox.Background = System.Windows.Media.Brushes.Transparent;
+        e.Handled = true;
+        if (DroppedImageFile(e) is string file) ApplyCustomImage(file);
     }
 
     private void ReloadImage_Click(object sender, RoutedEventArgs e)
@@ -333,6 +370,50 @@ public partial class MainWindow
         if (Selected?.EgsId is not int egsId) return;
         DetailImage.Source = null;
         GameImageService.Forget(egsId);
+        ShowImage(Selected);
+    }
+
+    /// <summary>この作品の画像を、自分で選んだ画像ファイルに差し替える（画像の表示がオフでも使える）</summary>
+    private void ChooseImage_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected?.EgsId is not int egsId)
+        {
+            MessageBox.Show("批評空間と紐づいていない作品には、画像を設定できません。", "画像の差し替え");
+            return;
+        }
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "この作品の画像を選ぶ",
+            Filter = "画像ファイル|*.jpg;*.jpeg;*.png;*.gif;*.webp|すべてのファイル|*.*",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        ApplyCustomImage(dlg.FileName);
+    }
+
+    /// <summary>選んだ（またはドロップされた）画像ファイルを、選択中の作品の画像にする</summary>
+    private void ApplyCustomImage(string file)
+    {
+        if (Selected?.EgsId is not int egsId) return;
+        if (!GameImageService.SetCustom(egsId, file))
+        {
+            MessageBox.Show("画像として読み込めませんでした（JPEG / PNG / GIF / WebP の、10MB 以下のファイルを選んでください）。", "画像の差し替え");
+            return;
+        }
+        StatusText.Text = "この作品の画像を差し替えました";
+        ShowImage(Selected);
+    }
+
+    /// <summary>差し替えた画像をやめて、取得した画像に戻す</summary>
+    private void ClearCustomImage_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected?.EgsId is not int egsId) return;
+        if (GameImageService.Custom(egsId) == null)
+        {
+            StatusText.Text = "差し替えた画像はありません";
+            return;
+        }
+        GameImageService.ClearCustom(egsId);
+        StatusText.Text = "差し替えをやめました";
         ShowImage(Selected);
     }
 
@@ -346,12 +427,13 @@ public partial class MainWindow
 
     private void ClearImages_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show("保存した作品の画像をすべて削除しますか？\n（表示するときに、また取得します）", "画像の削除",
+        if (MessageBox.Show("保存した作品の画像をすべて削除しますか？\n（表示するときに、また取得します。自分で差し替えた画像は残します）", "画像の削除",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         DetailImage.Source = null;
         var failed = 0;
         foreach (var f in Directory.GetFiles(GameImageService.Dir))
         {
+            if (f.EndsWith(".custom", StringComparison.OrdinalIgnoreCase)) continue;
             try { File.Delete(f); } catch { failed++; }
         }
         StatusText.Text = failed == 0 ? "保存した画像を削除しました" : $"保存した画像を削除しました（使用中の {failed} 件を除く）";

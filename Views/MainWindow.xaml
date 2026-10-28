@@ -22,7 +22,7 @@
                         <StackPanel x:Name="ToolItems" Orientation="Horizontal" ClipToBounds="True">
                             <Button Content="▶ 起動" Click="Launch_Click" FontWeight="Bold" />
                             <Button Content="＋ 作品を追加" Click="AddGame_Click" />
-                            <Button Content="⇅ 批評空間と同期" Click="Sync_Click" />
+                            <Button x:Name="SyncButtonTop" Content="⇅ 批評空間と同期" Click="Sync_Click" />
                             <StackPanel x:Name="FilterPanel" Orientation="Horizontal" Margin="6,0,2,0">
                                 <TextBlock Text="表示:" VerticalAlignment="Center" Margin="0,0,4,0" />
                                 <ComboBox x:Name="FilterBox" Width="150" SelectionChanged="FilterBox_SelectionChanged">
@@ -234,9 +234,20 @@
                                             <StackPanel Width="290" Margin="0,0,24,12">
                                                 <TextBlock x:Name="DetailTitle" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,6" />
                                                 <!-- 作品の画像（批評空間の作品情報から取得して、PCに保存しておく） -->
-                                                <Image x:Name="DetailImage" MaxHeight="260" MaxWidth="290" Stretch="Uniform"
-                                                       HorizontalAlignment="Left" Margin="0,0,0,8" Visibility="Collapsed" />
-                                                <TextBlock x:Name="DetailImageInfo" Opacity="0.6" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed" />
+                                                <!-- 画像ファイルをここにドラッグ＆ドロップすると、この作品の画像に差し替える（枠は詳細欄の幅に合わせる） -->
+                                                <Border x:Name="DetailImageBox" Margin="0,0,0,8" MinHeight="80" CornerRadius="4" Padding="4"
+                                                        BorderThickness="1" BorderBrush="#40808080" Background="Transparent" Visibility="Collapsed"
+                                                        AllowDrop="True" DragEnter="DetailImage_DragOver" DragOver="DetailImage_DragOver"
+                                                        DragLeave="DetailImage_DragLeave" Drop="DetailImage_Drop"
+                                                        ToolTip="画像ファイルをここにドラッグ＆ドロップすると、この作品の画像に差し替えます">
+                                                    <Grid>
+                                                        <Image x:Name="DetailImage" MaxHeight="260" Stretch="Uniform"
+                                                               HorizontalAlignment="Center" Visibility="Collapsed" />
+                                                        <TextBlock x:Name="DetailImageInfo" Opacity="0.6" FontSize="11" TextWrapping="Wrap"
+                                                                   TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Visibility="Collapsed" />
+                                                    </Grid>
+                                                </Border>
                                                 <!-- 管理者権限で起動する作品のときだけ表示（一覧の紫と同じ） -->
                                                 <Border x:Name="AdminBadge" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,0,0,6" Padding="8,1"
                                                         CornerRadius="3" BorderThickness="1" BorderBrush="#9B59D0" Background="#339B59D0"
@@ -397,6 +408,10 @@
                                                 <Button Content="批評空間の作品ページを開く" Click="OpenEgsPage_Click" HorizontalAlignment="Stretch" />
                                                 <Button Content="画像を取り直す" Click="ReloadImage_Click" HorizontalAlignment="Stretch"
                                                         ToolTip="保存してある作品の画像を消して、もう一度取得します" />
+                                                <Button Content="画像を選んで差し替える…" Click="ChooseImage_Click" HorizontalAlignment="Stretch"
+                                                        ToolTip="お持ちの画像ファイルを、この作品の画像にします（画像の表示がオフでも使えます）" />
+                                                <Button Content="差し替えた画像をやめる" Click="ClearCustomImage_Click" HorizontalAlignment="Stretch"
+                                                        ToolTip="差し替えた画像をやめて、取得した画像に戻します" />
                                                 <Button Content="一覧から削除" Click="Delete_Click" HorizontalAlignment="Stretch" Margin="2,16,2,2" />
                                             </StackPanel>
                                         </WrapPanel>
@@ -655,7 +670,10 @@
                         <Button x:Name="PostHideButton" Content="作品を隠す…" Margin="6,0,0,0" Padding="10,4" Click="PostHide_Click"
                                 ToolTip="クリア済みでなくても、☑した作品をプレイ時間・日数・グラフ・作品の欄など、プレイ記録の集計すべてから外します（作品ごとに保存されます）" />
                         <Button x:Name="PostExportButton" Content="画像出力" Margin="14,0,0,0" Padding="14,4" Click="PostExport_Click"
-                                ToolTip="下のレポートエリアを、NovelKeeper_年月日.jpg の画像として保存します" />
+                                ToolTip="下のレポートエリアを、NovelKeeper_年月日.jpg の画像として保存します（横幅は 1920 ピクセル）" />
+                        <Button x:Name="PostFitButton" Content="幅に合わせる" Margin="14,0,0,0" Padding="10,4" Click="PostFit_Click"
+                                ToolTip="画面の表示を、表示欄の幅に合わせます（Ctrl＋ホイールで拡大・縮小。出力する画像の大きさは変わりません）" />
+                        <TextBlock x:Name="PostZoomText" Margin="8,0,0,0" VerticalAlignment="Center" Opacity="0.7" MinWidth="40" />
                     </WrapPanel>
                     <!-- 2列目：レイアウト（カラム数・パネルの追加・初期配置） -->
                     <WrapPanel DockPanel.Dock="Top" VerticalAlignment="Center" Margin="0,4,0,0">
@@ -835,8 +853,15 @@
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
-                    <ScrollViewer x:Name="PostScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" ScrollChanged="PostScroll_Changed">
-                        <Border x:Name="PostReportHost" Padding="20" VerticalAlignment="Top" HorizontalAlignment="Left" Width="900" />
+                    <ScrollViewer x:Name="PostScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                  PreviewMouseWheel="PostScroll_PreviewMouseWheel" SizeChanged="PostScroll_SizeChanged">
+                        <!-- 表示の拡大・縮小は、この外側の枠にかける（出力する画像は、かけていない本体から作る） -->
+                        <Grid x:Name="PostZoomBox" VerticalAlignment="Top" HorizontalAlignment="Left">
+                            <Grid.LayoutTransform>
+                                <ScaleTransform x:Name="PostZoomTransform" ScaleX="1" ScaleY="1" />
+                            </Grid.LayoutTransform>
+                            <Border x:Name="PostReportHost" Padding="20" VerticalAlignment="Top" HorizontalAlignment="Left" Width="1920" />
+                        </Grid>
                     </ScrollViewer>
                 </DockPanel>
             </TabItem>
@@ -992,7 +1017,7 @@
                         <TextBlock Text="取り込みと同期" FontSize="16" FontWeight="Bold" Margin="0,4,0,6" />
                         <WrapPanel>
                             <Button Content="⇩ 批評空間から一括取り込み…" Click="ImportAll_Click" />
-                            <Button Content="⇅ 批評空間と同期" Click="Sync_Click" />
+                            <Button x:Name="SyncButtonTab" Content="⇅ 批評空間と同期" Click="Sync_Click" />
                         </WrapPanel>
                         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,6,0,0"
                                    Text="・一括取り込み：批評空間に登録している作品を、一覧に追加します。&#x0a;・同期：批評空間の記録（プレイ済・得点・所持・感想など）をツールに取り込みます。ツールで変更して、まだ批評空間に反映していない内容があれば、反映するか確認します。中央値・平均値なども最新になります。" />
@@ -1127,7 +1152,8 @@
                             <TextBlock Grid.Row="4" Text="作品の画像" VerticalAlignment="Center" />
                             <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
                                 <CheckBox x:Name="ShowImagesCheck" Content="詳細欄に表示する" VerticalAlignment="Center"
-                                          Checked="ShowImages_Changed" Unchecked="ShowImages_Changed" />
+                                          Checked="ShowImages_Changed" Unchecked="ShowImages_Changed"
+                                          ToolTip="オンだと、作品を選んだときに、DMM・駿河屋などのサイトから画像を取得して、このPCに保存します。オフにすると取得しません（自分で差し替えた画像は表示します）。画像の権利は各権利者にあります" />
                                 <Button Content="保存した画像をすべて削除" Click="ClearImages_Click" Margin="12,0,0,0" />
                             </StackPanel>
                             <TextBlock Grid.Row="3" Text="一覧の表示倍率" VerticalAlignment="Center" />
@@ -1172,7 +1198,6 @@
                         <TextBlock Text="保存場所・設定ファイル" FontSize="16" FontWeight="Bold" Margin="0,20,0,6" />
                         <WrapPanel>
                             <Button Content="データの保存フォルダを開く" Click="OpenDataFolder_Click" />
-                            <Button Content="連携設定ファイルを開く（上級者向け）" Click="OpenConfig_Click" />
                         </WrapPanel>
                         <TextBlock TextWrapping="Wrap" Opacity="0.7" Margin="2,4,0,0"
                                    Text="作品の一覧・プレイ時間・設定・ログイン情報は、このフォルダに保存されます。自動バックアップ（backups）や、エラーの記録（log.txt）もここにあります。バックアップに関する設定と操作（自動バックアップ・zip の書き出し・戻す）は、すべて「データ出力」タブの「バックアップ」にまとめています（ログイン情報は含みません）。" />

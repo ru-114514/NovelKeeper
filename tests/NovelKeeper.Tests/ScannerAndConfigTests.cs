@@ -184,6 +184,44 @@ public sealed class EgsConfigFileTests : IDisposable
         Assert.Contains("ノベルゲーム", File.ReadAllText(File_)); // 日本語がそのまま書かれている
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5000)]
+    public void RequestInterval_IsFixed_EvenWhenTheFileSaysOtherwise(int ms)
+    {
+        File.WriteAllText(File_, $$"""{ "RequestIntervalMs": {{ms}} }""");
+
+        var cfg = EgsConfig.Load(File_);
+
+        Assert.Equal(1000, cfg.EffectiveIntervalMs);
+        Assert.DoesNotContain("RequestIntervalMs", File.ReadAllText(File_)); // 保存し直すと、項目ごと消える
+    }
+
+    [Fact]
+    public void ShowImages_IsOnByDefault_AndCanBeTurnedOff()
+    {
+        var cfg = EgsConfig.Load(File_);
+        Assert.True(cfg.ShowImages);
+
+        cfg.ShowImages = false;
+        cfg.Save();
+        Assert.False(EgsConfig.Load(File_).ShowImages);
+    }
+
+    [Fact]
+    public void SyncState_SurvivesReload()
+    {
+        var cfg = EgsConfig.Load(File_);
+        cfg.LastSyncAttemptAt = new DateTime(2026, 10, 28, 12, 0, 0);
+        cfg.SyncFailureCount = 2;
+        cfg.Save();
+
+        var again = EgsConfig.Load(File_);
+
+        Assert.Equal(cfg.LastSyncAttemptAt, again.LastSyncAttemptAt);
+        Assert.Equal(2, again.SyncFailureCount);
+    }
+
     [Fact]
     public void Save_LeavesNoTemporaryFile()
     {
