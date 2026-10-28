@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 
 namespace ErogeLauncher.Data;
 
-/// <summary>ローカルDB（SQLite）。%AppData%\ErogeLauncher\games.db に保存される</summary>
+/// <summary>ローカルDB（SQLite）。%AppData%\NovelKeeper\games.db に保存される</summary>
 public class Database : ISessionStore
 {
     private const string DateFormat = "yyyy-MM-dd";
@@ -44,11 +44,21 @@ public class Database : ISessionStore
         return cmd;
     }
 
+    /// <summary>
+    /// DB の形の版（PRAGMA user_version に入れる）。列やテーブルを足したら1つ上げて、Initialize に足す。
+    /// 0 は版を入れる前の DB（古い版のアプリで作ったもの・取り込んだバックアップ）で、そのときは下の手順をすべて行う
+    /// </summary>
+    private const int SchemaVersion = 1;
+
+    /// <summary>DB を今の形にする（最新の形なら何もしない。どの手順も、すでに済んでいれば何もしない）</summary>
     private void Initialize()
     {
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        using (var version = Command(conn, null, "PRAGMA user_version"))
+            if (Convert.ToInt32(version.ExecuteScalar()) >= SchemaVersion) return;
+
+        using var tx = conn.BeginTransaction();
+        using var cmd = Command(conn, tx, """
             CREATE TABLE IF NOT EXISTS games (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 egs_id          INTEGER UNIQUE,
@@ -71,28 +81,26 @@ public class Database : ISessionStore
                 ended_at   TEXT NOT NULL,
                 seconds    INTEGER NOT NULL
             );
-            """;
+            """);
         cmd.ExecuteNonQuery();
 
         // 後から追加した列（古いDBにはないので、なければ追加する）
-        AddColumnIfMissing(conn, "games", "egs_giveup", "INTEGER NOT NULL DEFAULT 0");
-        AddColumnIfMissing(conn, "games", "my_score", "INTEGER");
-        AddColumnIfMissing(conn, "games", "egs_score", "INTEGER");
-        AddColumnIfMissing(conn, "games", "install_dir", "TEXT");
-        AddColumnIfMissing(conn, "games", "egs_possession", "INTEGER");
-        AddColumnIfMissing(conn, "games", "egs_registered", "TEXT");
-        AddColumnIfMissing(conn, "games", "egs_average", "INTEGER");
-        AddColumnIfMissing(conn, "games", "egs_count", "INTEGER");
-        AddColumnIfMissing(conn, "games", "review_json", "TEXT");    // 得点登録フォームのその他の項目
-        AddColumnIfMissing(conn, "games", "review_pending", "TEXT"); // まだ批評空間に反映していない項目（カンマ区切り）
-        AddColumnIfMissing(conn, "games", "price", "INTEGER");       // 購入額（円。ツールだけに保存）
-        AddColumnIfMissing(conn, "games", "run_as_admin", "INTEGER NOT NULL DEFAULT 0"); // 1 = 管理者権限で起動する
-        AddColumnIfMissing(conn, "sessions", "manual", "INTEGER NOT NULL DEFAULT 0"); // 1 = 補正画面で追加・編集した記録
+        AddColumnIfMissing(conn, tx, "games", "egs_giveup", "INTEGER NOT NULL DEFAULT 0");
+        AddColumnIfMissing(conn, tx, "games", "my_score", "INTEGER");
+        AddColumnIfMissing(conn, tx, "games", "egs_score", "INTEGER");
+        AddColumnIfMissing(conn, tx, "games", "install_dir", "TEXT");
+        AddColumnIfMissing(conn, tx, "games", "egs_possession", "INTEGER");
+        AddColumnIfMissing(conn, tx, "games", "egs_registered", "TEXT");
+        AddColumnIfMissing(conn, tx, "games", "egs_average", "INTEGER");
+        AddColumnIfMissing(conn, tx, "games", "egs_count", "INTEGER");
+        AddColumnIfMissing(conn, tx, "games", "review_json", "TEXT");    // 得点登録フォームのその他の項目
+        AddColumnIfMissing(conn, tx, "games", "review_pending", "TEXT"); // まだ批評空間に反映していない項目（カンマ区切り）
+        AddColumnIfMissing(conn, tx, "games", "price", "INTEGER");       // 購入額（円。ツールだけに保存）
+        AddColumnIfMissing(conn, tx, "games", "run_as_admin", "INTEGER NOT NULL DEFAULT 0"); // 1 = 管理者権限で起動する
+        AddColumnIfMissing(conn, tx, "sessions", "manual", "INTEGER NOT NULL DEFAULT 0"); // 1 = 補正画面で追加・編集した記録
 
         // 起動するもの（1作品に複数）
-        using (var t = conn.CreateCommand())
-        {
-            t.CommandText = """
+        using (var t = Command(conn, tx, """
                 CREATE TABLE IF NOT EXISTS launch_targets (
                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
                     game_id         INTEGER NOT NULL,
@@ -106,19 +114,20 @@ public class Database : ISessionStore
                 SELECT id, '', exe_path, monitor_process, 0 FROM games
                 WHERE exe_path IS NOT NULL AND exe_path <> ''
                   AND id NOT IN (SELECT game_id FROM launch_targets);
-                """;
+                """))
             t.ExecuteNonQuery();
-        }
+
+        using (var v = Command(conn, tx, $"PRAGMA user_version = {SchemaVersion}"))
+            v.ExecuteNonQuery();
+        tx.Commit();
     }
 
-    private static void AddColumnIfMissing(SqliteConnection conn, string table, string column, string definition)
+    private static void AddColumnIfMissing(SqliteConnection conn, SqliteTransaction tx, string table, string column, string definition)
     {
-        using var check = conn.CreateCommand();
-        check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = '{column}'";
+        using var check = Command(conn, tx, $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = '{column}'");
         if (Convert.ToInt64(check.ExecuteScalar()) > 0) return;
 
-        using var alter = conn.CreateCommand();
-        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition}";
+        using var alter = Command(conn, tx, $"ALTER TABLE {table} ADD COLUMN {column} {definition}");
         alter.ExecuteNonQuery();
     }
 

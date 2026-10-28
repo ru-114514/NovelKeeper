@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using ErogeLauncher.Models;
 using ErogeLauncher.Services;
 using Microsoft.Win32;
@@ -584,15 +583,7 @@ public partial class MainWindow
     {
         try
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad; // ファイルを開いたままにしない
-            bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            bmp.DecodePixelHeight = 300;
-            bmp.UriSource = new Uri(path);
-            bmp.EndInit();
-            bmp.Freeze();
-            img.Source = bmp;
+            img.Source = ImageFile.Load(path, decodeHeight: 300);
         }
         catch (Exception ex)
         {

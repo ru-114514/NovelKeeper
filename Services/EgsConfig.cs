@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace ErogeLauncher.Services;
 
 /// <summary>
-/// 批評空間との連携設定。%AppData%\ErogeLauncher\egs_config.json に保存される。
+/// 批評空間との連携設定。%AppData%\NovelKeeper\egs_config.json に保存される。
 /// 批評空間のページの作りが変わったときは、README の手順で調べてこのファイルを書き換える。
 /// </summary>
 public class EgsConfig
@@ -392,7 +392,6 @@ public class EgsConfig
     }
 }
 
-/// <summary>並び替えの条件1つ分</summary>
 /// <summary>レポート画面の欄1つ分の状態</summary>
 public class SummaryPanelState
 {
@@ -406,6 +405,7 @@ public class SummaryPanelState
     public double Height { get; set; } = 420;
 }
 
+/// <summary>並び替えの条件1つ分</summary>
 public class SortKey
 {
     public string Property { get; set; } = "Title";

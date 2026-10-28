@@ -92,14 +92,7 @@ public partial class MainWindow
         if (_postBackBitmap != null && _postBackBitmapPath == path) return _postBackBitmap;
         try
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad; // ファイルを開いたままにしない
-            bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            bmp.DecodePixelWidth = PostMaxImageWidth; // 出力の最大幅より大きくは読まない
-            bmp.UriSource = new Uri(path);
-            bmp.EndInit();
-            bmp.Freeze();
+            var bmp = ImageFile.Load(path, decodeWidth: PostMaxImageWidth); // 出力の最大幅より大きくは読まない
             _postBackBitmap = bmp;
             _postBackBitmapPath = path;
             return bmp;

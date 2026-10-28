@@ -1,7 +1,6 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media.Imaging;
 using ErogeLauncher.Models;
 using ErogeLauncher.Services;
 
@@ -312,15 +311,7 @@ public partial class MainWindow
         }
         try
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad; // ファイルを開いたままにしない
-            bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            bmp.DecodePixelWidth = 580;
-            bmp.UriSource = new Uri(path);
-            bmp.EndInit();
-            bmp.Freeze();
-            DetailImage.Source = bmp;
+            DetailImage.Source = ImageFile.Load(path, decodeWidth: 580);
             DetailImage.Visibility = Visibility.Visible;
             DetailImageInfo.Visibility = Visibility.Collapsed;
         }

@@ -56,7 +56,6 @@ public class Game
     public HashSet<string> PendingReview { get; set; } = new();
     /// <summary>購入額（円。任意。このツールだけに保存し、批評空間には送らない。未入力なら null）</summary>
     public int? Price { get; set; }
-    /// <summary>一覧の「購入額」列の表示（3,300 のようにカンマ区切り。未入力なら空欄）</summary>
     /// <summary>任意評価基準を使っていて、項目別の点数の合計と得点が食い違っているか（一覧の「得点」を赤くする）</summary>
     public bool ScoreMismatch => ScoreItemSettings.Enabled && ScoreItemRules.TotalMismatch(Review, MyScore);
 
@@ -72,6 +71,7 @@ public class Game
         : ScoreNeedsRescore ? "登録後に基準を変更しています。採点し直してください。"
         : "";
 
+    /// <summary>一覧の「購入額」列の表示（3,300 のようにカンマ区切り。未入力なら空欄）</summary>
     public string PriceText => Price?.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) ?? "";
     /// <summary>初めて起動した日時（プレイ時間の記録から）</summary>
     public DateTime? FirstPlayed { get; set; }

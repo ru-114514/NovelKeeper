@@ -1,21 +1,22 @@
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace ErogeLauncher.Services;
 
 /// <summary>Windows の機能を直接呼び出す部分（プロセスの場所、操作がない時間、前面のウィンドウ）</summary>
-internal static class NativeMethods
+internal static partial class NativeMethods
 {
     private const uint ProcessQueryLimitedInformation = 0x1000;
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(uint access, bool inheritHandle, int processId);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, int processId);
 
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern bool QueryFullProcessImageName(IntPtr process, int flags, StringBuilder exeName, ref int size);
+    [LibraryImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool QueryFullProcessImageName(IntPtr process, int flags, [Out] char[] exeName, ref int size);
 
-    [DllImport("kernel32.dll")]
-    private static extern bool CloseHandle(IntPtr handle);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CloseHandle(IntPtr handle);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct LastInputInfo
@@ -24,14 +25,15 @@ internal static class NativeMethods
         public uint dwTime;
     }
 
-    [DllImport("user32.dll")]
-    private static extern bool GetLastInputInfo(ref LastInputInfo info);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetLastInputInfo(ref LastInputInfo info);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
+    [LibraryImport("user32.dll")]
+    private static partial IntPtr GetForegroundWindow();
 
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [LibraryImport("user32.dll")]
+    private static partial uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
     /// <summary>プロセスの exe のフルパス（取得できなければ null）</summary>
     public static string? GetProcessPath(int processId)
@@ -40,13 +42,13 @@ internal static class NativeMethods
         if (handle == IntPtr.Zero) return null;
         try
         {
-            var sb = new StringBuilder(1024);
-            var size = sb.Capacity;
-            return QueryFullProcessImageName(handle, 0, sb, ref size) ? sb.ToString() : null;
+            var buffer = new char[1024];
+            var size = buffer.Length;
+            return QueryFullProcessImageName(handle, 0, buffer, ref size) ? new string(buffer, 0, size) : null;
         }
         finally
         {
-            CloseHandle(handle);
+            CloseHandle(handle); // 閉じられなくても、できることはない（このアプリの終了時に閉じられる）
         }
     }
 
@@ -58,12 +60,12 @@ internal static class NativeMethods
         return unchecked((uint)Environment.TickCount - info.dwTime) / 1000.0;
     }
 
-    /// <summary>前面にあるウィンドウのプロセス ID</summary>
+    /// <summary>前面にあるウィンドウのプロセス ID（わからなければ 0）</summary>
     public static int ForegroundProcessId()
     {
         var window = GetForegroundWindow();
         if (window == IntPtr.Zero) return 0;
-        GetWindowThreadProcessId(window, out var pid);
-        return (int)pid;
+        // 戻り値 0 は失敗（ちょうどウィンドウが閉じたときなど）
+        return GetWindowThreadProcessId(window, out var pid) == 0 ? 0 : (int)pid;
     }
 }

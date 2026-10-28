@@ -26,6 +26,8 @@
     <ApplicationIcon>Assets\NovelKeeper.ico</ApplicationIcon>
     <!-- 使わない言語のリソースを出力に含めない（配布物を少し小さくする） -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Windows の機能の呼び出し（LibraryImport）は、呼び出し部分のコードを自動で作る。そのコードが unsafe を使うので許可する -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

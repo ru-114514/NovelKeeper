@@ -40,6 +40,46 @@ public sealed class DatabaseTests : IDisposable
         Assert.Equal(2, db.GetAll().Count);
     }
 
+    private static long Scalar(string path, string sql)
+    {
+        using var c = new SqliteConnection($"Data Source={path}");
+        c.Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = sql;
+        return Convert.ToInt64(cmd.ExecuteScalar());
+    }
+
+    [Fact]
+    public void OldDatabase_IsUpgradedOnce_AndGetsTheSchemaVersion()
+    {
+        // 版を入れる前の古い形の DB（後から足した列も、起動するものの表もない）
+        var path = Path.Combine(_dir, "games.db");
+        using (var c = new SqliteConnection($"Data Source={path}"))
+        {
+            c.Open();
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE games (id INTEGER PRIMARY KEY AUTOINCREMENT, egs_id INTEGER UNIQUE, title TEXT NOT NULL, brand TEXT, sellday TEXT, median INTEGER,
+                                    exe_path TEXT, monitor_process TEXT, status INTEGER NOT NULL DEFAULT 0, clear_date TEXT,
+                                    egs_played INTEGER NOT NULL DEFAULT 0, egs_clear_date TEXT, egs_synced_at TEXT);
+                CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, game_id INTEGER NOT NULL, started_at TEXT NOT NULL, ended_at TEXT NOT NULL, seconds INTEGER NOT NULL);
+                INSERT INTO games (title, exe_path) VALUES ('A', 'C:\a.exe');
+                """;
+            cmd.ExecuteNonQuery();
+        }
+        SqliteConnection.ClearAllPools();
+
+        var db = new Database(path);
+        var g = Assert.Single(db.GetAll());
+        Assert.Equal(@"C:\a.exe", Assert.Single(g.Targets).Path); // 以前の「実行ファイル1つ」の設定が、起動するものに移る
+        Assert.Equal(1, Scalar(path, "PRAGMA user_version"));
+
+        // 移したあとは、開き直しても作り変えない（外した起動先が、また足されることはない）
+        db.DeleteTarget(g.Targets[0].Id);
+        _ = new Database(path);
+        Assert.Equal(0, Scalar(path, "SELECT COUNT(*) FROM launch_targets"));
+    }
+
     [Fact]
     public void SaveImport_UpdatesExistingAndAddsNewGames_WithSyncStateAndLaunchTarget()
     {
@@ -48,7 +88,7 @@ public sealed class DatabaseTests : IDisposable
         db.Insert(old);
         old.MyScore = 80;
         old.EgsPlayed = true;
-        var added = new Game { Title = "追加", EgsId = 2, EgsPlayed = true, ExePath = @"C:Games.exe" };
+        var added = new Game { Title = "追加", EgsId = 2, EgsPlayed = true, ExePath = @"C:\Games\a.exe" };
 
         db.SaveImport([old], [added]);
 
@@ -56,7 +96,7 @@ public sealed class DatabaseTests : IDisposable
         Assert.Equal(80, all[1].MyScore);
         Assert.True(all[1].EgsPlayed);
         Assert.True(all[2].EgsPlayed); // 批評空間側の状態（egs_*）も書き込む
-        Assert.Equal(@"C:Games.exe", Assert.Single(all[2].Targets).Path); // 起動するものも同じトランザクションで追加する
+        Assert.Equal(@"C:\Games\a.exe", Assert.Single(all[2].Targets).Path); // 起動するものも同じトランザクションで追加する
     }
 
     [Fact]
@@ -80,7 +120,7 @@ public sealed class DatabaseTests : IDisposable
     public void Delete_RemovesTheGameWithItsSessionsAndTargets()
     {
         var db = NewDb(out var path);
-        var g = new Game { Title = "A", ExePath = @"C:.exe" };
+        var g = new Game { Title = "A", ExePath = @"C:\a.exe" };
         db.Insert(g);
         db.Update(g);
         db.AddSession(g.Id, DateTime.Now, DateTime.Now, 60);
