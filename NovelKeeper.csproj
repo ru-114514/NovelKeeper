@@ -20,9 +20,9 @@
     <!-- バージョンは version.txt から読む（build.bat で上げた番号が、dotnet run でもアプリ内に表示される） -->
     <Version Condition="Exists('$(MSBuildProjectDirectory)\version.txt')">$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\version.txt').Trim())</Version>
     <Version Condition="'$(Version)' == ''">1.0.0</Version>
-    <Authors>NovelKeeper</Authors>
-    <Company>NovelKeeper</Company>
-    <Copyright>© 2026 NovelKeeper</Copyright>
+    <Authors>ru_114514</Authors>
+    <Company>ru_114514</Company>
+    <Copyright>© 2026 ru_114514</Copyright>
     <ApplicationIcon>Assets\NovelKeeper.ico</ApplicationIcon>
     <!-- 使わない言語のリソースを出力に含めない（配布物を少し小さくする） -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
