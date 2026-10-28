@@ -126,7 +126,8 @@ public partial class MainWindow
             {
                 var content = BuildPostContent(panel, r);
                 content.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 6, 0, 0));
-                if (PostLayout.UsesAlign(panel.Kind) && panel.Align is 1 or 2 && content is FrameworkElement fe)
+                if (PostLayout.UsesAlign(panel.Kind) && panel.Align is 1 or 2 && content is FrameworkElement fe
+                    && !(PostLayout.UsesItemColumns(panel.Kind) && panel.ItemColumns > 0)) // 列数を決めた並びは、パネルの幅をその列数で等分する（寄せると、作品名の長さで幅が変わる）
                 {
                     // 余白ができるとき、中身を中央・右に寄せる（複数行の文字も、同じ側に揃える）
                     fe.HorizontalAlignment = panel.Align == 1 ? HorizontalAlignment.Center : HorizontalAlignment.Right;
