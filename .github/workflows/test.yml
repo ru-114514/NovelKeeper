@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json # 配布物を作るのと同じ版の SDK を使う
 
       - name: ビルド（Release）
         run: dotnet build NovelKeeper.csproj -c Release

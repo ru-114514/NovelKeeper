@@ -72,7 +72,7 @@ public class EgsParsingTests
               <input type="checkbox" name="data[other]" value="1" checked>
             </form>
             """);
-        var form = doc.DocumentNode.SelectSingleNode("//form");
+        var form = doc.DocumentNode.SelectSingleNode("//form")!;
         var fields = new List<KeyValuePair<string, string>> { new("data[play]", "0"), new("data[play]", "1"), new("data[other]", "1") };
 
         EgsClient.UncheckField(form, fields, "data[play]");
@@ -83,7 +83,7 @@ public class EgsParsingTests
         // 隠し項目がないフォームでは、従来どおり何も送らない
         var plain = new List<KeyValuePair<string, string>> { new("data[other]", "1") };
         doc.LoadHtml("<form><input type=\"checkbox\" name=\"data[other]\" value=\"1\" checked></form>");
-        EgsClient.UncheckField(doc.DocumentNode.SelectSingleNode("//form"), plain, "data[other]");
+        EgsClient.UncheckField(doc.DocumentNode.SelectSingleNode("//form")!, plain, "data[other]");
         Assert.Empty(plain);
     }
 
@@ -95,7 +95,7 @@ public class EgsParsingTests
         doc.LoadHtml("""<form><input type="hidden" name="a'b" value="0"><input type="checkbox" name="a'b" value="1" checked></form>""");
         var fields = new List<KeyValuePair<string, string>> { new("a'b", "1") };
 
-        EgsClient.UncheckField(doc.DocumentNode.SelectSingleNode("//form"), fields, "a'b"); // 以前は XPath の例外になった
+        EgsClient.UncheckField(doc.DocumentNode.SelectSingleNode("//form")!, fields, "a'b"); // 以前は XPath の例外になった
 
         Assert.Equal(["0"], fields.Select(f => f.Value));
         Assert.Empty(EgsClient.Named(doc.DocumentNode, "a\"b"));
