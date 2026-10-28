@@ -189,7 +189,8 @@ public class DataBackupTests : IDisposable
         src.AddTarget(a.Id, "", "https://example.com/a.exe", null);
         var srcCfg = Path.Combine(_dir, "src_cfg.json");
         File.WriteAllText(srcCfg, "{\"Theme\":\"Light\",\"BaseUrl\":\"https://evil.example/\",\"AutoBackupDir\":\"\\\\\\\\host\\\\share\"," +
-                                  "\"AlwaysRunAsAdmin\":true,\"PostFontFamily\":\"file:///host/share/#Font\"}");
+                                  "\"AlwaysRunAsAdmin\":true,\"PostFontFamily\":\"file:///host/share/#Font\"," +
+                                  "\"PostBackColor\":\"ContextColor file://host/share/p.icc 1,0,0,0\",\"PostCardColor\":\"#112233\"}");
         SqliteConnection.ClearAllPools();
         var zip = Path.Combine(_dir, "b.zip");
         DataBackup.Export(zip, srcPath, srcCfg);
@@ -213,6 +214,8 @@ public class DataBackupTests : IDisposable
         Assert.Equal(@"D:\mybackup", cfg.AutoBackupDir);           // いまの値のまま
         Assert.False(cfg.AlwaysRunAsAdmin);
         Assert.Null(cfg.PostFontFamily);                           // 場所の書かれたフォントは外す
+        Assert.Null(cfg.PostBackColor);                            // #RRGGBB でない色も外す
+        Assert.Equal("#112233", cfg.PostCardColor);
     }
 
     [Fact]
@@ -335,9 +338,38 @@ public class ClearMissingLaunchPathsTests : IDisposable
     [InlineData("//host/share/a.exe")]
     [InlineData(@"\\?\UNC\host\share\a.exe")]
     [InlineData(@" \/host\share\a.exe")]
+    [InlineData(@"\??\UNC\host\share\a.exe")]
     public void IsLaunchAvailable_NetworkPath_IsRefusedWithoutTouchingIt(string path) =>
         // 存在を確かめるだけで認証情報が送られるので、ファイルには触らない
         Assert.False(DataBackup.IsLaunchAvailable(path, _ => throw new InvalidOperationException("触った"), _ => true, _ => true));
+
+    [Fact]
+    public void Triggers_AreDropped_SoTheyCannotPutRemovedPathsBack()
+    {
+        var dbPath = Path.Combine(_dir, "games.db");
+        var db = new NovelKeeper.Data.Database(dbPath);
+        var g = new NovelKeeper.Models.Game { Title = "A" };
+        db.Insert(g); db.Update(g);
+        db.AddTarget(g.Id, "", @"\\host\share\a.exe", null);
+        using (var c = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            c.Open();
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "CREATE TRIGGER put_back AFTER DELETE ON launch_targets BEGIN " +
+                              "INSERT INTO launch_targets (game_id, label, path, sort_order) VALUES (OLD.game_id, '', OLD.path, 0); END;";
+            cmd.ExecuteNonQuery();
+        }
+        SqliteConnection.ClearAllPools();
+
+        DataBackup.ClearMissingLaunchPaths(dbPath);
+
+        Assert.Empty(db.GetAll().Single().Targets);
+        using var check = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
+        check.Open();
+        using var q = check.CreateCommand();
+        q.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'";
+        Assert.Equal(0L, (long)q.ExecuteScalar()!);
+    }
 
     [Fact]
     public void NetworkInstallDir_IsCleared()

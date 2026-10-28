@@ -123,11 +123,11 @@ public static class DataBackup
     private static readonly System.Text.RegularExpressions.Regex SteamRunGame =
         new(@"^steam://rungameid/(\d+)/?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    /// <summary>ネットワーク上の場所か（\\ や // で始まる。\\?\UNC\ も含む）</summary>
+    /// <summary>ネットワーク上の場所か（\\ や // で始まる。\\?\UNC\ も含む。\??\ で始まるものも、UNC になりうるので含める）</summary>
     internal static bool IsNetworkPath(string? path)
     {
         var p = path?.Trim() ?? "";
-        return p.Length >= 2 && p[0] is '\\' or '/' && p[1] is '\\' or '/';
+        return (p.Length >= 2 && p[0] is '\\' or '/' && p[1] is '\\' or '/') || p.StartsWith(@"\??\", StringComparison.Ordinal);
     }
 
     private static bool SchemeRegistered(string scheme)
@@ -165,7 +165,18 @@ public static class DataBackup
             return Convert.ToInt32(c.ExecuteScalar()) > 0;
         }
 
-        if (!HasColumn("games", "exe_path")) return 0; // 起動設定のない古い形式
+        // このアプリはトリガーを作らない。取り込んだ DB にあれば、外した起動設定を書き戻したりできるので、すべて消す
+        var triggers = new List<string>();
+        using (var c = Cmd("SELECT name FROM sqlite_master WHERE type = 'trigger'"))
+        using (var r = c.ExecuteReader())
+            while (r.Read()) triggers.Add(r.GetString(0));
+        foreach (var name in triggers)
+        {
+            using var drop = Cmd($"DROP TRIGGER \"{name.Replace("\"", "\"\"")}\"");
+            drop.ExecuteNonQuery();
+        }
+
+        if (!HasColumn("games", "exe_path")) { tx.Commit(); return 0; } // 起動設定のない古い形式
         var affected = new HashSet<long>();
         var hasTargets = HasColumn("launch_targets", "path");
 
@@ -299,7 +310,10 @@ public static class DataBackup
         {
             Log.Warn("バックアップの取り込みに失敗", ex);
             return "バックアップを取り込めませんでした：" + ex.Message +
-                   (File.Exists(Path.Combine(pendingDir, DbEntry)) ? "\n\n取り込む内容は残してあるので、次の起動でもう一度反映します。" : "");
+                   (File.Exists(Path.Combine(pendingDir, DbEntry))
+                       ? "\n\n取り込む内容は残してあるので、次の起動でもう一度反映します。\n" +
+                         $"取り込みをやめるときは、次のフォルダを削除してください：\n{pendingDir}"
+                       : "");
         }
     }
 }

@@ -416,8 +416,14 @@ public class EgsConfig
             p.SetValue(imported, p.GetValue(current));
         }
         if (!IsPlainFontName(imported.PostFontFamily)) imported.PostFontFamily = null;
+        if (!IsHexColor(imported.PostBackColor)) imported.PostBackColor = null;
+        if (!IsHexColor(imported.PostCardColor)) imported.PostCardColor = null;
+        if (!IsHexColor(imported.PostTextColor)) imported.PostTextColor = null;
         foreach (var panel in imported.PostLayout?.Panels ?? new())
+        {
             if (!IsPlainFontName(panel.FontFamily)) panel.FontFamily = null;
+            if (!IsHexColor(panel.FontColor)) panel.FontColor = null;
+        }
 
         imported.FilePath = configPath;
         imported.NormalizeSortPresets();
@@ -427,6 +433,14 @@ public class EgsConfig
     /// <summary>フォントの名前だけか（WPF はフォントの指定に「場所#名前」も使えて、ネットワーク上のファイルも読みに行く）</summary>
     internal static bool IsPlainFontName(string? name) =>
         string.IsNullOrWhiteSpace(name) || name.IndexOfAny(new[] { '/', '\\', '#', ':' }) < 0;
+
+    /// <summary>
+    /// #RRGGBB などの数字か、Red などの名前の色か（WPF の色の指定は、色の設定ファイルの場所も書けて、それを読みに行く。
+    /// 入力欄では自由に書けるので、WPF が読める #RGB・#ARGB・#AARRGGBB と名前も認める）
+    /// </summary>
+    internal static bool IsHexColor(string? value) =>
+        string.IsNullOrWhiteSpace(value) ||
+        System.Text.RegularExpressions.Regex.IsMatch(value.Trim(), "^(#([0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|[A-Za-z]+)$");
 
     /// <summary>設定ファイルを読む（保存はしない）。読めなければ null</summary>
     private static EgsConfig? Read(string path)
