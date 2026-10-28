@@ -179,6 +179,25 @@ public sealed class AutoBackupTests : IDisposable
     }
 
     [Fact]
+    public void Snapshot_TwiceInTheSameSecond_KeepsBoth_AndPruneCountsThem()
+    {
+        var db = Path.Combine(_dir, "snap.db");
+        using (var c = new SqliteConnection($"Data Source={db}")) { c.Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "CREATE TABLE games (id INTEGER)"; cmd.ExecuteNonQuery(); }
+        SqliteConnection.ClearAllPools();
+
+        // 同じ秒に作られるよう、先に1件目と同じ名前のファイルを置いておく
+        var first = DbBackup.Snapshot(db, BackupDir, "before_import");
+        Assert.NotNull(first);
+        File.Copy(first!, first!.Replace(".db", "_2.db"));
+        var third = DbBackup.Snapshot(db, BackupDir, "before_import");
+
+        Assert.NotNull(third);
+        Assert.NotEqual(first, third);
+        AutoBackup.Prune(BackupDir, 7, maxBefore: 1, long.MaxValue);
+        Assert.Single(Names(), n => n.StartsWith("before_")); // _2 などの付いた控えも、件数の上限で整理される
+    }
+
+    [Fact]
     public void Prune_TotalSizeCap_DeletesOldestFirst_ButKeepsTheNewestGeneration()
     {
         Directory.CreateDirectory(BackupDir);

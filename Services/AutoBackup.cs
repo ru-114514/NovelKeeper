@@ -56,7 +56,7 @@ public static class AutoBackup
 
     private static readonly Regex GamesName = new(@"^games_(\d{8})\.db$", RegexOptions.Compiled);
     private static readonly Regex ConfigName = new(@"^config_(\d{8})\.json$", RegexOptions.Compiled);
-    private static readonly Regex BeforeName = new(@"^before_[a-z]+_(\d{8}_\d{6})\.db$", RegexOptions.Compiled);
+    private static readonly Regex BeforeName = new(@"^before_[a-z]+_(\d{8}_\d{6})(?:_(\d{1,4}))?\.db$", RegexOptions.Compiled); // 同じ秒の2件目からは _2, _3 …
     private static readonly Regex StageName = new(@"^games_\d{8}\.new(\.tmp)?$", RegexOptions.Compiled);
 
     private static readonly object Gate = new();
@@ -250,6 +250,7 @@ public static class AutoBackup
             .Select(f => (File: f, M: BeforeName.Match(Path.GetFileName(f))))
             .Where(x => x.M.Success)
             .OrderByDescending(x => x.M.Groups[1].Value)
+            .ThenByDescending(x => x.M.Groups[2].Success ? int.Parse(x.M.Groups[2].Value) : 1)
             .Select(x => x.File)
             .ToList();
 

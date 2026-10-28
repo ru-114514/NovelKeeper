@@ -139,14 +139,14 @@ public partial class EgsClient
 
         // 発売前の作品のページには、プレイ済・得点の欄がない「基本情報」だけのフォーム（購入予定・購入前得点）が出る。
         // その場合は、プレイ済・クリア日・得点には触れず、フォームにある欄だけを書き換える
-        var hasPlayedField = form.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']") != null;
+        var hasPlayedField = Named(form, _cfg.PlayedField).Any();
 
         if (hasPlayedField)
         {
             // ---- プレイ済（null なら今の状態のまま） ----
             // 同じ名前の隠し項目（外したときの「0」）が先にあっても、☑を付けるときの値はチェック欄から読む
-            var playedInput = form.SelectSingleNode($".//input[@name='{_cfg.PlayedField}' and @type='checkbox']")
-                              ?? form.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']")!;
+            var playedInput = Named(form, _cfg.PlayedField, "input").FirstOrDefault(n => n.GetAttributeValue("type", "").Equals("checkbox", StringComparison.OrdinalIgnoreCase))
+                              ?? Named(form, _cfg.PlayedField).First();
             if (played == true)
             {
                 var value = _cfg.PlayedValue != "" ? _cfg.PlayedValue : playedInput.GetAttributeValue("value", "on");
@@ -178,7 +178,7 @@ public partial class EgsClient
             foreach (var (name, value) in extra)
             {
                 // 発売前のフォームにない欄は送らない（送っても反映されず、確認でも「未反映」のまま残る）
-                if (!hasPlayedField && form.SelectSingleNode($".//*[@name='{name}']") == null) continue;
+                if (!hasPlayedField && !Named(form, name).Any()) continue;
                 if (value == null) UncheckField(form, fields, name);
                 else SetField(fields, name, value);
             }
@@ -200,7 +200,7 @@ public partial class EgsClient
     internal static void UncheckField(HtmlNode form, List<KeyValuePair<string, string>> fields, string name)
     {
         fields.RemoveAll(f => f.Key == name);
-        foreach (var n in form.SelectNodes($".//input[@name='{name}']") ?? Enumerable.Empty<HtmlNode>())
+        foreach (var n in Named(form, name, "input"))
             if (n.GetAttributeValue("type", "").Equals("hidden", StringComparison.OrdinalIgnoreCase) && !n.Attributes.Contains("disabled"))
                 fields.Add(new(name, Attr(n, "value")));
     }
@@ -228,14 +228,21 @@ public partial class EgsClient
     {
         var doc = Load(await GetAsync(url));
         var forms = doc.DocumentNode.SelectNodes("//form");
-        return forms?.FirstOrDefault(f => f.SelectSingleNode($".//*[@name='{_cfg.PlayedField}']") != null)
+        return forms?.FirstOrDefault(f => Named(f, _cfg.PlayedField).Any())
                // 発売前の作品：プレイ済の欄がなく、購入予定の欄があるフォーム
-               ?? forms?.FirstOrDefault(f => f.SelectSingleNode($".//*[@name='{_cfg.ReviewFormField("purchase_will")}']") != null);
+               ?? forms?.FirstOrDefault(f => Named(f, _cfg.ReviewFormField("purchase_will")).Any());
     }
 
     // ================================================================
     // フォーム操作の共通処理
     // ================================================================
+
+    /// <summary>
+    /// フォームの中で、name がこの名前の要素（tag を指定すると、その種類の要素だけ）。
+    /// XPath に名前を埋め込まないので、設定の欄名に ' などが入っていても例外にならない
+    /// </summary>
+    internal static IEnumerable<HtmlNode> Named(HtmlNode form, string name, string? tag = null) =>
+        form.Descendants().Where(n => n.NodeType == HtmlNodeType.Element && n.Attributes["name"]?.Value == name && (tag == null || n.Name == tag));
 
     /// <summary>ブラウザが送信するのと同じように、フォームの今の値をすべて読み取る</summary>
     private static List<KeyValuePair<string, string>> ReadForm(HtmlNode form)

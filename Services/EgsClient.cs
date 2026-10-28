@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Globalization;
 using System.Net;
@@ -43,7 +44,7 @@ public partial class EgsClient
     private readonly EgsConfig _cfg;
     private HttpClient _http;
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private DateTime _lastRequest = DateTime.MinValue;
+    private long? _lastRequest; // 前回の通信が終わった時刻（Stopwatch の値。PC の時計を合わせても狂わない）
 
     /// <summary>テストで通信を差し替えるための工場（null なら通常の通信）</summary>
     private readonly Func<HttpMessageHandler>? _handlerFactory;
@@ -437,11 +438,13 @@ public partial class EgsClient
         await _lock.WaitAsync();
         try
         {
-            var wait = _cfg.EffectiveIntervalMs - (int)(DateTime.Now - _lastRequest).TotalMilliseconds;
-            if (wait > 0) await Task.Delay(wait);
+            if (_lastRequest is long last)
+            {
+                var wait = _cfg.EffectiveIntervalMs - Stopwatch.GetElapsedTime(last).TotalMilliseconds;
+                if (wait > 0) await Task.Delay(TimeSpan.FromMilliseconds(wait));
+            }
 
             using var res = await _http.SendAsync(request);
-            _lastRequest = DateTime.Now;
             res.EnsureSuccessStatusCode();
 
             var bytes = await res.Content.ReadAsByteArrayAsync();
@@ -455,6 +458,8 @@ public partial class EgsClient
         }
         finally
         {
+            // つながらなかったときも、次の通信まで間隔をあける
+            _lastRequest = Stopwatch.GetTimestamp();
             _lock.Release();
         }
     }

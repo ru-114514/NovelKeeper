@@ -392,7 +392,8 @@ public partial class MainWindow
         var stats = new SyncStats();
         var resolver = new DialogConflictResolver(this);
         var scoredBefore = SnapshotScoredGames(); // 任意評価基準：得点が変わって食い違った作品を、あとで知らせる
-        foreach (var g in _db.GetAll().Where(x => x.EgsId != null))
+        var synced = _db.GetAll().Where(x => x.EgsId != null).ToList();
+        foreach (var g in synced)
         {
             var egsId = g.EgsId!.Value;
             byId.TryGetValue(egsId, out var rec);
@@ -400,8 +401,9 @@ public partial class MainWindow
             Review? remote = null;
             reviews?.TryGetValue(egsId, out remote);
             SyncEngine.ApplyRecord(g, rec, info, remote, resolver, stats);
-            _db.UpdateFromSync(g); // 起動設定など、同期と関係のない項目は書き換えない
         }
+        // 食い違いの確認（画面）が全部すんでから、まとめて1回で書き込む。起動設定など、同期と関係のない項目は書き換えない
+        _db.UpdateFromSync(synced);
         _detailDirty = false; // 同期中は詳細欄を編集できないので、読み直してよい
         Reload();
         StatusText.Text = $"同期しました（プレイ済にした作品：{stats.Imported}件、中断にした作品：{stats.Dropped}件、得点を取り込んだ作品：{stats.ScoreImported}件）";
@@ -483,22 +485,23 @@ public partial class MainWindow
                 .GroupBy(x => x.EgsId!.Value)
                 .ToDictionary(x => x.Key, x => x.First());
 
+            var updated = new List<Game>();
+            var newGames = new List<Game>();
             foreach (var item in myGames)
             {
                 reviews.TryGetValue(item.Game.Id, out var remote);
                 if (existing.TryGetValue(item.Game.Id, out var old))
                 {
                     if (SyncEngine.ApplyImportToExisting(old, item, remote)) scoreFilled++;
-                    _db.UpdateFromSync(old);
+                    updated.Add(old);
                     skipped++;
                     continue;
                 }
 
-                var g = SyncEngine.NewGameFromImport(item, remote);
-                _db.Insert(g);
-                _db.Update(g); // 批評空間側の状態（egs_*）も書き込む
+                newGames.Add(SyncEngine.NewGameFromImport(item, remote));
                 added++;
             }
+            _db.SaveImport(updated, newGames);
 
             Reload();
             StatusText.Text = $"一括取り込み完了：{added} 件追加、得点を取り込んだ作品 {scoreFilled} 件";

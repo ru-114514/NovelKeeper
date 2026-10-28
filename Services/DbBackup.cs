@@ -21,7 +21,9 @@ public static class DbBackup
         {
             if (!File.Exists(dbPath)) return null;
             Directory.CreateDirectory(backupDir);
-            var path = Path.Combine(backupDir, $"{tag}_{DateTime.Now:yyyyMMdd_HHmmss}.db");
+            var stamp = $"{tag}_{DateTime.Now:yyyyMMdd_HHmmss}";
+            var path = Path.Combine(backupDir, stamp + ".db");
+            for (var n = 2; File.Exists(path); n++) path = Path.Combine(backupDir, $"{stamp}_{n}.db"); // 同じ秒に2回作っても失敗しない
             CopyDatabase(dbPath, path);
             Log.Info("データベースの控えを残しました: " + path);
             return path;

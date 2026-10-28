@@ -237,14 +237,18 @@ public static class DataBackup
                        "取り込む内容は残してあるので、次の起動でもう一度反映します。\n" +
                        $"取り込みをやめるときは、次のフォルダを削除してください：\n{pendingDir}";
             }
+            // 設定を先に、DB を最後に移す。保留の DB が残っていることが「まだ反映していない」の目印なので、
+            // 途中で失敗しても、次の起動で残りを反映し直せる（DB だけが新しくなって、設定が取り残されることがない）
+            var newCfg = Path.Combine(pendingDir, ConfigEntry);
+            if (File.Exists(newCfg)) File.Move(newCfg, configPath, overwrite: true);
+
             foreach (var suffix in new[] { "-wal", "-shm", "-journal" })
                 if (File.Exists(dbPath + suffix)) File.Delete(dbPath + suffix);
             File.Move(newDb, dbPath, overwrite: true);
 
-            var newCfg = Path.Combine(pendingDir, ConfigEntry);
-            if (File.Exists(newCfg)) File.Move(newCfg, configPath, overwrite: true);
-
-            Directory.Delete(pendingDir, true);
+            // 反映はすんでいる（保留の DB はもうないので、消せなくても次の起動では何もしない）
+            try { Directory.Delete(pendingDir, true); }
+            catch (Exception ex) { Log.Warn("取り込みに使ったフォルダを削除できませんでした", ex); }
 
             // このパソコンにないファイルの起動設定は外す（別のパソコンのパスが残って、起動に失敗しないように）
             var cleared = 0;
@@ -258,7 +262,8 @@ public static class DataBackup
         catch (Exception ex)
         {
             Log.Warn("バックアップの取り込みに失敗", ex);
-            return "バックアップを取り込めませんでした：" + ex.Message;
+            return "バックアップを取り込めませんでした：" + ex.Message +
+                   (File.Exists(Path.Combine(pendingDir, DbEntry)) ? "\n\n取り込む内容は残してあるので、次の起動でもう一度反映します。" : "");
         }
     }
 }

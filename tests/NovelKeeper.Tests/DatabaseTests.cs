@@ -41,6 +41,61 @@ public sealed class DatabaseTests : IDisposable
     }
 
     [Fact]
+    public void SaveImport_UpdatesExistingAndAddsNewGames_WithSyncStateAndLaunchTarget()
+    {
+        var db = NewDb(out _);
+        var old = new Game { Title = "既存", EgsId = 1 };
+        db.Insert(old);
+        old.MyScore = 80;
+        old.EgsPlayed = true;
+        var added = new Game { Title = "追加", EgsId = 2, EgsPlayed = true, ExePath = @"C:Games.exe" };
+
+        db.SaveImport([old], [added]);
+
+        var all = db.GetAll().ToDictionary(g => g.EgsId!.Value);
+        Assert.Equal(80, all[1].MyScore);
+        Assert.True(all[1].EgsPlayed);
+        Assert.True(all[2].EgsPlayed); // 批評空間側の状態（egs_*）も書き込む
+        Assert.Equal(@"C:Games.exe", Assert.Single(all[2].Targets).Path); // 起動するものも同じトランザクションで追加する
+    }
+
+    [Fact]
+    public void UpdateFromSync_Batch_WritesNothingIfOneGameFails()
+    {
+        var db = NewDb(out _);
+        var a = new Game { Title = "A", EgsId = 1 };
+        var b = new Game { Title = "B", EgsId = 2 };
+        db.Insert(a);
+        db.Insert(b);
+        a.MyScore = 70;
+        b.MyScore = 60;
+        b.PendingReview = null!; // 書き込みの途中（B の得点を書いたあと）で失敗させる
+
+        Assert.ThrowsAny<Exception>(() => db.UpdateFromSync([a, b]));
+
+        Assert.All(db.GetAll(), g => Assert.Null(g.MyScore)); // 途中まで書き込まれた状態は残らない
+    }
+
+    [Fact]
+    public void Delete_RemovesTheGameWithItsSessionsAndTargets()
+    {
+        var db = NewDb(out var path);
+        var g = new Game { Title = "A", ExePath = @"C:.exe" };
+        db.Insert(g);
+        db.Update(g);
+        db.AddSession(g.Id, DateTime.Now, DateTime.Now, 60);
+
+        db.Delete(g.Id);
+
+        Assert.Empty(db.GetAll());
+        using var c = new SqliteConnection($"Data Source={path}");
+        c.Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT (SELECT COUNT(*) FROM sessions) + (SELECT COUNT(*) FROM launch_targets)";
+        Assert.Equal(0L, cmd.ExecuteScalar());
+    }
+
+    [Fact]
     public void RegisteredDate_IsSavedOnInsert_AndKeptWhenEgsHasNoRecord()
     {
         var db = NewDb(out _);

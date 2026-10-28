@@ -26,11 +26,17 @@ public static class AppPaths
         return dir;
     }
 
-    private static void CopyDirectory(string from, string to)
+    /// <summary>フォルダを中のフォルダ（backups・images など）ごと写す。写し先にあるファイルは上書きしない</summary>
+    internal static void CopyDirectory(string from, string to)
     {
         Directory.CreateDirectory(to);
         foreach (var file in Directory.GetFiles(from))
-            File.Copy(file, Path.Combine(to, Path.GetFileName(file)), overwrite: false);
+        {
+            var dest = Path.Combine(to, Path.GetFileName(file));
+            if (!File.Exists(dest)) File.Copy(file, dest);
+        }
+        foreach (var sub in Directory.GetDirectories(from))
+            CopyDirectory(sub, Path.Combine(to, Path.GetFileName(sub)));
     }
 
     public static string Database => Path.Combine(Dir, "games.db");

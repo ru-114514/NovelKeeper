@@ -465,6 +465,8 @@ public partial class MainWindow
             return;
         }
 
+        // ログインの間は通信中にする（ログインの途中で同期などが始まって、ログイン状態が入れ替わらないように）
+        if (!BeginEgsWork(lockDetail: false, quiet: true)) return;
         CredentialStore.Save(user, pass);
         LoginPassBox.Clear();
         LoginSaveButton.IsEnabled = false;
@@ -483,6 +485,7 @@ public partial class MainWindow
         }
         finally
         {
+            EndEgsWork();
             LoginSaveButton.IsEnabled = true;
             UpdateLoginState();
         }

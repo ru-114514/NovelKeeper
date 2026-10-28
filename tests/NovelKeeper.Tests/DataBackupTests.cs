@@ -149,6 +149,51 @@ public class DataBackupTests : IDisposable
         Assert.Equal(3, Count(target));
         Assert.False(Directory.Exists(pending));
     }
+
+    [Fact]
+    public void ApplyPending_SettingsMoveFails_KeepsCurrentDataAndRetriesNextTime()
+    {
+        var cfg = Path.Combine(_dir, "egs_config.json");
+        File.WriteAllText(cfg, "{\"Theme\":\"Light\"}");
+        var zip = Path.Combine(_dir, "b.zip");
+        DataBackup.Export(zip, MakeDb("games.db", 3), cfg);
+        var target = MakeDb("target.db", 1);
+        var pending = Path.Combine(_dir, "pending");
+        var backups = Path.Combine(_dir, "backups");
+        DataBackup.Stage(zip, pending, withConfig: true);
+        var targetCfg = Path.Combine(_dir, "target_cfg.json");
+        Directory.CreateDirectory(targetCfg); // 設定の置き場所に同じ名前のフォルダがあって、移せない
+
+        var message = DataBackup.ApplyPending(pending, target, targetCfg, backups);
+
+        Assert.Contains("次の起動", message);
+        Assert.Equal(1, Count(target)); // DB だけが新しくなることはない
+        Assert.True(File.Exists(Path.Combine(pending, DataBackup.DbEntry)));
+
+        // 原因がなくなれば、次の起動で設定も DB もそろって反映される
+        Directory.Delete(targetCfg);
+        DataBackup.ApplyPending(pending, target, targetCfg, backups);
+        Assert.Equal(3, Count(target));
+        Assert.Equal("{\"Theme\":\"Light\"}", File.ReadAllText(targetCfg));
+        Assert.False(Directory.Exists(pending));
+    }
+
+    [Fact]
+    public void CopyDirectory_CopiesSubfolders_AndKeepsFilesAlreadyThere()
+    {
+        var from = Path.Combine(_dir, "old");
+        Directory.CreateDirectory(Path.Combine(from, "backups"));
+        File.WriteAllText(Path.Combine(from, "games.db"), "old");
+        File.WriteAllText(Path.Combine(from, "backups", "auto_1.db"), "b");
+        var to = Path.Combine(_dir, "new");
+        Directory.CreateDirectory(to);
+        File.WriteAllText(Path.Combine(to, "games.db"), "new");
+
+        AppPaths.CopyDirectory(from, to);
+
+        Assert.Equal("b", File.ReadAllText(Path.Combine(to, "backups", "auto_1.db")));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(to, "games.db")));
+    }
 }
 
 public class ClearMissingLaunchPathsTests : IDisposable

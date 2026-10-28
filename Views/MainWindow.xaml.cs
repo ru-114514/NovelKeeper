@@ -153,10 +153,6 @@ public partial class MainWindow : Window
     }
 
     // ================================================================
-    // 購入確認の通知
-    // ================================================================
-
-    // ================================================================
     // 一覧
     // ================================================================
 
@@ -262,7 +258,8 @@ public partial class MainWindow : Window
             _cfg.SortPresets[save] = dlg.Result.Select(k => new SortKey { Property = k.Property, Descending = k.Descending }).ToList();
         _cfg.Save();
         ApplySort();
-        if (dlg.SaveToPreset is int saved) StatusText.Text = $"設定{saved + 1}に保存しました：{DescribeSort(dlg.Result)}";    }
+        if (dlg.SaveToPreset is int saved) StatusText.Text = $"設定{saved + 1}に保存しました：{DescribeSort(dlg.Result)}";
+    }
 
     private void ShowBeforePurchase_Changed(object sender, RoutedEventArgs e)
     {
@@ -411,18 +408,6 @@ public partial class MainWindow : Window
         _cfg.WelcomeShown = true;
         _cfg.Save();
         OpenLoginTab();
-    }
-
-    private void Settings_Click(object sender, RoutedEventArgs e) => OpenSettings();
-
-    // ================================================================
-    // 設定
-    // ================================================================
-
-    private void Login_Click(object sender, RoutedEventArgs e)
-    {
-        new LoginWindow(_egs) { Owner = this }.ShowDialog();
-        UpdateLoginState();
     }
 
     // ================================================================

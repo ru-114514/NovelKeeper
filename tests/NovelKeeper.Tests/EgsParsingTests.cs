@@ -88,6 +88,20 @@ public class EgsParsingTests
     }
 
     [Fact]
+    public void UncheckField_FieldNameWithQuotes_DoesNotThrow()
+    {
+        _ = new EgsClient(new EgsConfig());
+        var doc = new HtmlAgilityPack.HtmlDocument();
+        doc.LoadHtml("""<form><input type="hidden" name="a'b" value="0"><input type="checkbox" name="a'b" value="1" checked></form>""");
+        var fields = new List<KeyValuePair<string, string>> { new("a'b", "1") };
+
+        EgsClient.UncheckField(doc.DocumentNode.SelectSingleNode("//form"), fields, "a'b"); // 以前は XPath の例外になった
+
+        Assert.Equal(["0"], fields.Select(f => f.Value));
+        Assert.Empty(EgsClient.Named(doc.DocumentNode, "a\"b"));
+    }
+
+    [Fact]
     public void ReviewFormValues_UncheckedBoxesAreSentAsNull_AndEmptyNumbersAsEmpty()
     {
         var review = new Review { Possession = false, Okazu = null, TotalPlayTime = 12, Hitokoto = "x" };

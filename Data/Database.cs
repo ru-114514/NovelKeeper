@@ -26,6 +26,24 @@ public class Database : ISessionStore
         return conn;
     }
 
+    /// <summary>まとめて1回で書き込む（途中で失敗したら、どれも書き込まない。ディスクへの確定も1回で済む）</summary>
+    private void InTransaction(Action<SqliteConnection, SqliteTransaction> write)
+    {
+        using var conn = Open();
+        using var tx = conn.BeginTransaction();
+        write(conn, tx);
+        tx.Commit();
+    }
+
+    /// <summary>命令を作る（まとめて書き込むときは、そのトランザクションに入れる）</summary>
+    private static SqliteCommand Command(SqliteConnection conn, SqliteTransaction? tx, string sql)
+    {
+        var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = sql;
+        return cmd;
+    }
+
     private void Initialize()
     {
         using var conn = Open();
@@ -201,9 +219,13 @@ public class Database : ISessionStore
     public LaunchTarget AddTarget(long gameId, string label, string path, string? monitorProcess)
     {
         using var conn = Open();
-        using (var find = conn.CreateCommand())
+        return AddTarget(conn, null, gameId, label, path, monitorProcess);
+    }
+
+    private static LaunchTarget AddTarget(SqliteConnection conn, SqliteTransaction? tx, long gameId, string label, string path, string? monitorProcess)
+    {
+        using (var find = Command(conn, tx, "SELECT id, label, monitor_process, sort_order FROM launch_targets WHERE game_id = $g AND path = $p COLLATE NOCASE"))
         {
-            find.CommandText = "SELECT id, label, monitor_process, sort_order FROM launch_targets WHERE game_id = $g AND path = $p COLLATE NOCASE";
             find.Parameters.AddWithValue("$g", gameId);
             find.Parameters.AddWithValue("$p", path);
             using var r = find.ExecuteReader();
@@ -215,12 +237,11 @@ public class Database : ISessionStore
                 };
         }
 
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        using var cmd = Command(conn, tx, """
             INSERT INTO launch_targets (game_id, label, path, monitor_process, sort_order)
             VALUES ($g, $label, $p, $proc, COALESCE((SELECT MAX(sort_order) + 1 FROM launch_targets WHERE game_id = $g), 0));
             SELECT last_insert_rowid();
-            """;
+            """);
         cmd.Parameters.AddWithValue("$g", gameId);
         cmd.Parameters.AddWithValue("$label", label);
         cmd.Parameters.AddWithValue("$p", path);
@@ -232,11 +253,15 @@ public class Database : ISessionStore
     public void UpdateTarget(LaunchTarget t)
     {
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        UpdateTarget(conn, null, t);
+    }
+
+    private static void UpdateTarget(SqliteConnection conn, SqliteTransaction? tx, LaunchTarget t)
+    {
+        using var cmd = Command(conn, tx, """
             UPDATE launch_targets SET label = $label, path = $p, monitor_process = $proc, sort_order = $sort
             WHERE id = $id
-            """;
+            """);
         cmd.Parameters.AddWithValue("$label", t.Label);
         cmd.Parameters.AddWithValue("$p", t.Path);
         cmd.Parameters.AddWithValue("$proc", Db(string.IsNullOrWhiteSpace(t.MonitorProcess) ? null : t.MonitorProcess));
@@ -264,13 +289,17 @@ public class Database : ISessionStore
     public void UpdateSyncState(Game g)
     {
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        UpdateSyncState(conn, null, g);
+    }
+
+    private static void UpdateSyncState(SqliteConnection conn, SqliteTransaction? tx, Game g)
+    {
+        using var cmd = Command(conn, tx, """
             UPDATE games SET
                 egs_played = $egsPlayed, egs_giveup = $egsGiveUp, egs_possession = $egsPossession, egs_score = $egsScore,
                 egs_clear_date = $egsClear, egs_synced_at = $egsSynced, review_pending = $reviewPending, egs_registered = $egsRegistered
             WHERE id = $id
-            """;
+            """);
         cmd.Parameters.AddWithValue("$egsRegistered", Db(g.EgsRegistered?.ToString(DateFormat, CultureInfo.InvariantCulture)));
         cmd.Parameters.AddWithValue("$egsPlayed", g.EgsPlayed ? 1 : 0);
         cmd.Parameters.AddWithValue("$egsGiveUp", g.EgsGiveUp ? 1 : 0);
@@ -289,13 +318,34 @@ public class Database : ISessionStore
     public void UpdateFromSync(Game g)
     {
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        UpdateFromSync(conn, null, g);
+    }
+
+    /// <summary>同期の結果を、まとめて1回で書き込む</summary>
+    public void UpdateFromSync(IEnumerable<Game> games) => InTransaction((conn, tx) =>
+    {
+        foreach (var g in games) UpdateFromSync(conn, tx, g);
+    });
+
+    /// <summary>一括取り込みの結果を、まとめて1回で書き込む（一覧にあった作品は同期の項目だけ、新しい作品は全項目）</summary>
+    public void SaveImport(IEnumerable<Game> existing, IEnumerable<Game> added) => InTransaction((conn, tx) =>
+    {
+        foreach (var g in existing) UpdateFromSync(conn, tx, g);
+        foreach (var g in added)
+        {
+            Insert(conn, tx, g);
+            Update(conn, tx, g); // 批評空間側の状態（egs_*）も書き込む
+        }
+    });
+
+    private static void UpdateFromSync(SqliteConnection conn, SqliteTransaction? tx, Game g)
+    {
+        using var cmd = Command(conn, tx, """
             UPDATE games SET
                 sellday = $sellday, median = $median, egs_average = $egsAverage, egs_count = $egsCount,
                 status = $status, clear_date = $clear, my_score = $myScore, review_json = $review
             WHERE id = $id
-            """;
+            """);
         cmd.Parameters.AddWithValue("$sellday", Db(g.SellDay));
         cmd.Parameters.AddWithValue("$median", Db(g.Median));
         cmd.Parameters.AddWithValue("$egsAverage", Db(g.EgsAverage));
@@ -306,7 +356,7 @@ public class Database : ISessionStore
         cmd.Parameters.AddWithValue("$review", JsonSerializer.Serialize(g.Review));
         cmd.Parameters.AddWithValue("$id", g.Id);
         cmd.ExecuteNonQuery();
-        UpdateSyncState(g);
+        UpdateSyncState(conn, tx, g);
     }
 
     public bool ExistsEgsId(int egsId)
@@ -321,12 +371,16 @@ public class Database : ISessionStore
     public void Insert(Game g)
     {
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        Insert(conn, null, g);
+    }
+
+    private static void Insert(SqliteConnection conn, SqliteTransaction? tx, Game g)
+    {
+        using var cmd = Command(conn, tx, """
             INSERT INTO games (egs_id, title, brand, sellday, median, egs_average, egs_count, exe_path, monitor_process, status, clear_date, my_score, install_dir, review_json, review_pending, egs_registered)
             VALUES ($egs, $title, $brand, $sellday, $median, $egsAverage, $egsCount, $exe, $proc, $status, $clear, $myScore, $installDir, $review, $reviewPending, $egsRegistered);
             SELECT last_insert_rowid();
-            """;
+            """);
         AddCommonParams(cmd, g);
         cmd.Parameters.AddWithValue("$egsRegistered", Db(g.EgsRegistered?.ToString(DateFormat, CultureInfo.InvariantCulture)));
         g.Id = Convert.ToInt64(cmd.ExecuteScalar());
@@ -335,8 +389,12 @@ public class Database : ISessionStore
     public void Update(Game g)
     {
         using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        Update(conn, null, g);
+    }
+
+    private static void Update(SqliteConnection conn, SqliteTransaction? tx, Game g)
+    {
+        using var cmd = Command(conn, tx, """
             UPDATE games SET
                 egs_id = $egs, title = $title, brand = $brand, sellday = $sellday, median = $median,
                 egs_average = $egsAverage, egs_count = $egsCount,
@@ -344,7 +402,7 @@ public class Database : ISessionStore
                 review_json = $review, review_pending = $reviewPending, price = $price, run_as_admin = $runAsAdmin,
                 egs_played = $egsPlayed, egs_giveup = $egsGiveUp, egs_possession = $egsPossession, egs_score = $egsScore, egs_clear_date = $egsClear, egs_synced_at = $egsSynced, egs_registered = $egsRegistered
             WHERE id = $id
-            """;
+            """);
         AddCommonParams(cmd, g);
         cmd.Parameters.AddWithValue("$egsRegistered", Db(g.EgsRegistered?.ToString(DateFormat, CultureInfo.InvariantCulture)));
         cmd.Parameters.AddWithValue("$price", Db(g.Price));
@@ -361,11 +419,11 @@ public class Database : ISessionStore
         // 「今使うもの」が起動するものの一覧になければ追加する（自動検出・ドロップなど、どこで設定しても一覧にそろう）
         if (!string.IsNullOrWhiteSpace(g.ExePath))
         {
-            var t = AddTarget(g.Id, "", g.ExePath, g.MonitorProcess);
+            var t = AddTarget(conn, tx, g.Id, "", g.ExePath, g.MonitorProcess);
             if (!string.IsNullOrWhiteSpace(g.MonitorProcess) && t.MonitorProcess != g.MonitorProcess)
             {
                 t.MonitorProcess = g.MonitorProcess;
-                UpdateTarget(t);
+                UpdateTarget(conn, tx, t);
             }
         }
     }
@@ -379,14 +437,16 @@ public class Database : ISessionStore
         return cmd.ExecuteNonQuery();
     }
 
-    public void Delete(long id)
+    /// <summary>
+    /// 作品と、その記録・起動するものを消す（3つまとめて確定する）。
+    /// 外部キーの機能はオフのまま使っている（sessions の ON DELETE CASCADE は効かない）ので、ここで消す
+    /// </summary>
+    public void Delete(long id) => InTransaction((conn, tx) =>
     {
-        using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM sessions WHERE game_id = $id; DELETE FROM launch_targets WHERE game_id = $id; DELETE FROM games WHERE id = $id;";
+        using var cmd = Command(conn, tx, "DELETE FROM sessions WHERE game_id = $id; DELETE FROM launch_targets WHERE game_id = $id; DELETE FROM games WHERE id = $id;");
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
-    }
+    });
 
     /// <summary>セッションを追加して、その ID を返す（計測中は UpdateSession で途中経過を書き込む）</summary>
     public long AddSession(long gameId, DateTime start, DateTime end, long seconds)
