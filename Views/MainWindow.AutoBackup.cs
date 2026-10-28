@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -110,7 +109,7 @@ public partial class MainWindow
     private void AutoBackupOpenFolder_Click(object sender, RoutedEventArgs e)
     {
         Directory.CreateDirectory(AutoBackup.BackupDir);
-        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{AutoBackup.BackupDir}\"") { UseShellExecute = true });
+        OpenInExplorer(AutoBackup.BackupDir);
     }
 
     private void AutoBackupCheck_Click(object sender, RoutedEventArgs e)

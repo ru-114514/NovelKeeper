@@ -309,10 +309,13 @@ public partial class MainWindow
 
     private void ResetZoom_Click(object sender, RoutedEventArgs e) => SetListZoom(1.0);
 
-    private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
+    private void OpenDataFolder_Click(object sender, RoutedEventArgs e) => OpenInExplorer(AppPaths.Dir);
+
+    /// <summary>フォルダをエクスプローラーで開く（explorer.exe は Windows フォルダのものを指定する。同じ名前の偽物を使わないため）</summary>
+    private static void OpenInExplorer(string folder)
     {
         var explorer = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
-        Process.Start(new ProcessStartInfo(explorer, $"\"{AppPaths.Dir}\"") { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo(explorer, $"\"{folder}\"") { UseShellExecute = true });
     }
 
     // ================================================================

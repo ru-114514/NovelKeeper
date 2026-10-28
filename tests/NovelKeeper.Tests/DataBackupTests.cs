@@ -112,6 +112,43 @@ public class DataBackupTests : IDisposable
     [Fact]
     public void ApplyPending_NothingPending_DoesNothing()
         => Assert.Null(DataBackup.ApplyPending(Path.Combine(_dir, "none"), Path.Combine(_dir, "g.db"), Path.Combine(_dir, "c.json"), _dir));
+
+    /// <summary>控えの保存先に書き込めない（同じ名前のファイルがあって、フォルダを作れない）状態で、取り込みを保留にする</summary>
+    private (string Target, string Pending, string Backups) StageWithUnwritableBackupDir()
+    {
+        var zip = Path.Combine(_dir, "b.zip");
+        DataBackup.Export(zip, MakeDb("games.db", 3), Path.Combine(_dir, "none.json"));
+        var target = MakeDb("target.db", 1);
+        var pending = Path.Combine(_dir, "pending");
+        DataBackup.Stage(zip, pending, withConfig: false);
+        var backups = Path.Combine(_dir, "backups");
+        File.WriteAllText(backups, "");
+        return (target, pending, backups);
+    }
+
+    [Fact]
+    public void ApplyPending_BackupFails_KeepsCurrentDataAndLeavesTheImportPending()
+    {
+        var (target, pending, backups) = StageWithUnwritableBackupDir();
+
+        var message = DataBackup.ApplyPending(pending, target, Path.Combine(_dir, "target_cfg.json"), backups);
+
+        Assert.Contains("中止", message);
+        Assert.Equal(1, Count(target)); // 控えなしでは置き換えない
+        Assert.True(File.Exists(Path.Combine(pending, DataBackup.DbEntry))); // 次の起動でもう一度反映できる
+    }
+
+    [Fact]
+    public void ApplyPending_BackupNotRequired_ReplacesEvenIfTheBackupFails()
+    {
+        // 壊れた DB を自動バックアップから戻すとき（呼ぶ側で、壊れたファイルを控えてある）
+        var (target, pending, backups) = StageWithUnwritableBackupDir();
+
+        DataBackup.ApplyPending(pending, target, Path.Combine(_dir, "target_cfg.json"), backups, requireBackup: false);
+
+        Assert.Equal(3, Count(target));
+        Assert.False(Directory.Exists(pending));
+    }
 }
 
 public class ClearMissingLaunchPathsTests : IDisposable

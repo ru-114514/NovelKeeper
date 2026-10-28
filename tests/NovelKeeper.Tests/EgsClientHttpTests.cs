@@ -151,6 +151,24 @@ public class EgsClientHttpTests
         Assert.DoesNotContain(site.Requests, r => r.Body.Contains("secret-pass") || r.Url.Contains("secret-pass"));
     }
 
+    [Fact]
+    public async Task Login_RefusesToSendPassword_WhenBaseUrlPointsToAnotherSite()
+    {
+        // 取り込んだバックアップの設定などで BaseUrl が書き換えられても、パスワードは批評空間にしか送らない
+        var site = new FakeSite((_, _) => """
+            <form action="login_check.php" method="post">
+              <input type="text" name="user"><input type="password" name="pass">
+            </form>
+            """);
+        var cfg = new EgsConfig { EffectiveIntervalMs = 0, BaseUrl = "https://evil.example.com/" };
+        var client = new EgsClient(cfg, () => site);
+
+        var ex = await Assert.ThrowsAsync<EgsException>(() => client.LoginAsync("u", "secret-pass"));
+
+        Assert.Contains("パスワードを送信しませんでした", ex.Message);
+        Assert.DoesNotContain(site.Requests, r => r.Body.Contains("secret-pass") || r.Url.Contains("secret-pass"));
+    }
+
     // ---- 書き込み（得点登録フォーム） ----
 
     private const string ReviewFormHtml = """

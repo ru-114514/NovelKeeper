@@ -41,11 +41,11 @@ public partial class EgsClient
         SetField(fields, pwName, password);
 
         // ---- パスワードの送り先を確認する（批評空間以外・暗号化されない通信・URLに載る送り方には送らない） ----
+        // 批評空間かどうかは、設定の BaseUrl ではなく決まったホストで判断する（設定を書き換えられても、送り先を変えられないように）
         var action = HtmlEntity.DeEntitize(form.GetAttributeValue("action", ""));
         var actionUri = string.IsNullOrEmpty(action) ? new Uri(url) : new Uri(new Uri(url), action);
-        var baseUri = new Uri(_cfg.BaseUrl);
         if (actionUri.Scheme != Uri.UriSchemeHttps ||
-            !string.Equals(actionUri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(actionUri.Host, EgsConfig.OfficialHost, StringComparison.OrdinalIgnoreCase) ||
             !form.GetAttributeValue("method", "get").Equals("post", StringComparison.OrdinalIgnoreCase))
             throw new EgsException("ログインフォームの送り先が想定と違うため、パスワードを送信しませんでした。\n" + actionUri);
 

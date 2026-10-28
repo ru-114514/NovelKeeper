@@ -217,14 +217,26 @@ public static class DataBackup
     /// 保留中の取り込みがあれば反映する（起動の最初、DB も設定も開く前に呼ぶ）。
     /// 反映の前に、いまの DB を backups に控える。反映したか、失敗したら null 以外のメッセージを返す
     /// </summary>
-    public static string? ApplyPending(string pendingDir, string dbPath, string configPath, string backupDir)
+    /// <param name="requireBackup">
+    /// いまの DB の控えを作れなければ、置き換えずに保留のまま残す（次の起動でもう一度反映する）。
+    /// 壊れた DB を戻すときは、呼ぶ側でファイルのまま控えてあり、SQLite の控えは作れないことがあるので false にする
+    /// </param>
+    public static string? ApplyPending(string pendingDir, string dbPath, string configPath, string backupDir, bool requireBackup = true)
     {
         try
         {
             var newDb = Path.Combine(pendingDir, DbEntry);
             if (!File.Exists(newDb)) return null;
 
-            DbBackup.Snapshot(dbPath, backupDir, "before_import");
+            if (DbBackup.Snapshot(dbPath, backupDir, "before_import") == null && requireBackup && File.Exists(dbPath))
+            {
+                Log.Warn("取り込み前の控えを作れなかったため、取り込みを中止しました（保留のまま残します）");
+                return "バックアップを取り込めませんでした。\n\n" +
+                       "取り込む前に、いまの作品データの控えを作れなかったため、置き換えを中止しました（いまのデータはそのままです）。\n" +
+                       $"バックアップの保存先（{backupDir}）に書き込めるか、空き容量があるかを確認してください。\n\n" +
+                       "取り込む内容は残してあるので、次の起動でもう一度反映します。\n" +
+                       $"取り込みをやめるときは、次のフォルダを削除してください：\n{pendingDir}";
+            }
             foreach (var suffix in new[] { "-wal", "-shm", "-journal" })
                 if (File.Exists(dbPath + suffix)) File.Delete(dbPath + suffix);
             File.Move(newDb, dbPath, overwrite: true);

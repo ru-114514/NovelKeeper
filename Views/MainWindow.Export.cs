@@ -130,7 +130,9 @@ public partial class MainWindow
     {
         var exe = Environment.ProcessPath;
         if (exe == null) throw new InvalidOperationException("アプリの場所を取得できませんでした。");
-        Process.Start(new ProcessStartInfo("cmd.exe", $"/c timeout /t 3 /nobreak >nul & start \"\" \"{exe}\"")
+        // cmd.exe は Windows のものを指定する（名前だけだと、exe と同じフォルダに置かれた同じ名前の偽物が先に使われるため）
+        var cmd = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        Process.Start(new ProcessStartInfo(cmd, $"/c timeout /t 3 /nobreak >nul & start \"\" \"{exe}\"")
         { CreateNoWindow = true, UseShellExecute = false });
         ExitApp();
     }

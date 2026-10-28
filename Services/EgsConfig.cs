@@ -10,8 +10,14 @@ namespace ErogeLauncher.Services;
 /// </summary>
 public class EgsConfig
 {
+    /// <summary>
+    /// 批評空間のホスト。パスワードは、このホストにしか送らない
+    /// （設定ファイルの BaseUrl は、取り込んだバックアップなどで書き換えられることがあるので、送り先の確認には使わない）
+    /// </summary>
+    public const string OfficialHost = "erogamescape.dyndns.org";
+
     /// <summary>批評空間の基本URL（相対パスはこれにつなげる）</summary>
-    public string BaseUrl { get; set; } = "https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/";
+    public string BaseUrl { get; set; } = $"https://{OfficialHost}/~ap2/ero/toukei_kaiseki/";
 
     /// <summary>ページの文字コード（utf-8 / euc-jp など）</summary>
     public string CharSet { get; set; } = "utf-8";

@@ -104,7 +104,8 @@ public partial class App : Application
             Directory.CreateDirectory(AutoBackup.BackupDir);
             File.Copy(db, Path.Combine(AutoBackup.BackupDir, $"before_restore_{DateTime.Now:yyyyMMdd_HHmmss}.db"), overwrite: true);
             AutoBackup.StageRestore(healthy, withConfig: false, DataBackup.PendingDir);
-            DataBackup.ApplyPending(DataBackup.PendingDir, db, AppPaths.Config, AutoBackup.BackupDir);
+            // 壊れたファイルは上で控えたので、SQLite の控えが作れなくても戻す
+            DataBackup.ApplyPending(DataBackup.PendingDir, db, AppPaths.Config, AutoBackup.BackupDir, requireBackup: false);
             if (Directory.Exists(DataBackup.PendingDir))
                 MessageBox.Show("バックアップから戻せませんでした。詳しい内容は log.txt を確認してください。", "作品データの検査", MessageBoxButton.OK, MessageBoxImage.Warning);
             else
