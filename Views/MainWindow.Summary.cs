@@ -293,20 +293,7 @@ public partial class MainWindow
     private void SummaryGameItem_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: SummaryRow row }) return;
-
-        Game? Find() => (GameGrid.ItemsSource as IEnumerable<Game>)?.FirstOrDefault(g => g.Id == row.GameId);
-
-        MainTabs.SelectedIndex = 0; // 一覧タブ
-        if (Find() == null)
-        {
-            // 絞り込みで隠れているときは、「すべて」に戻す
-            if (FilterBox.SelectedIndex != 0) FilterBox.SelectedIndex = 0; else Reload();
-        }
-        if (Find() is { } game)
-        {
-            GameGrid.SelectedItem = game;
-            GameGrid.ScrollIntoView(game);
-        }
+        ShowGameInList(row.GameId);
         e.Handled = true;
     }
 

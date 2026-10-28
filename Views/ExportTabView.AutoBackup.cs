@@ -6,12 +6,15 @@ using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
 
-/// <summary>詳細設定タブの「自動バックアップ」：設定・今すぐ・一覧から戻す・データの検査</summary>
-public partial class MainWindow
+/// <summary>データ出力タブの「バックアップ」の ①自動バックアップ：設定・今すぐ・一覧から戻す・データの検査</summary>
+public partial class ExportTabView
 {
-    private void InitAutoBackup()
+    private bool _loadingAutoBackup; // 設定を読み込んでいる間は、変更イベントを無視する
+
+    /// <summary>設定を画面に表示する（詳細設定タブの読み込みのときに呼ぶ。保存先の切り替えもここでする）</summary>
+    internal void InitAutoBackup()
     {
-        _loadingSettings = true;
+        _loadingAutoBackup = true;
         try
         {
             if (AutoBackupKeepBox.Items.Count == 0)
@@ -26,14 +29,14 @@ public partial class MainWindow
         }
         finally
         {
-            _loadingSettings = false;
+            _loadingAutoBackup = false;
         }
         RefreshAutoBackupInfo();
     }
 
     private void AutoBackupSetting_Changed(object sender, RoutedEventArgs e)
     {
-        if (_loadingSettings || _cfg == null || AutoBackupCheck == null) return;
+        if (_loadingAutoBackup || _cfg == null || AutoBackupCheck == null) return;
         _cfg.AutoBackupEnabled = AutoBackupCheck.IsChecked == true;
         _cfg.AutoBackupIntervalDays = AutoBackupIntervalBox.SelectedItem is ComboBoxItem { Tag: string d } && d == "7" ? 7 : 1;
         _cfg.AutoBackupKeep = AutoBackupKeepBox.SelectedItem is ComboBoxItem { Tag: int k } ? k : AutoBackup.DefaultKeep;
@@ -65,12 +68,12 @@ public partial class MainWindow
     {
         var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "自動バックアップの保存先フォルダを選んでください" };
         if (AutoBackup.CustomDir != null && Directory.Exists(AutoBackup.CustomDir)) dlg.InitialDirectory = AutoBackup.CustomDir;
-        if (dlg.ShowDialog(this) != true) return;
+        if (dlg.ShowDialog(OwnerWindow) != true) return;
 
         var problem = AutoBackup.CheckFolder(dlg.FolderName);
         if (problem != null)
         {
-            MessageBox.Show(this, problem, "バックアップの保存先", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(OwnerWindow, problem, "バックアップの保存先", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         SetAutoBackupFolder(dlg.FolderName);
@@ -122,7 +125,7 @@ public partial class MainWindow
             return;
         }
         AutoBackupResultText.Text = "作品データに異常が見つかりました：" + check.Message;
-        if (MessageBox.Show(this, "作品データに異常が見つかりました。\n\n" + check.Message + "\n\n「一覧から戻す」を開きますか？",
+        if (MessageBox.Show(OwnerWindow, "作品データに異常が見つかりました。\n\n" + check.Message + "\n\n「一覧から戻す」を開きますか？",
                 "データの検査", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             AutoBackupRestore_Click(sender, e);
     }
@@ -133,7 +136,7 @@ public partial class MainWindow
         var gens = AutoBackup.List(AutoBackup.BackupDir);
         if (gens.Count == 0)
         {
-            MessageBox.Show(this, "戻せる自動バックアップがありません。", "バックアップから戻す");
+            MessageBox.Show(OwnerWindow, "戻せる自動バックアップがありません。", "バックアップから戻す");
             return;
         }
 
@@ -165,7 +168,7 @@ public partial class MainWindow
         panel.Children.Add(list);
         var win = new Window
         {
-            Title = "バックアップから戻す", Width = 560, Height = 420, Owner = this,
+            Title = "バックアップから戻す", Width = 560, Height = 420, Owner = OwnerWindow,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel, ShowInTaskbar = false,
         };
         close.Click += (_, _) => win.Close();

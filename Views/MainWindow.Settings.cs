@@ -158,7 +158,7 @@ public partial class MainWindow
         InitLoginTab();
         InitLaunchTab();
         InitScoreItems();
-        InitAutoBackup();
+        ExportView.InitAutoBackup();
         InitColumnList();
         UpdateAdminCount();
 

@@ -96,10 +96,16 @@ public partial class MainWindow : Window
         FilterBox.SelectedIndex = 0; // ここで一覧が読み込まれる
 
         ShowBeforePurchaseCheck.IsChecked = _cfg.ShowBeforePurchase;
+        ExportView.Init(this); // タブの画面（UserControl）とつなぐ。各タブの読み込みより先に
         InitSettingsTab();
         InitSummaryTab();
         InitPostTab();
-        InitExportTab();
+        ExportView.InitExportTab();
+        MainTabs.SelectionChanged += (_, e) =>
+        {
+            // タブの中の選択変更でも届くので、タブ自身の切り替えだけ見る。開くたびに、対象の件数を数え直す
+            if (e.OriginalSource == MainTabs && ReferenceEquals(MainTabs.SelectedItem, ExportTab)) ExportView.RefreshExportPanel();
+        };
 
         // 保存されているテーマを選択欄に表示（App で適用済み）
         _loadingTheme = true;
