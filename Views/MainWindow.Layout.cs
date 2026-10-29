@@ -1,16 +1,7 @@
-using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Threading;
-using NovelKeeper.Data;
-using NovelKeeper.Models;
-using NovelKeeper.Services;
-using Microsoft.Win32;
 using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;

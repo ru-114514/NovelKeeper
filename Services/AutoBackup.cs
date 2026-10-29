@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -58,6 +59,9 @@ public static class AutoBackup
     private static readonly Regex ConfigName = new(@"^config_(\d{8})\.json$", RegexOptions.Compiled);
     private static readonly Regex BeforeName = new(@"^before_[a-z]+_(\d{8}_\d{6})(?:_(\d{1,4}))?\.db$", RegexOptions.Compiled); // 同じ秒の2件目からは _2, _3 …
     private static readonly Regex StageName = new(@"^games_\d{8}\.new(\.tmp)?$", RegexOptions.Compiled);
+
+    /// <summary>ファイル名の日付（Windows の地域や暦の設定に左右されない形）</summary>
+    private static string DayStamp(DateTime t) => t.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
     private static readonly object Gate = new();
 
@@ -138,7 +142,7 @@ public static class AutoBackup
                 }
 
                 // いったん別の名前に作って、正しいことを確かめてから、本来の名前にする
-                stage = Path.Combine(backupDir, $"games_{t:yyyyMMdd}.new");
+                stage = Path.Combine(backupDir, $"games_{DayStamp(t)}.new");
                 if (File.Exists(stage)) File.Delete(stage);
                 DbBackup.CopyDatabase(dbPath, stage);
 
@@ -155,13 +159,13 @@ public static class AutoBackup
                     return AutoBackupResult.Unchanged;
                 }
 
-                var dest = Path.Combine(backupDir, $"games_{t:yyyyMMdd}.db");
+                var dest = Path.Combine(backupDir, $"games_{DayStamp(t)}.db");
                 File.Move(stage, dest, overwrite: true);
                 stage = null;
 
                 if (!string.IsNullOrEmpty(configPath) && File.Exists(configPath))
                 {
-                    var cfgDest = Path.Combine(backupDir, $"config_{t:yyyyMMdd}.json");
+                    var cfgDest = Path.Combine(backupDir, $"config_{DayStamp(t)}.json");
                     var tmp = cfgDest + ".tmp";
                     File.Copy(configPath, tmp, overwrite: true);
                     File.Move(tmp, cfgDest, overwrite: true);
@@ -188,7 +192,7 @@ public static class AutoBackup
         foreach (var file in Directory.GetFiles(backupDir))
         {
             var m = GamesName.Match(Path.GetFileName(file));
-            if (!m.Success || !DateTime.TryParseExact(m.Groups[1].Value, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var date)) continue;
+            if (!m.Success || !DateTime.TryParseExact(m.Groups[1].Value, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) continue;
             var cfg = Path.Combine(backupDir, $"config_{m.Groups[1].Value}.json");
             list.Add(new BackupGeneration(date, file, File.Exists(cfg) ? cfg : null, new FileInfo(file).Length));
         }
@@ -223,7 +227,7 @@ public static class AutoBackup
         gens = gens.Take(keep).ToList();
 
         // 対応する世代のない設定の控え
-        var dates = gens.Select(g => g.Date.ToString("yyyyMMdd")).ToHashSet();
+        var dates = gens.Select(g => DayStamp(g.Date)).ToHashSet();
         foreach (var f in Directory.GetFiles(backupDir))
         {
             var m = ConfigName.Match(Path.GetFileName(f));
@@ -250,7 +254,7 @@ public static class AutoBackup
             .Select(f => (File: f, M: BeforeName.Match(Path.GetFileName(f))))
             .Where(x => x.M.Success)
             .OrderByDescending(x => x.M.Groups[1].Value)
-            .ThenByDescending(x => x.M.Groups[2].Success ? int.Parse(x.M.Groups[2].Value) : 1)
+            .ThenByDescending(x => x.M.Groups[2].Success ? int.Parse(x.M.Groups[2].Value, CultureInfo.InvariantCulture) : 1)
             .Select(x => x.File)
             .ToList();
 
@@ -294,7 +298,7 @@ public static class AutoBackup
         }
     }
 
-    /// <summary>作品数（バックアップの一覧に表示する）。読めなければ null</summary>
+    /// <summary>作品数（バックアップの一覧や、取り込む前の確認に表示する）。読めなければ null。ファイルをつかんだままにしない</summary>
     public static int? CountGames(string dbPath)
     {
         try

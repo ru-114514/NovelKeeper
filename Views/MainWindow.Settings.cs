@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -162,8 +161,7 @@ public partial class MainWindow
         InitColumnList();
         UpdateAdminCount();
 
-        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = $"NovelKeeper {version?.ToString(3)}";
+        VersionText.Text = $"NovelKeeper {AppVersion.Text}";
     }
 
     /// <summary>連携の詳細設定の入力欄を作る（入力欄から離れたときに保存）</summary>

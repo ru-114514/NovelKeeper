@@ -9,6 +9,7 @@ namespace NovelKeeper;
 
 public partial class App : Application
 {
+    // 読み出しはしないが、消さないこと（持っていないと Mutex が片付けられて、二重起動を防げなくなる）
     private static Mutex? _singleInstance;
 
     /// <summary>「--tray」付きで起動された（Windows の起動時など）＝画面を出さずに常駐する</summary>

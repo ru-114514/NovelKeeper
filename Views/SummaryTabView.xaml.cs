@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using NovelKeeper.Data;
-using NovelKeeper.Models;
 using NovelKeeper.Services;
 using static NovelKeeper.Views.ViewHelpers;
 

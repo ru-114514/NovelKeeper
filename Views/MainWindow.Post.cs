@@ -1,12 +1,10 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
-using Microsoft.Win32;
 using static NovelKeeper.Views.ViewHelpers;
 
 namespace NovelKeeper.Views;
@@ -32,7 +30,7 @@ public partial class MainWindow
 
     private static Color PostRgb(int rgb) => Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
 
-    private Brush _postCardBorder = Brushes.Gray, _postCardFill = Brushes.White, _postImageFill = Brushes.LightGray;
+    private Brush _postCardBorder = Brushes.Gray, _postImageFill = Brushes.LightGray;
     private Brush _postTextBrush = Brushes.Black, _postButtonFill = Brushes.White;
     private Color _postCardColor = Colors.White, _postBorderColor = Colors.Gray;
     private double _postCardAlpha = 1; // 全体の透過率から決めた、パネルの不透明度
@@ -80,7 +78,6 @@ public partial class MainWindow
         _postCardAlpha = 1 - Math.Clamp(_cfg.PostPanelTransparency, 0, 100) / 100.0;
         _postCardColor = ParsePostColorValue(_cfg.PostCardColor) ?? PostRgb(dark ? 0x2B2D34 : 0xFFFFFF);
         _postBorderColor = PostRgb(dark ? 0x40434C : 0xD5D9DF);
-        _postCardFill = PostBrush(_postCardColor, _postCardAlpha);
         _postCardBorder = PostBrush(_postBorderColor, _postCardAlpha);
         _postImageFill = PostBrush(PostRgb(dark ? 0x23252B : 0xE9ECF0), _postCardAlpha);
         _postButtonFill = PostBrush(PostRgb(dark ? 0x3A3D46 : 0xE9ECF0)); // ボタンは、背景に埋もれない色にする（アプリのテーマに左右されない）

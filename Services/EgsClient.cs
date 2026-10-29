@@ -76,7 +76,7 @@ public partial class EgsClient
             AutomaticDecompression = DecompressionMethods.All,
         };
         var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("NovelKeeper/1.0 (personal use)");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"NovelKeeper/{AppVersion.Text} (personal use)");
         return http;
     }
 
@@ -432,9 +432,10 @@ public partial class EgsClient
         string.Join("&", fields.Select(f =>
             HttpUtility.UrlEncode(f.Key, PageEncoding) + "=" + HttpUtility.UrlEncode(f.Value, PageEncoding)));
 
-    /// <summary>1件ずつ、間隔をあけて送信する</summary>
+    /// <summary>1件ずつ、間隔をあけて送信する（送ったリクエストは、ここで片付ける）</summary>
     private async Task<string> SendAsync(HttpRequestMessage request)
     {
+        using var _ = request;
         await _lock.WaitAsync();
         try
         {

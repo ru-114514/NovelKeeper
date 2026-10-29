@@ -121,13 +121,7 @@ public partial class ExportTabView : UserControl
             MessageBox.Show(OwnerWindow, "このバックアップには、設定が入っていません。作品の一覧とプレイ時間だけを戻します。", "バックアップ");
             withConfig = false;
         }
-        var current = _db.GetAll().Count;
-        var ask = MessageBox.Show(OwnerWindow,
-            $"いまの作品 {current} 件を、バックアップの作品 {info.Games} 件に置き換えます{(withConfig ? "（設定も戻します）" : "")}。\n" +
-            (withConfig ? DataBackup.KeptSettingsNote + "\n" : "") + "\n" +
-            "置き換える前に、いまの内容を backups フォルダに控えとして残します。\n反映のため、アプリを再起動します。よろしいですか？",
-            "バックアップから戻す", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
-        if (ask != MessageBoxResult.OK) return;
+        if (!ConfirmRestore(OwnerWindow, $"バックアップの作品 {info.Games} 件", withConfig)) return;
 
         try
         {
@@ -137,9 +131,27 @@ public partial class ExportTabView : UserControl
         catch (Exception ex)
         {
             Log.Warn("バックアップの取り込みの準備に失敗", ex);
-            try { if (Directory.Exists(DataBackup.PendingDir)) Directory.Delete(DataBackup.PendingDir, true); } catch { }
+            DiscardPending();
             MessageBox.Show(OwnerWindow, "バックアップを取り込めませんでした。\n\n" + ex.Message, "バックアップ", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>戻す前の確認（zip からと、自動バックアップから、で共通）。OK が押されたら true</summary>
+    /// <param name="target">置き換える先（「バックアップの作品 10 件」など）</param>
+    private bool ConfirmRestore(Window owner, string target, bool withConfig) =>
+        MessageBox.Show(owner,
+            $"いまの作品 {_db.GetAll().Count} 件を、{target}に置き換えます{(withConfig ? "（設定も戻します）" : "")}。\n" +
+            (withConfig ? DataBackup.KeptSettingsNote + "\n" : "") + "\n" +
+            "置き換える前に、いまの内容を backups フォルダに控えとして残します。\n反映のため、アプリを再起動します。よろしいですか？",
+            "バックアップから戻す", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) == MessageBoxResult.OK;
+
+    /// <summary>
+    /// 置いた取り込みの内容を消す（再起動できなかったときなどに、次の起動で思わぬ反映をしないように）。
+    /// 置く途中の失敗は、Stage・StageRestore が自分で片付ける
+    /// </summary>
+    private static void DiscardPending()
+    {
+        try { if (Directory.Exists(DataBackup.PendingDir)) Directory.Delete(DataBackup.PendingDir, true); } catch { }
     }
 
     /// <summary>このアプリを終了して、少し待ってから起動し直す（取り込みの反映のため。二重起動を防ぐ）</summary>
@@ -156,7 +168,6 @@ public partial class ExportTabView : UserControl
 
     private void ExportRun_Click(object sender, RoutedEventArgs e)
     {
-        var all = ExportAll;
         var includeReview = ExportReviewCheck.IsChecked == true;
         var games = ExportGames();
         if (games.Count == 0)
@@ -170,8 +181,8 @@ public partial class ExportTabView : UserControl
             Filter = "CSV ファイル (*.csv)|*.csv",
             FileName = $"NovelKeeper_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
             DefaultExt = ".csv",
+            OverwritePrompt = false, // 上書きはせず、同じ名前があれば (1) (2) … を付けて別ファイルにする
         };
-        dlg.OverwritePrompt = false; // 上書きはせず、同じ名前があれば (1) (2) … を付けて別ファイルにする
         if (_exportDir != null && Directory.Exists(_exportDir))
         {
             dlg.InitialDirectory = _exportDir; // 前回の保存先を開く

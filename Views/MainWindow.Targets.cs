@@ -1,13 +1,8 @@
-using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Threading;
-using NovelKeeper.Data;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
 using Microsoft.Win32;
@@ -280,16 +275,6 @@ public partial class MainWindow
             SetCurrentTarget(g, next);
         }
         RefreshTargets(g);
-    }
-
-    /// <summary>一覧の「起動設定」のプルダウンで切り替えたとき</summary>
-    private void RowTarget_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (sender is not ComboBox { DataContext: Game g } cb || cb.SelectedItem is not LaunchTarget t) return;
-        if (ReferenceEquals(t, g.CurrentTarget)) return; // 表示を合わせただけ（切り替えではない）
-        SetCurrentTarget(g, t);
-        RefreshTargets(g);
-        StatusText.Text = $"起動設定を「{t.Display}」にしました：{g.Title}";
     }
 
     private void Launch_Click(object sender, RoutedEventArgs e) => Launch();

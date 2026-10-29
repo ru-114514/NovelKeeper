@@ -180,12 +180,7 @@ public partial class ExportTabView
         {
             if (list.SelectedItem is not ListBoxItem { Tag: BackupGeneration g }) return;
             var cfg = withConfig.IsChecked == true && g.ConfigPath != null;
-            var ask = MessageBox.Show(win,
-                $"いまの作品 {_db.GetAll().Count} 件を、{g.Date:yyyy/MM/dd} のバックアップ（作品 {AutoBackup.CountGames(g.DbPath)} 件）に置き換えます{(cfg ? "（設定も戻します）" : "")}。\n" +
-                (cfg ? DataBackup.KeptSettingsNote + "\n" : "") + "\n" +
-                "置き換える前に、いまの内容を backups フォルダに控えとして残します。\n反映のため、アプリを再起動します。よろしいですか？",
-                "バックアップから戻す", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
-            if (ask != MessageBoxResult.OK) return;
+            if (!ConfirmRestore(win, $"{g.Date:yyyy/MM/dd} のバックアップ（作品 {AutoBackup.CountGames(g.DbPath)} 件）", cfg)) return;
             try
             {
                 AutoBackup.StageRestore(g, cfg, DataBackup.PendingDir);
@@ -195,7 +190,7 @@ public partial class ExportTabView
             catch (Exception ex)
             {
                 Log.Warn("自動バックアップからの復元の準備に失敗", ex);
-                try { if (Directory.Exists(DataBackup.PendingDir)) Directory.Delete(DataBackup.PendingDir, true); } catch { }
+                DiscardPending();
                 MessageBox.Show(win, "バックアップから戻せませんでした。\n\n" + ex.Message, "バックアップから戻す", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         };

@@ -367,7 +367,7 @@ public partial class MainWindow
     /// <summary>この作品の画像を、自分で選んだ画像ファイルに差し替える（画像の表示がオフでも使える）</summary>
     private void ChooseImage_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected?.EgsId is not int egsId)
+        if (Selected?.EgsId == null)
         {
             MessageBox.Show("批評空間と紐づいていない作品には、画像を設定できません。", "画像の差し替え");
             return;

@@ -15,6 +15,9 @@ public static class DataBackup
     public const string ConfigEntry = "egs_config.json";
     private const string InfoEntry = "backup_info.txt";
 
+    /// <summary>取り込む zip の中のファイル1つの大きさの上限（ふつうは数 MB。壊れた・細工された zip でディスクを埋めないように）</summary>
+    internal const long MaxEntryBytes = 512L * 1024 * 1024;
+
     public static string PendingDir => Path.Combine(AppPaths.Dir, "import_pending");
 
     /// <summary>設定を戻すときに、戻さない項目の説明（EgsConfig.KeptOnImport）</summary>
@@ -63,8 +66,9 @@ public static class DataBackup
             if (db == null) return (false, 0, false, "NovelKeeper のバックアップではありません（games.db が入っていません）。");
             Directory.CreateDirectory(work);
             var dbFile = Path.Combine(work, DbEntry);
-            db.ExtractToFile(dbFile);
-            var count = CountGames(dbFile);
+            Extract(db, dbFile);
+            if (AutoBackup.CountGames(dbFile) is not int count)
+                return (false, 0, false, "バックアップの作品データを読めませんでした（壊れているか、NovelKeeper のバックアップではありません）。");
             return (true, count, zip.GetEntry(ConfigEntry) != null, null);
         }
         catch (Exception ex)
@@ -78,15 +82,6 @@ public static class DataBackup
         }
     }
 
-    private static int CountGames(string dbFile)
-    {
-        using var conn = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbFile, Mode = SqliteOpenMode.ReadOnly }.ToString());
-        conn.Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM games";
-        return Convert.ToInt32(cmd.ExecuteScalar());
-    }
-
     /// <summary>取り込む内容を保留フォルダに置く（反映は次の起動の最初）。設定は、withConfig のときだけ</summary>
     public static void Stage(string zipPath, string pendingDir, bool withConfig)
     {
@@ -95,14 +90,36 @@ public static class DataBackup
         try
         {
             using var zip = ZipFile.OpenRead(zipPath);
-            zip.GetEntry(DbEntry)!.ExtractToFile(Path.Combine(pendingDir, DbEntry));
+            var db = zip.GetEntry(DbEntry) ?? throw new InvalidDataException("NovelKeeper のバックアップではありません（games.db が入っていません）。");
+            Extract(db, Path.Combine(pendingDir, DbEntry));
             if (withConfig && zip.GetEntry(ConfigEntry) is { } cfg)
-                cfg.ExtractToFile(Path.Combine(pendingDir, ConfigEntry));
+                Extract(cfg, Path.Combine(pendingDir, ConfigEntry));
         }
         catch
         {
             try { Directory.Delete(pendingDir, true); } catch { }
             throw;
+        }
+    }
+
+    /// <summary>
+    /// zip の中のファイルを取り出す。大きさが上限を超えたら、途中でやめて例外にする
+    /// （zip に書かれた大きさは偽れるので、実際に取り出した量で確かめる）
+    /// </summary>
+    internal static void Extract(ZipArchiveEntry entry, string destPath, long maxBytes = MaxEntryBytes)
+    {
+        var tooLarge = $"バックアップの中のファイル（{entry.Name}）が大きすぎます（{maxBytes / 1024 / 1024}MB まで）。";
+        if (entry.Length > maxBytes) throw new InvalidDataException(tooLarge);
+        using var src = entry.Open();
+        using var dst = File.Create(destPath);
+        var buffer = new byte[81920];
+        long total = 0;
+        int n;
+        while ((n = src.Read(buffer)) > 0)
+        {
+            total += n;
+            if (total > maxBytes) throw new InvalidDataException(tooLarge);
+            dst.Write(buffer, 0, n);
         }
     }
 

@@ -107,6 +107,30 @@ public class DataBackupTests : IDisposable
         var r = DataBackup.Inspect(other);
         Assert.False(r.Ok);
         Assert.Contains("games.db", r.Error);
+
+        // games.db が入っていても、作品の表が読めなければ断る（展開したファイルは残さない）
+        var broken = Path.Combine(_dir, "broken.zip");
+        using (var z = System.IO.Compression.ZipFile.Open(broken, System.IO.Compression.ZipArchiveMode.Create))
+        using (var w = new StreamWriter(z.CreateEntry("games.db").Open()))
+            w.Write("not a database");
+        r = DataBackup.Inspect(broken);
+        Assert.False(r.Ok);
+        Assert.Contains("読めませんでした", r.Error);
+    }
+
+    [Fact]
+    public void Extract_StopsAtTheSizeLimit()
+    {
+        var zipPath = Path.Combine(_dir, "big.zip");
+        using (var z = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
+        using (var s = z.CreateEntry("games.db").Open())
+            s.Write(new byte[5000]);
+
+        using var zip = System.IO.Compression.ZipFile.OpenRead(zipPath);
+        var entry = zip.GetEntry("games.db")!;
+        Assert.Throws<InvalidDataException>(() => DataBackup.Extract(entry, Path.Combine(_dir, "a.db"), maxBytes: 4999));
+        DataBackup.Extract(entry, Path.Combine(_dir, "b.db"), maxBytes: 5000);
+        Assert.Equal(5000, new FileInfo(Path.Combine(_dir, "b.db")).Length);
     }
 
     [Fact]

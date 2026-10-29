@@ -177,7 +177,6 @@ public class Game
     public string OperationText => Review.OperationText;
     public string PlatformMemoHead => Head(Review.PlatformMemo);
     public string Hitokoto => Review.Hitokoto;
-    public string SageText => Review.Sage ? "☑" : "";
     public string MemoHead => Head(Review.Memo);
     public string NetabareText => Review.Netabare ? "ネタバレ" : "";
 

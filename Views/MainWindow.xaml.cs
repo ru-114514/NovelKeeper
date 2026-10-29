@@ -1,16 +1,13 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using NovelKeeper.Data;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
-using Microsoft.Win32;
 
 namespace NovelKeeper.Views;
 
@@ -31,8 +28,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         InitInputHelpers();
         // タイトルにバージョンを表示（build.bat で指定したバージョン）
-        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-        if (version != null) Title = $"NovelKeeper {version.ToString(3)} ― ノベルゲーム ランチャー";
+        Title = $"NovelKeeper {AppVersion.Text} ― ノベルゲーム ランチャー";
         _cfg = App.Config;
         AutoBackup.RunScheduled(_cfg);
         _db = new Database(AppPaths.Database);
@@ -426,8 +422,6 @@ public partial class MainWindow : Window
     }
 
     // ================================================================
-
-    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     /// <summary>ブラウザで開く（http / https のときだけ）</summary>
     private static void OpenUrl(string url)

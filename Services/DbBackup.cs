@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;
 
@@ -21,7 +22,7 @@ public static class DbBackup
         {
             if (!File.Exists(dbPath)) return null;
             Directory.CreateDirectory(backupDir);
-            var stamp = $"{tag}_{DateTime.Now:yyyyMMdd_HHmmss}";
+            var stamp = string.Create(CultureInfo.InvariantCulture, $"{tag}_{DateTime.Now:yyyyMMdd_HHmmss}"); // 自動バックアップの整理で読むので、地域の設定に左右されない形にする
             var path = Path.Combine(backupDir, stamp + ".db");
             for (var n = 2; File.Exists(path); n++) path = Path.Combine(backupDir, $"{stamp}_{n}.db"); // 同じ秒に2回作っても失敗しない
             CopyDatabase(dbPath, path);
