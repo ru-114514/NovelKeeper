@@ -8,7 +8,7 @@ using Microsoft.Win32;
 namespace NovelKeeper.Views;
 
 /// <summary>投稿設定タブ：画像出力</summary>
-public partial class MainWindow
+public partial class PostTabView
 {
     // ================================================================
     // 画像出力（NovelKeeper_年月日.jpg。幅は 1920 固定）
@@ -33,7 +33,7 @@ public partial class MainWindow
                 FileName = $"NovelKeeper_{DateTime.Today:yyyyMMdd}.jpg",
                 DefaultExt = ".jpg", AddExtension = true, OverwritePrompt = true,
             };
-            if (dlg.ShowDialog(this) != true) return;
+            if (dlg.ShowDialog(OwnerWindow) != true) return;
 
             var (width, height) = SavePostImage(dlg.FileName);
             PostStatus.Text = $"保存しました：{dlg.FileName}（{width}×{height}）";
@@ -42,7 +42,7 @@ public partial class MainWindow
         {
             Log.Warn("投稿設定：画像を出力できませんでした", ex);
             PostStatus.Text = "";
-            MessageBox.Show(this, "画像を出力できませんでした。\n" + ex.Message, "NovelKeeper", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(OwnerWindow, "画像を出力できませんでした。\n" + ex.Message, "NovelKeeper", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally { PostExportButton.IsEnabled = _post != null && (_post.TotalSeconds >= 1 || _post.Works.Count > 0); }
     }

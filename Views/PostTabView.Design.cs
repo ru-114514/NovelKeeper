@@ -7,7 +7,7 @@ using Microsoft.Win32;
 namespace NovelKeeper.Views;
 
 /// <summary>投稿設定タブ：デザイン設定</summary>
-public partial class MainWindow
+public partial class PostTabView
 {
     // ================================================================
     // デザイン設定（背景の色・画像、パネルの色と透過率、フォントと文字色）
@@ -70,7 +70,7 @@ public partial class MainWindow
     private void PostDesPickImage_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog { Filter = "画像 (*.jpg;*.jpeg;*.png;*.bmp;*.gif)|*.jpg;*.jpeg;*.png;*.bmp;*.gif" };
-        if (dlg.ShowDialog(this) != true) return;
+        if (dlg.ShowDialog(OwnerWindow) != true) return;
         _postDesImage = dlg.FileName;
         ShowPostDesignImageName();
     }

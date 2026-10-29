@@ -6,7 +6,7 @@ using NovelKeeper.Services;
 namespace NovelKeeper.Views;
 
 /// <summary>投稿設定タブ：レイアウトの編集とドラッグ＆ドロップ</summary>
-public partial class MainWindow
+public partial class PostTabView
 {
     // ================================================================
     // レイアウトの編集（＋追加・⚙設定・×削除・カラム数・初期配置）
@@ -164,7 +164,7 @@ public partial class MainWindow
 
     private void PostResetLayout_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show(this, "パネルの並びと設定を、初期配置（2カラム・タイトルと6パネル）に戻しますか？", "NovelKeeper",
+        if (MessageBox.Show(OwnerWindow, "パネルの並びと設定を、初期配置（2カラム・タイトルと6パネル）に戻しますか？", "NovelKeeper",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _cfg.PostLayout = PostLayout.CreateDefault();
         _postEditing = null;
@@ -177,7 +177,7 @@ public partial class MainWindow
 
     private void RemovePostPanel(PostPanel panel)
     {
-        if (MessageBox.Show(this, $"「{panel.DisplayTitle}」を削除しますか？", "NovelKeeper",
+        if (MessageBox.Show(OwnerWindow, $"「{panel.DisplayTitle}」を削除しますか？", "NovelKeeper",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         Layout.Panels.Remove(panel);
         if (ReferenceEquals(_postEditing, panel))

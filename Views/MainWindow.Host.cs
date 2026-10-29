@@ -12,12 +12,15 @@ public partial class MainWindow : IMainHost
     Database IMainHost.Db => _db;
     EgsConfig IMainHost.Config => _cfg;
     EgsClient IMainHost.Egs => _egs;
+    GameImageService IMainHost.Images => Images;
 
     void IMainHost.SetStatus(string text) => StatusText.Text = text;
 
     IReadOnlyList<Game> IMainHost.ShownGames() => GameGrid.Items.OfType<Game>().ToList();
 
     void IMainHost.ShowGameInList(long gameId) => ShowGameInList(gameId);
+
+    void IMainHost.ReloadList() => Reload();
 
     void IMainHost.ExitApp() => ExitApp();
 

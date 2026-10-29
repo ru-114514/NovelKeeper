@@ -95,6 +95,7 @@ public partial class MainWindow : Window
         // タブの画面（UserControl）とつなぐ。各タブの読み込みより先に
         ExportView.Init(this);
         SummaryView.Init(this);
+        PostView.Init(this);
         InitSettingsTab();
         SummaryView.InitSummaryTab();
         MainTabs.SelectionChanged += (s, e) =>
@@ -104,7 +105,12 @@ public partial class MainWindow : Window
             SummaryView.ApplySummaryLayout(); // 別ウィンドウの欄は、レポートのタブを開いている間だけ出す
             if (ReferenceEquals(MainTabs.SelectedItem, SummaryTab)) SummaryView.RefreshSummary();
         };
-        InitPostTab();
+        PostView.InitPostTab();
+        MainTabs.SelectionChanged += (_, e) =>
+        {
+            // タブの中の選択変更でも届くので、タブ自身の切り替えだけ見る。開くたびに、集計し直す
+            if (e.OriginalSource == MainTabs && ReferenceEquals(MainTabs.SelectedItem, PostTab)) PostView.RefreshPost();
+        };
         ExportView.InitExportTab();
         MainTabs.SelectionChanged += (_, e) =>
         {

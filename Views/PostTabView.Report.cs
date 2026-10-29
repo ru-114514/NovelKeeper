@@ -7,7 +7,7 @@ using static NovelKeeper.Views.ViewHelpers;
 namespace NovelKeeper.Views;
 
 /// <summary>投稿設定タブ：レポートエリア（画像になる部分）の組み立て</summary>
-public partial class MainWindow
+public partial class PostTabView
 {
     // ================================================================
     // レポートエリア（この部分が画像になる）
@@ -569,7 +569,7 @@ public partial class MainWindow
         _postImageTasks.Add(Task.Run(async () =>
         {
             string? got;
-            try { got = await Images.GetAsync(egsId, CancellationToken.None); }
+            try { got = await _host.Images.GetAsync(egsId, CancellationToken.None); }
             catch { got = null; }
             if (got == null) return;
             await Dispatcher.InvokeAsync(() => { if (version == _postVersion) SetPostImage(img, got, egsId); });

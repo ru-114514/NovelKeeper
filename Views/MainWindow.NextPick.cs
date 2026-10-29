@@ -12,14 +12,6 @@ public partial class MainWindow
         new NextPickWindow(this, _egs, _cfg, () => _db.GetAll(), AddToPriorityPanel).ShowDialog();
     }
 
-    /// <summary>投稿設定の「今後優先したい作品」が変わっていたら、一覧の「特例」列を合わせる</summary>
-    private void SyncPriorityMarks()
-    {
-        var ids = _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
-        if (ids.SetEquals(Game.PriorityIds)) return;
-        Reload();
-    }
-
     private void StaleReview_Click(object sender, RoutedEventArgs e)
     {
         var last = _db.GetSessions(new DateTime(2000, 1, 1), DateTime.Today.AddDays(1))
@@ -28,7 +20,7 @@ public partial class MainWindow
         win.ShowDialog();
         if (!win.Changed) return;
         Reload();
-        RefreshPost();
+        PostView.RefreshPost();
     }
 
     /// <summary>状態を「中断」にする（批評空間と連携している作品は、次の同期で反映する）</summary>
@@ -55,6 +47,6 @@ public partial class MainWindow
         _cfg.Save();
         Game.PriorityIds = layout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
         Reload();
-        RefreshPost();
+        PostView.RefreshPost();
     }
 }

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using NovelKeeper.Data;
 using NovelKeeper.Models;
 using NovelKeeper.Services;
 using static NovelKeeper.Views.ViewHelpers;
@@ -16,9 +17,32 @@ internal sealed class PostPick
     public string Title { get; set; } = "";
 }
 
-/// <summary>投稿設定タブ：起点の日から1か月（または1年）のプレイ記録を、パネルを並べた1枚の画像にまとめる</summary>
-public partial class MainWindow
+/// <summary>
+/// 投稿設定タブ：起点の日から1か月（または1年）のプレイ記録を、パネルを並べた1枚の画像にまとめる。
+/// メイン画面とは IMainHost を通してやりとりする（レポートエリアの組み立ては .Report.cs、レイアウトの編集は .Layout.cs、
+/// パネルごとの設定欄は .Settings.cs、デザイン設定は .Design.cs、画像出力は .Export.cs）
+/// </summary>
+public partial class PostTabView : UserControl
 {
+    private IMainHost _host = null!;
+    private Database _db = null!;
+    private EgsConfig _cfg = null!;
+
+    public PostTabView()
+    {
+        InitializeComponent();
+    }
+
+    /// <summary>メイン画面とつなぐ（InitPostTab より先に、1回だけ呼ぶ）</summary>
+    internal void Init(IMainHost host)
+    {
+        _host = host;
+        _db = host.Db;
+        _cfg = host.Config;
+    }
+
+    private Window OwnerWindow => _host.Window;
+
     private const int PostMaxImageWidth = 1920; // レポートエリアの幅と、出力する画像の幅（ピクセル）
 
     // 画像の配色（アプリのテーマとは別。不透明な色だけを使う：jpg にしたときに色が変わらないように）
@@ -102,7 +126,8 @@ public partial class MainWindow
         }
     }
 
-    private void InitPostTab()
+    /// <summary>起動時：設定を画面に表示する（タブを開くたびの作り直しは、メイン画面から RefreshPost を呼ぶ）</summary>
+    internal void InitPostTab()
     {
         _cfg.PostLayout ??= PostLayout.CreateDefault();
         var migrate = _cfg.PostLayout.Version < PostLayout.CurrentVersion;
@@ -137,12 +162,6 @@ public partial class MainWindow
         PostReportHost.DragOver += PostHost_DragOver;
         PostReportHost.DragLeave += (_, _) => HidePostDropMarker();
         PostReportHost.Drop += PostHost_Drop;
-
-        MainTabs.SelectionChanged += (s, e) =>
-        {
-            if (e.OriginalSource != MainTabs) return; // タブの中の選択変更は見ない
-            if (ReferenceEquals(MainTabs.SelectedItem, PostTab)) RefreshPost();
-        };
     }
 
     // レポートエリアの本体は、いつも 1920 の幅で作る。画面には、拡大・縮小して表示する（出力は本体から作る）
@@ -209,7 +228,8 @@ public partial class MainWindow
         _postLoading = false;
     }
 
-    private void RefreshPost()
+    /// <summary>集計し直して、レポートエリアを作り直す</summary>
+    internal void RefreshPost()
     {
         if (_postLoading || _db == null) return;
         var start = (PostStartPicker.SelectedDate ?? DateTime.Today).Date;
@@ -239,5 +259,13 @@ public partial class MainWindow
         PostExportButton.IsEnabled = hasPlay;
         PostStatus.Text = hasPlay ? "" : "この期間のプレイ記録はありません（画像出力はできません）";
         BuildPostReport(report);
+    }
+
+    /// <summary>「今後優先したい作品」が変わっていたら、一覧を読み直して「特例」列を合わせる</summary>
+    private void SyncPriorityMarks()
+    {
+        var ids = Layout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
+        if (ids.SetEquals(Game.PriorityIds)) return;
+        _host.ReloadList();
     }
 }

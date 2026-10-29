@@ -8,7 +8,7 @@ using NovelKeeper.Services;
 namespace NovelKeeper.Views;
 
 /// <summary>投稿設定タブ：パネルごとの設定欄</summary>
-public partial class MainWindow
+public partial class PostTabView
 {
 
     // ---- 設定パネル ----
@@ -241,7 +241,7 @@ public partial class MainWindow
         panel.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 0, 0, 10) });
         var win = new Window
         {
-            Title = title, Width = 560, Height = 420, Owner = this,
+            Title = title, Width = 560, Height = 420, Owner = OwnerWindow,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel, ShowInTaskbar = false,
         };
         ok.Click += (_, _) => win.DialogResult = true;
