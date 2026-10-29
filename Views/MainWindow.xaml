@@ -234,6 +234,7 @@
                                             <!-- ① 作品と起動するもの（収録作ごとに、いくつでも登録できる） -->
                                             <StackPanel Width="290" Margin="0,0,24,12">
                                                 <TextBlock x:Name="DetailTitle" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                                <Button x:Name="DetailPriorityButton" HorizontalAlignment="Left" Margin="0,0,0,8" Visibility="Collapsed" Click="DetailPriority_Click" />
                                                 <!-- 作品の画像（批評空間の作品情報から取得して、PCに保存しておく） -->
                                                 <!-- 画像ファイルをここにドラッグ＆ドロップすると、この作品の画像に差し替える（枠は詳細欄の幅に合わせる） -->
                                                 <Border x:Name="DetailImageBox" Margin="0,0,0,8" MinHeight="80" CornerRadius="4" Padding="4"

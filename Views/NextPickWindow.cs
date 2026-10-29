@@ -25,7 +25,7 @@ public class NextPickWindow : Window
     private readonly EgsClient _egs;
     private readonly EgsConfig _cfg;
     private readonly Func<List<Game>> _loadGames;
-    private readonly Action<List<Game>> _addToPriority;
+    private readonly Func<List<Game>, int> _addToPriority;
     private Dictionary<int, GameTraits> _traits = TraitStore.Load();
     private List<Game> _games = new();
     private bool _loading = true;
@@ -46,7 +46,7 @@ public class NextPickWindow : Window
 
     private static TextBox Num(double width) => new() { Width = width, HorizontalContentAlignment = HorizontalAlignment.Center };
 
-    public NextPickWindow(Window owner, EgsClient egs, EgsConfig cfg, Func<List<Game>> loadGames, Action<List<Game>> addToPriority)
+    public NextPickWindow(Window owner, EgsClient egs, EgsConfig cfg, Func<List<Game>> loadGames, Func<List<Game>, int> addToPriority)
     {
         _egs = egs; _cfg = cfg; _loadGames = loadGames; _addToPriority = addToPriority;
         Owner = owner;
@@ -333,8 +333,10 @@ public class NextPickWindow : Window
             MessageBox.Show(this, "一覧で作品を選んでください（複数選択できます）。", "次の1本", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        _addToPriority(picked);
-        _status.Text = $"{picked.Count} 本を「今後優先したい作品」に入れました（最大{PostLayout.MaxPriorityGames}件）";
+        var added = _addToPriority(picked);
+        _status.Text = added == picked.Count
+            ? $"{added} 本を「今後優先したい作品」に入れました（最大{PostLayout.MaxPriorityGames}件）"
+            : $"{added} 本を「今後優先したい作品」に入れました（選んだ {picked.Count} 本のうち、すでに優先の作品と、{PostLayout.MaxPriorityGames}件を超える分は入れていません）";
     }
 
     // ================================================================

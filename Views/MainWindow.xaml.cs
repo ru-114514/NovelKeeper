@@ -177,7 +177,7 @@ public partial class MainWindow : Window
     {
         var selectedId = Selected?.Id;
         Game.BacklogExcludedIds = _cfg.BacklogExcludedIds.ToHashSet();
-        Game.PriorityIds = _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
+        Game.PriorityIds = _cfg.PostLayout.PriorityIds();
         var every = _db.GetAll();
         if (BacklogHistory.Record(_cfg.BacklogSnapshots, SummaryExtras.BacklogCount(every, _cfg.BacklogExcludedIds.ToHashSet()), DateTime.Today)) _cfg.Save();
         // 購入前の作品は、設定がオフなら省く（「発売前」「購入前」の絞り込みで選んだときは、設定に関係なく出す）
@@ -303,6 +303,7 @@ public partial class MainWindow : Window
         _loadingDetail = true;
         DetailPanel.IsEnabled = g != null && !_detailLocked;
         DetailTitle.Text = g?.Title ?? "作品を選択してください";
+        ShowDetailPriority(g);
         TargetGrid.ItemsSource = g?.Targets;
         if (!keepEdits)
         {

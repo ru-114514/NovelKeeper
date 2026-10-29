@@ -33,20 +33,4 @@ public partial class MainWindow
         if (g.EgsId != null) g.PendingReview.UnionWith(PushEngine.ChangedKeys(before, g));
         _db.Update(g);
     }
-
-    /// <summary>選んだ作品を、投稿設定の最初の「今後優先したい作品」パネルに入れる（なければパネルを足す）</summary>
-    private void AddToPriorityPanel(List<Game> games)
-    {
-        var layout = _cfg.PostLayout;
-        var panel = layout.Panels.FirstOrDefault(p => p.Kind == PostPanelKind.Priority) ?? layout.Add(PostPanelKind.Priority);
-        foreach (var g in games)
-        {
-            if (panel.GameIds.Count >= PostLayout.MaxPriorityGames) break;
-            if (!panel.GameIds.Contains(g.Id)) panel.GameIds.Add(g.Id);
-        }
-        _cfg.Save();
-        Game.PriorityIds = layout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
-        Reload();
-        PostView.RefreshPost();
-    }
 }

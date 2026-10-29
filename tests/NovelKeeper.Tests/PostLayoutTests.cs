@@ -355,4 +355,43 @@ public class PostLayoutTests
         Assert.Equal(("Meiryo", "#FF8800", 30, false), (q.FontFamily, q.FontColor, q.FontSize, q.ShowPeriod));
         Assert.Equal((p.Row, p.Col), (q.Row, q.Col));
     }
+
+    // ---- 優先作品の付け外し（一覧の右クリック・詳細欄・次の1本・放置作品の見直しから使う） ----
+
+    [Fact]
+    public void AddPriority_AddsAPanelWhenMissing_AndSkipsWorksAlreadyInAnyPriorityPanel()
+    {
+        var l = new PostLayout { Columns = 2 };
+        Assert.Equal(2, l.AddPriority([1, 2, 2]));
+        var first = Assert.Single(l.Panels, p => p.Kind == PostPanelKind.Priority);
+        Assert.Equal(new long[] { 1, 2 }, first.GameIds);
+
+        var second = l.Add(PostPanelKind.Priority);
+        second.GameIds.Add(3);
+        Assert.Equal(1, l.AddPriority([3, 1, 4])); // 3 は2つ目のパネルに、1 は1つ目にもうある
+        Assert.Equal(new long[] { 1, 2, 4 }, first.GameIds);
+        Assert.Equal(new HashSet<long> { 1, 2, 3, 4 }, l.PriorityIds());
+    }
+
+    [Fact]
+    public void AddPriority_StopsAtTheLimit_AndAddsNothingWhenAllAreAlreadyThere()
+    {
+        var l = new PostLayout { Columns = 2 };
+        var ids = Enumerable.Range(1, PostLayout.MaxPriorityGames + 3).Select(i => (long)i).ToList();
+        Assert.Equal(PostLayout.MaxPriorityGames, l.AddPriority(ids));
+        Assert.Equal(0, l.AddPriority([1]));
+        Assert.Single(l.Panels); // すでに入っているだけなら、パネルを増やさない
+    }
+
+    [Fact]
+    public void RemovePriority_RemovesFromEveryPriorityPanel_AndKeepsThePanels()
+    {
+        var l = new PostLayout { Columns = 2 };
+        var a = l.Add(PostPanelKind.Priority); a.GameIds.AddRange([1, 2]);
+        var b = l.Add(PostPanelKind.Priority); b.GameIds.AddRange([2, 3]);
+        Assert.Equal(2, l.RemovePriority([2, 9, 1])); // 9 はどこにもない
+        Assert.Empty(a.GameIds);
+        Assert.Equal(new long[] { 3 }, b.GameIds);
+        Assert.Equal(2, l.Panels.Count);
+    }
 }

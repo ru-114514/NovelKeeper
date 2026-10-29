@@ -264,7 +264,7 @@ public partial class PostTabView : UserControl
     /// <summary>「今後優先したい作品」が変わっていたら、一覧を読み直して「特例」列を合わせる</summary>
     private void SyncPriorityMarks()
     {
-        var ids = Layout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
+        var ids = Layout.PriorityIds();
         if (ids.SetEquals(Game.PriorityIds)) return;
         _host.ReloadList();
     }

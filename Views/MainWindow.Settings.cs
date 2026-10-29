@@ -526,6 +526,9 @@ public partial class MainWindow
             if (!g.IsLaunchUnset) AddAdminMenuItems(menu, g);
         }
 
+        // 作品の行の上で右クリックしたら、優先の付け外しを出す
+        if (FindParent<DataGridRow>(e.OriginalSource as DependencyObject)?.Item is Game rowGame) AddPriorityMenuItem(menu, rowGame);
+
         menu.Items.Add(new MenuItem { Header = "表示する列", IsEnabled = false });
         menu.Items.Add(new Separator());
         foreach (var c in _cfg.Columns)

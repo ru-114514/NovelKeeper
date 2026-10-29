@@ -17,7 +17,7 @@ public class StaleReviewWindow : Window
     private readonly EgsConfig _cfg;
     private readonly List<Game> _games;
     private readonly IReadOnlyDictionary<long, DateTime> _lastPlayed;
-    private readonly Action<List<Game>> _addToPriority;
+    private readonly Func<List<Game>, int> _addToPriority;
     private readonly Action<Game> _drop;
     private readonly Dictionary<long, string> _choices = new();
 
@@ -29,7 +29,7 @@ public class StaleReviewWindow : Window
     public bool Changed { get; private set; }
 
     public StaleReviewWindow(Window owner, EgsConfig cfg, List<Game> games, IReadOnlyDictionary<long, DateTime> lastPlayed,
-        Action<List<Game>> addToPriority, Action<Game> drop)
+        Func<List<Game>, int> addToPriority, Action<Game> drop)
     {
         _cfg = cfg; _games = games; _lastPlayed = lastPlayed; _addToPriority = addToPriority; _drop = drop;
         Owner = owner;
@@ -209,8 +209,7 @@ public class StaleReviewWindow : Window
             {
                 case Priority: priority.Add(g); break;
                 case Unprioritize:
-                    foreach (var p in _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority)) p.GameIds.Remove(id);
-                    unprioritized++;
+                    unprioritized += _cfg.PostLayout.RemovePriority([id]);
                     break;
                 case Exclude:
                     if (!_cfg.BacklogExcludedIds.Contains(id)) _cfg.BacklogExcludedIds.Add(id);
@@ -224,17 +223,18 @@ public class StaleReviewWindow : Window
             }
             _choices.Remove(id);
         }
-        if (priority.Count > 0) _addToPriority(priority);
+        var prioritized = priority.Count > 0 ? _addToPriority(priority) : 0;
         foreach (var g in priority) _choices.Remove(g.Id);
         if (excluded + unprioritized > 0) _cfg.Save();
         Game.BacklogExcludedIds = _cfg.BacklogExcludedIds.ToHashSet();
-        Game.PriorityIds = _cfg.PostLayout.Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
-        var total = priority.Count + unprioritized + excluded + dropped;
+        Game.PriorityIds = _cfg.PostLayout.PriorityIds();
+        var total = prioritized + unprioritized + excluded + dropped;
         Changed = Changed || total > 0;
         _status.Text = total == 0
-            ? "変更はありません（すべて「継続」です）"
-            : $"反映しました（優先 {priority.Count}本、優先を外す {unprioritized}本、除外 {excluded}本、中断 {dropped}本）" +
-              (priority.Count > 0 ? "　優先は、投稿設定の「今後優先したい作品」パネルに入れました（一覧の「特例」列に★優先と出ます）" : "");
+            ? (priority.Count > 0 ? $"優先したい作品は {PostLayout.MaxPriorityGames} 本までのため、優先に入れられませんでした" : "変更はありません（すべて「継続」です）")
+            : $"反映しました（優先 {prioritized}本、優先を外す {unprioritized}本、除外 {excluded}本、中断 {dropped}本）" +
+              (prioritized > 0 ? "　優先は、投稿設定の「今後優先したい作品」パネルに入れました（一覧の「特例」列に★優先と出ます）" : "") +
+              (prioritized < priority.Count ? $"　{PostLayout.MaxPriorityGames} 本を超える分は、優先に入れていません" : "");
         Refresh();
     }
 }

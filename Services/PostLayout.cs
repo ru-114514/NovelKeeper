@@ -267,6 +267,43 @@ public class PostLayout
         return p;
     }
 
+    /// <summary>「今後優先したい作品」パネルに入っている作品（パネルが複数あれば、すべての分）</summary>
+    public HashSet<long> PriorityIds() =>
+        Panels.Where(p => p.Kind == PostPanelKind.Priority).SelectMany(p => p.GameIds).ToHashSet();
+
+    /// <summary>
+    /// 作品を、最初の「今後優先したい作品」パネルに入れる（パネルがなければ足す）。
+    /// すでにどれかのパネルに入っている作品は入れない。パネルの上限（MaxPriorityGames）を超える分も入れない。入れた数を返す
+    /// </summary>
+    public int AddPriority(IEnumerable<long> gameIds)
+    {
+        var current = PriorityIds();
+        var ids = gameIds.Where(id => !current.Contains(id)).Distinct().ToList();
+        if (ids.Count == 0) return 0;
+        var panel = Panels.FirstOrDefault(p => p.Kind == PostPanelKind.Priority) ?? Add(PostPanelKind.Priority);
+        var added = 0;
+        foreach (var id in ids)
+        {
+            if (panel.GameIds.Count >= MaxPriorityGames) break;
+            panel.GameIds.Add(id);
+            added++;
+        }
+        return added;
+    }
+
+    /// <summary>作品を、すべての「今後優先したい作品」パネルから外す（パネル自体は残す）。外した作品の数を返す</summary>
+    public int RemovePriority(IEnumerable<long> gameIds)
+    {
+        var removed = 0;
+        foreach (var id in gameIds.Distinct())
+        {
+            var found = false;
+            foreach (var p in Panels.Where(p => p.Kind == PostPanelKind.Priority)) found |= p.GameIds.RemoveAll(x => x == id) > 0;
+            if (found) removed++;
+        }
+        return removed;
+    }
+
     /// <summary>パネルの場所と大きさを変える。置けないときは、理由を返して何も変えない</summary>
     public string? TryPlace(PostPanel p, int row, int col, int span, int? rowSpan = null)
     {
