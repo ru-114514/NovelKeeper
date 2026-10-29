@@ -26,7 +26,7 @@ public partial class MainWindow
         var visible = _cfg.DetailVisible;
         var position = _cfg.DetailPosition;
         DetailToggleButton.Content = visible ? "詳細欄を隠す" : "詳細欄を表示";
-        SyncDetailPositionBox();
+        SettingsView.SyncDetailPositionBox();
         Dispatcher.InvokeAsync(UpdateToolbarOverflow, DispatcherPriority.Loaded); // ボタンの文字の長さが変わるため
 
         // ---- 詳細欄を、一覧の画面と別ウィンドウのどちらに置くか ----

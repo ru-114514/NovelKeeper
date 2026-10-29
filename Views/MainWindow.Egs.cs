@@ -259,7 +259,7 @@ public partial class MainWindow
             _syncCooldownTimer?.Stop();
         }
         SyncButtonTop.ToolTip = tip;
-        SyncButtonTab.ToolTip = tip;
+        EgsView.SetSyncTooltip(tip);
     }
 
     private void SyncCooldownTick(object? sender, EventArgs e) => UpdateSyncTooltip();

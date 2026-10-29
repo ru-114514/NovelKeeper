@@ -128,7 +128,7 @@ public partial class MainWindow
             _cfg.ListZoom = zoom;
             _cfg.Save();
         }
-        ZoomText.Text = $"{zoom * 100:0}%";
+        SettingsView.SetZoomText(zoom);
         if (showStatus) StatusText.Text = $"一覧の表示倍率：{zoom * 100:0}%（Ctrl＋0 で 100% に戻す）";
     }
 

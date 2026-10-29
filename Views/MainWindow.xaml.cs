@@ -19,7 +19,6 @@ public partial class MainWindow : Window
     private readonly PlayTimeTracker _tracker;
     private readonly TrayIcon _tray;
     private bool _loadingDetail; // 詳細欄の読み込み中はイベント処理をしない
-    private bool _loadingTheme;
     private bool _exiting;       // 本当に終了するとき true（閉じるボタンでは常駐する）
     private bool _trayNotified;  // 「常駐しています」の通知は1回だけ
 
@@ -91,11 +90,14 @@ public partial class MainWindow : Window
         ApplyCategoryColors();
         FilterBox.SelectedIndex = 0; // ここで一覧が読み込まれる
 
-        ShowBeforePurchaseCheck.IsChecked = _cfg.ShowBeforePurchase;
         // タブの画面（UserControl）とつなぐ。各タブの読み込みより先に
         ExportView.Init(this);
         SummaryView.Init(this);
         PostView.Init(this);
+        LaunchView.Init(this);
+        LoginView.Init(this);
+        EgsView.Init(this);
+        SettingsView.Init(this);
         InitSettingsTab();
         SummaryView.InitSummaryTab();
         MainTabs.SelectionChanged += (s, e) =>
@@ -117,11 +119,6 @@ public partial class MainWindow : Window
             // タブの中の選択変更でも届くので、タブ自身の切り替えだけ見る。開くたびに、対象の件数を数え直す
             if (e.OriginalSource == MainTabs && ReferenceEquals(MainTabs.SelectedItem, ExportTab)) ExportView.RefreshExportPanel();
         };
-
-        // 保存されているテーマを選択欄に表示（App で適用済み）
-        _loadingTheme = true;
-        ThemeBox.SelectedIndex = _cfg.Theme switch { "Light" => 1, "System" => 2, _ => 0 };
-        _loadingTheme = false;
     }
 
     private Game? Selected => GameGrid.SelectedItem as Game;
@@ -256,15 +253,6 @@ public partial class MainWindow : Window
         }, DispatcherPriority.Background);
     }
 
-    private void ThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingTheme || ThemeBox.SelectedItem is not ComboBoxItem { Tag: string theme }) return;
-        App.ApplyTheme(theme);
-        ApplyCategoryColors();
-        _cfg.Theme = theme;
-        _cfg.Save();
-    }
-
     private void Sort_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new SortWindow(_cfg.SortKeys) { Owner = this };
@@ -276,14 +264,6 @@ public partial class MainWindow : Window
         _cfg.Save();
         ApplySort();
         if (dlg.SaveToPreset is int saved) StatusText.Text = $"設定{saved + 1}に保存しました：{DescribeSort(dlg.Result)}";
-    }
-
-    private void ShowBeforePurchase_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_db == null) return;
-        _cfg.ShowBeforePurchase = ShowBeforePurchaseCheck.IsChecked == true;
-        _cfg.Save();
-        Reload();
     }
 
     private void FilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -425,7 +405,7 @@ public partial class MainWindow : Window
             "はじめに", MessageBoxButton.OK, MessageBoxImage.Information);
         _cfg.WelcomeShown = true;
         _cfg.Save();
-        OpenLoginTab();
+        MainTabs.SelectedItem = LoginTab;
     }
 
     // ================================================================

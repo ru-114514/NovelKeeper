@@ -7,8 +7,7 @@ using NovelKeeper.Services;
 namespace NovelKeeper.Views;
 
 /// <summary>
-/// メイン画面のうち、詳細欄の「得点登録フォームの項目」・作品の画像・
-/// ログイン設定タブ・ゲーム起動設定タブを担当する部分
+/// メイン画面のうち、詳細欄の「得点登録フォームの項目」・作品の画像を担当する部分
 /// </summary>
 public partial class MainWindow
 {
@@ -408,15 +407,8 @@ public partial class MainWindow
         ShowImage(Selected);
     }
 
-    private void ShowImages_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_loadingSettings || _cfg == null) return;
-        _cfg.ShowImages = ShowImagesCheck.IsChecked == true;
-        _cfg.Save();
-        ShowImage(Selected);
-    }
-
-    private void ClearImages_Click(object sender, RoutedEventArgs e)
+    /// <summary>保存した作品の画像をすべて消す（詳細設定タブのボタンから。自分で差し替えた画像は残す）</summary>
+    private void ClearImages()
     {
         if (MessageBox.Show("保存した作品の画像をすべて削除しますか？\n（表示するときに、また取得します。自分で差し替えた画像は残します）", "画像の削除",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
@@ -429,146 +421,5 @@ public partial class MainWindow
         }
         StatusText.Text = failed == 0 ? "保存した画像を削除しました" : $"保存した画像を削除しました（使用中の {failed} 件を除く）";
         ShowImage(Selected);
-    }
-
-    // ================================================================
-    // ログイン設定タブ
-    // ================================================================
-
-    private void InitLoginTab()
-    {
-        LoginUserBox.Text = CredentialStore.Load()?.User ?? "";
-        UpdateLoginState();
-    }
-
-    private async void LoginSave_Click(object sender, RoutedEventArgs e)
-    {
-        if (_egsBusy)
-        {
-            LoginResultText.Text = "批評空間と通信中です。終わってからもう一度押してください。";
-            return;
-        }
-        var user = LoginUserBox.Text.Trim();
-        var pass = LoginPassBox.Password;
-        if (user == "" || pass == "")
-        {
-            LoginResultText.Text = "ユーザーIDとパスワードを入力してください。";
-            return;
-        }
-
-        // ログインの間は通信中にする（ログインの途中で同期などが始まって、ログイン状態が入れ替わらないように）
-        if (!BeginEgsWork(lockDetail: false, quiet: true)) return;
-        CredentialStore.Save(user, pass);
-        LoginPassBox.Clear();
-        LoginSaveButton.IsEnabled = false;
-        LoginResultText.ClearValue(TextBlock.ForegroundProperty);
-        LoginResultText.Text = "ログインを試しています…";
-        try
-        {
-            await _egs.LoginAsync(user, pass);
-            LoginResultText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3C, 0xB3, 0x71));
-            LoginResultText.Text = "ログインに成功しました。次は「批評空間連携」タブで、作品を取り込んでください。";
-        }
-        catch (Exception ex)
-        {
-            LoginResultText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE5, 0x53, 0x4B));
-            LoginResultText.Text = "保存はしましたが、ログインに失敗しました：\n" + ex.Message;
-        }
-        finally
-        {
-            EndEgsWork();
-            LoginSaveButton.IsEnabled = true;
-            UpdateLoginState();
-        }
-    }
-
-    private void LoginDelete_Click(object sender, RoutedEventArgs e)
-    {
-        if (_egsBusy)
-        {
-            LoginResultText.Text = "批評空間と通信中です。終わってからもう一度押してください。";
-            return;
-        }
-        if (MessageBox.Show("保存しているログイン情報を削除しますか？", "ログイン情報の削除",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        CredentialStore.Delete();
-        _egs.Logout(); // ログイン状態も捨てる
-        EgsClient.DeleteDebugFiles();
-        LoginUserBox.Text = "";
-        LoginPassBox.Clear();
-        LoginResultText.Text = "ログイン情報を削除しました。";
-        UpdateLoginState();
-    }
-
-    private void OpenLoginTab() => MainTabs.SelectedItem = LoginTab;
-
-    // ================================================================
-    // ゲーム起動設定タブ
-    // ================================================================
-
-    private void InitLaunchTab()
-    {
-        _loadingSettings = true;
-        try
-        {
-            GameFolderList.ItemsSource = null;
-            GameFolderList.ItemsSource = _cfg.GameFolders.ToList();
-            ShortcutFolderList.ItemsSource = null;
-            ShortcutFolderList.ItemsSource = _cfg.ShortcutFolders.ToList();
-            ScanSteamCheck.IsChecked = _cfg.ScanSteam;
-            UseShortcutsSettingCheck.IsChecked = _cfg.UseShortcuts;
-            ScanStartMenuCheck.IsChecked = _cfg.ScanStartMenu;
-        }
-        finally
-        {
-            _loadingSettings = false;
-        }
-    }
-
-    private void LaunchSetting_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_loadingSettings) return;
-        _cfg.ScanSteam = ScanSteamCheck.IsChecked == true;
-        _cfg.UseShortcuts = UseShortcutsSettingCheck.IsChecked == true;
-        _cfg.ScanStartMenu = ScanStartMenuCheck.IsChecked == true;
-        _cfg.Save();
-    }
-
-    private string? PickFolder(string title)
-    {
-        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = title };
-        return dlg.ShowDialog(this) == true ? dlg.FolderName : null;
-    }
-
-    private void GameFolderAdd_Click(object sender, RoutedEventArgs e)
-    {
-        if (PickFolder("ゲームを入れているフォルダを選んでください") is not string f) return;
-        if (!_cfg.GameFolders.Contains(f, StringComparer.OrdinalIgnoreCase)) _cfg.GameFolders.Add(f);
-        _cfg.Save();
-        InitLaunchTab();
-    }
-
-    private void GameFolderRemove_Click(object sender, RoutedEventArgs e)
-    {
-        if (GameFolderList.SelectedItem is not string f) return;
-        _cfg.GameFolders.RemoveAll(x => string.Equals(x, f, StringComparison.OrdinalIgnoreCase));
-        _cfg.Save();
-        InitLaunchTab();
-    }
-
-    private void ShortcutFolderAdd_Click(object sender, RoutedEventArgs e)
-    {
-        if (PickFolder("ショートカットを置いているフォルダを選んでください") is not string f) return;
-        if (!_cfg.ShortcutFolders.Contains(f, StringComparer.OrdinalIgnoreCase)) _cfg.ShortcutFolders.Add(f);
-        _cfg.Save();
-        InitLaunchTab();
-    }
-
-    private void ShortcutFolderRemove_Click(object sender, RoutedEventArgs e)
-    {
-        if (ShortcutFolderList.SelectedItem is not string f) return;
-        _cfg.ShortcutFolders.RemoveAll(x => string.Equals(x, f, StringComparison.OrdinalIgnoreCase));
-        _cfg.Save();
-        InitLaunchTab();
     }
 }

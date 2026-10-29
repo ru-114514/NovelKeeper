@@ -42,10 +42,9 @@ public partial class MainWindow
         }
 
         // ログイン設定タブ：Enter で「保存してログイン」
-        if ((ReferenceEquals(focused, LoginUserBox) || ReferenceEquals(focused, LoginPassBox)) && LoginSaveButton.IsEnabled)
+        if (LoginView.TryHandleEnter(focused))
         {
             e.Handled = true;
-            LoginSave_Click(this, new RoutedEventArgs());
             return;
         }
 

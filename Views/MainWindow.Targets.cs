@@ -23,11 +23,12 @@ public partial class MainWindow
         Reload();
     }
 
-    private void AutoDetect_Click(object sender, RoutedEventArgs e)
+    /// <summary>実行ファイルの自動検出の画面を開く（ゲーム起動設定タブのボタンから）</summary>
+    private void AutoDetect()
     {
         new AutoDetectWindow(_db, _cfg) { Owner = this }.ShowDialog();
         Reload();
-        InitLaunchTab(); // 自動検出の画面で変えたフォルダなどを、タブにも反映する
+        LaunchView.InitLaunchTab(); // 自動検出の画面で変えたフォルダなどを、タブにも反映する
     }
 
     /// <summary>

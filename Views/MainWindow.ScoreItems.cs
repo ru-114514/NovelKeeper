@@ -39,12 +39,7 @@ public partial class MainWindow
         SyncScoreItemsCheck();
     }
 
-    private void SyncScoreItemsCheck()
-    {
-        _loadingSettings = true;
-        ScoreItemsCheck.IsChecked = ScoreItemSettings.Enabled;
-        _loadingSettings = false;
-    }
+    private void SyncScoreItemsCheck() => SettingsView.SetScoreItemsCheck(ScoreItemSettings.Enabled);
 
     // ================================================================
     // 設定：評価基準のウィンドウと、オン・オフ
@@ -68,28 +63,26 @@ public partial class MainWindow
         MessageBox.Show(this, "詳細欄に、保存していない変更があります。\n基準を保存すると、その変更は破棄されます。続けますか？",
             "未保存の変更", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
 
-    private void ScoreItemsCheck_Click(object sender, RoutedEventArgs e)
+    /// <summary>「項目ごとの採点を使う」を切り替える（詳細設定タブの☑から）。切り替えた後の状態を返す（やめたときは元の状態）</summary>
+    private bool SetScoreItemsEnabled(bool on)
     {
-        if (_loadingSettings) return;
-        var on = ScoreItemsCheck.IsChecked == true;
         if (on && Enumerable.Range(0, ScoreItemSettings.TemplateCount).All(i => ScoreItemRules.ValidateTemplate(_cfg.ScoreItemsOf(i)) != null))
         {
-            ScoreItemsCheck.IsChecked = false;
             MessageBox.Show(this, "先に「評価基準を設定…」で、項目を設定して保存してください。", "任意評価基準");
-            return;
+            return false;
         }
         if (_detailDirty &&
             MessageBox.Show(this, "詳細欄に、保存していない変更があります。\n切り替えると、その変更は破棄されます。続けますか？",
                 "未保存の変更", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
         {
-            ScoreItemsCheck.IsChecked = !on;
-            return;
+            return !on;
         }
         _cfg.ScoreItemsEnabled = on;
         _cfg.Save();
         ApplyScoreItemSettings();
         RefreshAfterScoreItemsChanged();
         StatusText.Text = on ? "項目ごとの採点を使います" : "項目ごとの採点をオフにしました（項目の設定と点数は残してあります）";
+        return on;
     }
 
     private void RefreshAfterScoreItemsChanged()
