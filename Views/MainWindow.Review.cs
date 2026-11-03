@@ -176,8 +176,10 @@ public partial class MainWindow
             return null;
         }
 
-        var total = Num(TotalPlayTimeBox, "総プレイ時間", 0, 100000, out var ok1);
-        var fun = Num(FunTimeBox, "面白さが分かるまでのプレイ時間", 0, 100000, out var ok2);
+        // 批評空間は「総プレイ時間」「面白さが分かるまで」の 0 を受け付けない（送ると 404 を返す。登録済みの記録にも 0 は1件もない）。
+        // 分からないときは空欄にしてもらう。得点・購入前得点の 0 は受け付ける
+        var total = Num(TotalPlayTimeBox, "総プレイ時間", 1, 100000, out var ok1);
+        var fun = Num(FunTimeBox, "面白さが分かるまでのプレイ時間", 1, 100000, out var ok2);
         var before = Num(BeforeScoreBox, "購入前得点", 0, 100, out var ok3);
         if (!ok1 || !ok2 || !ok3) return null;
 

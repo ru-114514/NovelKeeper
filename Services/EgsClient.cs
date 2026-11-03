@@ -446,16 +446,9 @@ public partial class EgsClient
             }
 
             using var res = await _http.SendAsync(request);
-            res.EnsureSuccessStatusCode();
-
-            var bytes = await res.Content.ReadAsByteArrayAsync();
-            var enc = PageEncoding;
-            var charset = res.Content.Headers.ContentType?.CharSet;
-            if (!string.IsNullOrEmpty(charset))
-            {
-                try { enc = Encoding.GetEncoding(charset.Trim('"')); } catch { /* 設定の文字コードを使う */ }
-            }
-            return enc.GetString(bytes);
+            var html = await ReadBodyAsync(res);
+            if (!res.IsSuccessStatusCode) throw StatusError(request, res, html);
+            return html;
         }
         finally
         {
@@ -463,6 +456,37 @@ public partial class EgsClient
             _lastRequest = Stopwatch.GetTimestamp();
             _lock.Release();
         }
+    }
+
+    private async Task<string> ReadBodyAsync(HttpResponseMessage res)
+    {
+        var bytes = await res.Content.ReadAsByteArrayAsync();
+        var enc = PageEncoding;
+        var charset = res.Content.Headers.ContentType?.CharSet;
+        if (!string.IsNullOrEmpty(charset))
+        {
+            try { enc = Encoding.GetEncoding(charset.Trim('"')); } catch { /* 設定の文字コードを使う */ }
+        }
+        return enc.GetString(bytes);
+    }
+
+    /// <summary>
+    /// エラーの応答を、どのページで起きたか（送り先と、転送されたならその先）が分かる例外にする。
+    /// URL の「?」より後ろは、感想などが載ることがあるので出さない。
+    /// 批評空間が返したページの文（エラーの理由が書かれていることがある）は、ログにだけ先頭を残す
+    /// </summary>
+    internal static HttpRequestException StatusError(HttpRequestMessage request, HttpResponseMessage res, string html = "")
+    {
+        static string Page(Uri? u) => u?.GetLeftPart(UriPartial.Path) ?? "?";
+        var sent = request.RequestUri;
+        var final = res.RequestMessage?.RequestUri ?? sent;
+        var where = $"{request.Method} {Page(sent)}" + (Page(final) != Page(sent) ? $" → 転送先 {Page(final)}" : "");
+        var message = $"批評空間が {(int)res.StatusCode} ({res.ReasonPhrase}) を返しました: {where}";
+        var doc = Load(html);
+        foreach (var n in doc.DocumentNode.SelectNodes("//script|//style")?.ToList() ?? []) n.Remove();
+        var text = Regex.Replace(Text(doc.DocumentNode), @"\s+", " ");
+        Log.Warn(message + (text != "" ? $" ／ 返ってきたページ: {(text.Length > 300 ? text[..300] + "…" : text)}" : ""));
+        return new HttpRequestException(message, null, res.StatusCode);
     }
 
     // ================================================================

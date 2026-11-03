@@ -183,7 +183,7 @@ public partial class EgsClient
         var playRelated = fields.Where(f => f.Key == _cfg.PlayedField || f.Key == _cfg.ClearDateField || f.Key.Contains("play", StringComparison.OrdinalIgnoreCase) ||
                                             f.Key.Contains("finish", StringComparison.OrdinalIgnoreCase) || f.Key.Contains("giveup", StringComparison.OrdinalIgnoreCase))
             .Select(f => $"{f.Key}={f.Value}");
-        Log.Info($"批評空間へ送信 game={egsId} played引数={played?.ToString() ?? "変更なし"} 送信項目: {string.Join(", ", playRelated)} ／ フォームの欄: {DescribePlayInputs(form)}");
+        Log.Info($"批評空間へ送信 game={egsId} played引数={played?.ToString() ?? "変更なし"} 送信項目: {string.Join(", ", playRelated)} ／ フォームの欄: {DescribePlayInputs(form)} ／ 送り先: {form.GetAttributeValue("method", "get")} {Attr(form, "action")}");
         await SubmitFormAsync(form, url, fields);
     }
 

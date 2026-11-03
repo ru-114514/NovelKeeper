@@ -266,6 +266,35 @@ public class EgsClientHttpTests
         await Assert.ThrowsAsync<EgsException>(() => client.UpdateReviewAsync(5, played: true, clearDate: null, score: null));
     }
 
+    // ---- エラーの応答 ----
+
+    [Fact]
+    public void StatusError_NamesThePage_ButNotTheQuery()
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, "https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/contents_post.php?data%5Bmemo%5D=secret");
+        using var res = new HttpResponseMessage(HttpStatusCode.NotFound) { RequestMessage = req };
+
+        var ex = EgsClient.StatusError(req, res);
+
+        Assert.Equal(HttpStatusCode.NotFound, ex.StatusCode);
+        Assert.Contains("404", ex.Message);
+        Assert.Contains("GET https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/contents_post.php", ex.Message);
+        Assert.DoesNotContain("secret", ex.Message); // 感想などが載る「?」より後ろは出さない
+        Assert.DoesNotContain("転送先", ex.Message);
+    }
+
+    [Fact]
+    public void StatusError_AfterRedirect_NamesBothPages()
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "https://erogamescape.dyndns.org/a/contents_post.php");
+        using var redirected = new HttpRequestMessage(HttpMethod.Get, "https://erogamescape.dyndns.org/a/done.php?x=1");
+        using var res = new HttpResponseMessage(HttpStatusCode.NotFound) { RequestMessage = redirected };
+
+        var ex = EgsClient.StatusError(req, res);
+
+        Assert.Contains("POST https://erogamescape.dyndns.org/a/contents_post.php → 転送先 https://erogamescape.dyndns.org/a/done.php", ex.Message);
+    }
+
     [Fact]
     public async Task UpdateReview_ClearScore_BlanksTheScoreField()
     {
