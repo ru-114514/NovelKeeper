@@ -114,6 +114,20 @@ public class EgsParsingTests
     }
 
     [Fact]
+    public void ReviewZeroHours_AreTreatedAsBlank_EvenWhenSavedByAnOlderVersion()
+    {
+        // 批評空間は総プレイ時間・面白さが分かるまでの 0 を受け付けない（404 になる）ので、空欄として持って空欄で送る
+        var review = System.Text.Json.JsonSerializer.Deserialize<Review>("""{"TotalPlayTime":0,"FunTime":0}""")!;
+
+        Assert.Null(review.TotalPlayTime);
+        Assert.Null(review.FunTime);
+        var values = review.ToFormValues(["total_play_time", "fun_time"], giveUp: false, new EgsConfig().ReviewFormField);
+        Assert.Equal("", values["data[total_play_time]"]);
+        Assert.Equal("", values["data[time_before_understanding_fun]"]);
+        Assert.Empty(Review.Diff(review, new Review())); // 批評空間側の空欄と同じ＝反映済みにできる
+    }
+
+    [Fact]
     public void ReviewDiff_IgnoresWhitespaceInLongText()
     {
         var a = new Review { Memo = "a b\r\nc" };

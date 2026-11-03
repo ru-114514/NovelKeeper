@@ -12,10 +12,14 @@ public class Review
 {
     /// <summary>所持（null は不明）</summary>
     public bool? Possession { get; set; }
-    /// <summary>総プレイ時間（時間）</summary>
-    public int? TotalPlayTime { get; set; }
-    /// <summary>面白さが分かるまでのプレイ時間（時間）</summary>
-    public int? FunTime { get; set; }
+    // 総プレイ時間・面白さが分かるまでの 0 以下は「空欄」として持つ。
+    // 批評空間はこの2つの 0 を受け付けず、送ると 404 を返すため（前の版で 0 のまま保存された記録も、読み込んだ時点で空欄になる）
+    private int? _totalPlayTime, _funTime;
+
+    /// <summary>総プレイ時間（時間。1 以上か null）</summary>
+    public int? TotalPlayTime { get => _totalPlayTime; set => _totalPlayTime = value > 0 ? value : null; }
+    /// <summary>面白さが分かるまでのプレイ時間（時間。1 以上か null）</summary>
+    public int? FunTime { get => _funTime; set => _funTime = value > 0 ? value : null; }
     /// <summary>おかずに使えた?（null は「-」）</summary>
     public int? Okazu { get; set; }
     /// <summary>購入予定（"" は「-」）</summary>
