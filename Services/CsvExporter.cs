@@ -51,18 +51,22 @@ public static class CsvExporter
 
     /// <summary>
     /// 任意評価基準の項目別の点数の列。最後に、基準ごとに「評価1_1」「評価1_2」…「評価2_1」…「評価3_1」…の順で、
-    /// 設定した項目の数だけ足す（見出しは「評価1_1(項目名)」。その作品が使っていない基準の欄は空欄）
+    /// 点数を入れる欄の数だけ足す（見出しは「評価1_1(項目名)」。小項目は「評価1_3(大項目/小項目)」。調整点も1列。大項目の小計の列は作らない。
+    /// その作品が使っていない基準の欄は空欄）
     /// </summary>
     private static List<(string Header, Func<Game, string> Value, bool Review)> TemplateColumns(IReadOnlyList<IReadOnlyList<ScoreItem>>? templates)
     {
         var cols = new List<(string, Func<Game, string>, bool)>();
         if (templates == null) return cols;
         for (var t = 0; t < templates.Count; t++)
-            for (var k = 0; k < templates[t].Count; k++)
+        {
+            var fields = ScoreItemRules.Fields(templates[t]);
+            for (var k = 0; k < fields.Count; k++)
             {
-                var item = templates[t][k];
-                cols.Add(($"評価{t + 1}_{k + 1}({item.Name})", g => ScoreItemRules.CellText(item, g.Review), false));
+                var item = fields[k].Item;
+                cols.Add(($"評価{t + 1}_{k + 1}({fields[k].Label})", g => ScoreItemRules.CellText(item, g.Review), false));
             }
+        }
         return cols;
     }
 

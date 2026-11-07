@@ -7,8 +7,8 @@ using NovelKeeper.Services;
 namespace NovelKeeper.Views;
 
 /// <summary>
-/// 任意評価基準：設定（ScoreCriteriaWindow）の反映、詳細欄の項目別の採点、一覧の項目の列。
-/// 基準は最大 3 つで、作品ごとに使う基準を詳細欄で選ぶ（Review.ScoreTemplate）。
+/// 任意評価基準：設定（ScoreCriteriaWindow）の反映と、詳細欄の項目別の採点。
+/// 基準は最大 3 つで、作品ごとに使う基準を詳細欄で選ぶ（Review.ScoreTemplate）。項目は大項目と小項目の2階層まで作れ、点数は小項目に入れる。
 /// 批評空間に送るのは、これまでどおり「自分の得点」（項目の合計）だけ。項目別の点数はツールにだけ保存する
 /// </summary>
 public partial class MainWindow
@@ -99,6 +99,8 @@ public partial class MainWindow
     private readonly Dictionary<string, TextBox> _detailScoreBoxes = new();
     private readonly Dictionary<string, TextBlock> _detailScoreErrors = new();
     private readonly HashSet<string> _detailScoreTouched = new();
+    /// <summary>大項目 → 小計を出す欄</summary>
+    private readonly Dictionary<ScoreItem, TextBlock> _detailGroupTotals = new();
     private bool _buildingScoreRows;
     private bool _loadingTemplateBox;
     /// <summary>詳細欄に出している作品の、採点に使う基準の番号</summary>
@@ -124,6 +126,7 @@ public partial class MainWindow
         _detailTemplate = ScoreItemSettings.TemplateOf(review);
         FillTemplateBox();
         BuildScoreRows(review, carry: null);
+        UpdateGroupTotals(ReadScoreCheck());
 
         // 項目別の採点がある作品は、得点欄を合計の表示専用にする
         var items = DetailScoreItems;
@@ -151,6 +154,7 @@ public partial class MainWindow
         _detailScoreBoxes.Clear();
         _detailScoreErrors.Clear();
         _detailScoreTouched.Clear();
+        _detailGroupTotals.Clear();
     }
 
     /// <summary>基準の選択欄を作る（使える基準が 2 つ以上のときだけ出す）</summary>
@@ -167,8 +171,8 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// 採点の欄を作る。carry（項目の名前 → 入力した文字）があれば、同じ名前の項目に引き継ぐ（基準を切り替えたとき）。
-    /// なければ、作品に保存してある点数を入れる
+    /// 採点の欄を作る。carry（欄の名前 → 入力した文字。小項目は「大項目/小項目」）があれば、同じ名前の欄に引き継ぐ（基準を切り替えたとき）。
+    /// なければ、作品に保存してある点数を入れる。大項目は見出しと小計だけを出し、その下に小項目の欄を並べる
     /// </summary>
     private void BuildScoreRows(Review review, Dictionary<string, string>? carry)
     {
@@ -176,63 +180,90 @@ public partial class MainWindow
         var ownTemplate = _detailTemplate == ScoreItemSettings.TemplateOf(review);
         var stale = ownTemplate ? ScoreItemRules.StaleItems(items, review) : new HashSet<string>();
         _buildingScoreRows = true;
-        foreach (var item in items)
+        foreach (var top in items)
         {
-            var isStale = stale.Contains(item.Id);
-            var name = new TextBlock
+            if (top.IsGroup)
             {
-                Text = item.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-                ToolTip = isStale ? "採点基準が変わりました。採点し直してください" : item.Name,
-            };
-            if (isStale) { name.Foreground = ErrorBrush; name.FontWeight = FontWeights.Bold; }
-            var text = carry != null
-                ? carry.GetValueOrDefault(item.Name) ?? ""
-                : ownTemplate && review.ItemScores != null && review.ItemScores.TryGetValue(item.Id, out var v) ? v.ToString() : "";
-            var box = new TextBox { Width = 100, Text = text, MaxLength = 3 };
-            if (isStale) box.BorderBrush = ErrorBrush;
-            var max = new TextBlock { Text = $"/ {item.Max}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), Opacity = 0.7 };
-            var grid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
-            Grid.SetColumn(box, 1);
-            Grid.SetColumn(max, 2);
-            grid.Children.Add(name);
-            grid.Children.Add(box);
-            grid.Children.Add(max);
-            var error = new TextBlock { Foreground = ErrorBrush, FontSize = 12, TextAlignment = TextAlignment.Right, Visibility = Visibility.Collapsed };
-
-            var id = item.Id;
-            if (carry != null && text != "") _detailScoreTouched.Add(id);
-            box.TextChanged += (_, _) =>
-            {
-                if (_buildingScoreRows) return;
-                _detailScoreTouched.Add(id);
-                if (!_loadingDetail) _detailDirty = true;
-                UpdateDetailScoreTotal(showMissing: false);
-            };
-            ScoreItemRowsDetail.Children.Add(grid);
-            ScoreItemRowsDetail.Children.Add(error);
-            _detailScoreBoxes[item.Id] = box;
-            _detailScoreErrors[item.Id] = error;
+                var head = new TextBlock { Text = top.Name, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = top.Name };
+                if (top.Children!.Any(c => stale.Contains(c.Id))) head.Foreground = ErrorBrush;
+                var subtotal = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), Opacity = 0.8, ToolTip = "小項目の合計 / 最高点" };
+                var headGrid = new Grid { Margin = new Thickness(0, 4, 0, 2) };
+                headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                Grid.SetColumn(subtotal, 1);
+                headGrid.Children.Add(head);
+                headGrid.Children.Add(subtotal);
+                ScoreItemRowsDetail.Children.Add(headGrid);
+                _detailGroupTotals[top] = subtotal;
+            }
+            foreach (var f in ScoreItemRules.Fields([top]))
+                AddScoreFieldRow(review, f, carry, ownTemplate, stale.Contains(f.Id));
         }
         _buildingScoreRows = false;
     }
 
-    /// <summary>この作品に使う基準を切り替える：同じ名前の項目の点数は引き継ぎ、ほかは空欄にする</summary>
+    /// <summary>点数を入れる欄1つ分（小項目は字下げする。調整点は範囲を出す）</summary>
+    private void AddScoreFieldRow(Review review, ScoreField f, Dictionary<string, string>? carry, bool ownTemplate, bool isStale)
+    {
+        var name = new TextBlock
+        {
+            Text = f.Item.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(f.Group != null ? 14 : 0, 0, 0, 0),
+            ToolTip = isStale ? "採点基準が変わりました。採点し直してください"
+                : f.IsAdjust ? $"{f.Item.Name}（加点・減点。{f.Min}～+{f.Max}点。空欄なら 0）" : f.Label,
+        };
+        if (isStale) { name.Foreground = ErrorBrush; name.FontWeight = FontWeights.Bold; }
+        var text = carry != null
+            ? carry.GetValueOrDefault(f.Label) ?? ""
+            : ownTemplate && review.ItemScores != null && review.ItemScores.TryGetValue(f.Id, out var v) ? v.ToString() : "";
+        var box = new TextBox { Width = 100, Text = text, MaxLength = f.IsAdjust ? 4 : 3 };
+        if (isStale) box.BorderBrush = ErrorBrush;
+        var max = new TextBlock
+        {
+            Text = f.IsAdjust ? $"{f.Min}～+{f.Max}" : $"/ {f.Max}",
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), Opacity = 0.7,
+        };
+        var grid = new Grid { Margin = new Thickness(0, f.IsAdjust ? 4 : 0, 0, 2) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MinWidth = 56 });
+        Grid.SetColumn(box, 1);
+        Grid.SetColumn(max, 2);
+        grid.Children.Add(name);
+        grid.Children.Add(box);
+        grid.Children.Add(max);
+        var error = new TextBlock { Foreground = ErrorBrush, FontSize = 12, TextAlignment = TextAlignment.Right, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+
+        var id = f.Id;
+        if (carry != null && text != "") _detailScoreTouched.Add(id);
+        box.TextChanged += (_, _) =>
+        {
+            if (_buildingScoreRows) return;
+            _detailScoreTouched.Add(id);
+            if (!_loadingDetail) _detailDirty = true;
+            UpdateDetailScoreTotal(showMissing: false);
+        };
+        ScoreItemRowsDetail.Children.Add(grid);
+        ScoreItemRowsDetail.Children.Add(error);
+        _detailScoreBoxes[id] = box;
+        _detailScoreErrors[id] = error;
+    }
+
+    /// <summary>この作品に使う基準を切り替える：同じ名前の欄の点数は引き継ぎ、ほかは空欄にする</summary>
     private void ScoreTemplateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingTemplateBox || Selected is not { } g) return;
         if (ScoreTemplateBox.SelectedItem is not ComboBoxItem { Tag: int target } || target == _detailTemplate) return;
 
-        var current = DetailScoreItems;
+        var current = ScoreItemRules.Fields(DetailScoreItems);
         var carry = new Dictionary<string, string>();
-        foreach (var item in current)
-            if (_detailScoreBoxes.TryGetValue(item.Id, out var box) && box.Text.Trim() != "") carry[item.Name] = box.Text.Trim();
+        foreach (var f in current)
+            if (_detailScoreBoxes.TryGetValue(f.Id, out var box) && box.Text.Trim() != "") carry[f.Label] = box.Text.Trim();
         if (carry.Count > 0)
         {
-            var lost = current.Count(i => carry.ContainsKey(i.Name) && ScoreItemSettings.ItemsFor(target).All(t => t.Name != i.Name));
-            var msg = "基準を切り替えます。同じ名前の項目の点数は引き継ぎ、ほかの項目は空欄になります。" +
+            var targetLabels = ScoreItemRules.Fields(ScoreItemSettings.ItemsFor(target)).Select(t => t.Label).ToHashSet();
+            var lost = carry.Keys.Count(label => !targetLabels.Contains(label));
+            var msg = "基準を切り替えます。同じ名前の項目（小項目は大項目の名前も同じもの）の点数は引き継ぎ、ほかの項目は空欄になります。" +
                       (lost > 0 ? $"\n（引き継げない点数が {lost} 件あります）" : "") + "\n\n切り替えますか？";
             if (MessageBox.Show(this, msg, "評価基準の切り替え", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes) != MessageBoxResult.Yes)
             {
@@ -256,6 +287,15 @@ public partial class MainWindow
     private ScoreCheck ReadScoreCheck() =>
         ScoreItemRules.Check(DetailScoreItems, _detailScoreBoxes.ToDictionary(kv => kv.Key, kv => kv.Value.Text));
 
+    /// <summary>大項目の小計（小項目の合計 / 最高点）を出す</summary>
+    private void UpdateGroupTotals(ScoreCheck check)
+    {
+        foreach (var (group, label) in _detailGroupTotals)
+            label.Text = check.AnyEntered
+                ? $"{ScoreItemRules.GroupSubtotal(group, check.Scores)} / {ScoreItemRules.GroupMax(group)}"
+                : $"/ {ScoreItemRules.GroupMax(group)}";
+    }
+
     /// <summary>入力に合わせて、合計を得点欄に入れ、エラーを赤字で出す</summary>
     private void UpdateDetailScoreTotal(bool showMissing)
     {
@@ -270,6 +310,7 @@ public partial class MainWindow
             label.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             _detailScoreBoxes[id].BorderBrush = show ? ErrorBrush : SystemColors.ControlDarkBrush;
         }
+        UpdateGroupTotals(check);
         if (check.AnyEntered)
         {
             ScoreBox.IsReadOnly = true;

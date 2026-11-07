@@ -346,4 +346,15 @@ public class ConfigCompatibilityTests
         Assert.Equal("data[x]", partial.ReviewFormField("memo"));
         Assert.Equal("data[hitokoto]", partial.ReviewFormField("hitokoto")); // 書かなかった項目は既定値
     }
+
+    [Fact]
+    public void OldScoreItemsWithoutChildrenOrAdjust_LoadAsPlainItems()
+    {
+        // 小項目・調整点を足す前の版の、任意評価基準の設定（詳しくは ScoreItemGroupTests）
+        var old = System.Text.Json.JsonSerializer.Deserialize<EgsConfig>("""{ "ScoreItems": [ { "Id": "a", "Name": "総合", "Max": 100 } ] }""")!;
+        var item = Assert.Single(old.ScoreItems);
+        Assert.Null(item.Children);
+        Assert.False(item.Adjust);
+        Assert.Null(ScoreItemRules.ValidateTemplate(old.ScoreItems));
+    }
 }

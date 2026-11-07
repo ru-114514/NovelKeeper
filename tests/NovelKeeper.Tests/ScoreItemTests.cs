@@ -40,10 +40,10 @@ public class ScoreItemTests
     }
 
     [Fact]
-    public void Template_LimitsItemCount()
+    public void Template_HasNoItemCountLimit()
     {
-        var many = Enumerable.Range(0, ScoreItemRules.MaxItems + 1).Select(i => I("i" + i, "項目" + i, 1)).ToList();
-        Assert.Contains($"{ScoreItemRules.MaxItems} 個まで", ScoreItemRules.ValidateTemplate(many));
+        var many = Enumerable.Range(0, 30).Select(i => I("i" + i, "項目" + i, i < 10 ? 4 : 3)).ToList(); // 30 項目で合計 100
+        Assert.Null(ScoreItemRules.ValidateTemplate(many));
     }
 
     [Theory]
